@@ -355,6 +355,12 @@ export const IPC_INVOKE = freeze({
   PERMISSIONS_DELETE: 'permissions:delete',
   PERMISSIONS_CLEAR_ALL: 'permissions:clear-all',
   PERMISSIONS_PROMPT_RESPOND: 'permissions:prompt-respond',
+  WINDOW_SET_OPACITY: 'window:set-opacity',
+  WINDOW_GET_OPACITY: 'window:get-opacity',
+  WINDOW_TOGGLE_BOSS_KEY: 'window:toggle-boss-key',
+  TAB_ZOOM_IN: 'tab:zoom-in',
+  TAB_ZOOM_OUT: 'tab:zoom-out',
+  TAB_ZOOM_RESET: 'tab:zoom-reset',
 });
 
 /** IPC send channels */
@@ -410,6 +416,7 @@ export const IPC_EVENT = freeze({
   TOOLTIP_UPDATE: 'tooltip:update',
   PERMISSION_PROMPT_REQUEST: 'permission:prompt-request',
   PERMISSION_PROMPT_DISMISSED: 'permission:prompt-dismissed',
+  WINDOW_OPACITY_CHANGED: 'window:opacity-changed',
 });
 
 /** Custom DOM events (renderer-only) */

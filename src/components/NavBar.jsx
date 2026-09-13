@@ -11,6 +11,7 @@ import {
 import OmniboxInput from './omnibox/OmniboxInput';
 import ProfileMenuButton from './ProfileMenuButton';
 import ProfileEditorModal from './ProfileEditorModal';
+import WindowOpacityControl from './WindowOpacityControl';
 import { BOOKMARK, OVERLAY, PROFILE, URL as URL_C } from '../constants/conditionStrings.js';
 import {
   bookmarkStarFilledSvg,
@@ -36,6 +37,7 @@ import {
   navBackSvg,
   navForwardSvg,
   navReloadSvg,
+  transparencySvg,
 } from '../constants/appAssetUrls';
 import AssetMaskIcon from './AssetMaskIcon.jsx';
 
@@ -501,6 +503,10 @@ export default function NavBar({
         },
         { iconSrc: menuFindSvg, label: 'Find and Edit', submenuKey: 'find' },
         { type: 'separator' },
+        { label: 'Zoom In', shortcut: shortcut('⌘+', 'Ctrl++'), commandId: 'zoomIn' },
+        { label: 'Zoom Out', shortcut: shortcut('⌘-', 'Ctrl+-'), commandId: 'zoomOut' },
+        { iconSrc: transparencySvg, label: 'Transparency Mode', submenuKey: 'transparency' },
+        { type: 'separator' },
         { iconSrc: menuSettingsSvg, label: 'Settings', shortcut: shortcut('⌘,', 'Ctrl+,'), commandId: 'openSettings' },
       ],
       submenus: {
@@ -510,6 +516,18 @@ export default function NavBar({
         history: historyRows,
         bookmarks: bookmarkRowsForMenu,
         find: findRows,
+        transparency: [
+          { label: '10% (Minimal Opacity)', commandId: 'setOpacity10' },
+          { label: '20%', commandId: 'setOpacity20' },
+          { label: '30%', commandId: 'setOpacity30' },
+          { label: '40%', commandId: 'setOpacity40' },
+          { label: '50% (Medium Opacity)', commandId: 'setOpacity50' },
+          { label: '60%', commandId: 'setOpacity60' },
+          { label: '70%', commandId: 'setOpacity70' },
+          { label: '80%', commandId: 'setOpacity80' },
+          { label: '90%', commandId: 'setOpacity90' },
+          { label: '100% (Solid Opacity)', commandId: 'setOpacity100' },
+        ],
       },
     });
   }, [bookmarksData.bar, buildProfileAvatarPayloadForMenu, canBookmark, canSearchWithGoogleLens, currentProfile, existingBookmark, profiles, recentlyClosed, post, shortcut]);
@@ -573,6 +591,14 @@ export default function NavBar({
           else if (commandId === 'deleteBrowsingData') onDeleteBrowsingData?.();
           else if (commandId === 'print') window.electronAPI.runMenuCommand?.('print-active-tab');
           else if (commandId === 'searchWithGoogleLens') window.electronAPI.runMenuCommand?.('search-with-google-lens');
+          else if (commandId === 'zoomIn') window.electronAPI?.tabZoomIn?.();
+          else if (commandId === 'zoomOut') window.electronAPI?.tabZoomOut?.();
+          else if (commandId && commandId.startsWith('setOpacity')) {
+            const num = parseInt(commandId.replace('setOpacity', ''), 10);
+            if (!isNaN(num)) {
+              window.electronAPI?.windowSetOpacity?.(num / 100);
+            }
+          }
           else if (commandId === 'findInPage') window.electronAPI.runMenuCommand?.('find-in-page');
           else if (commandId === 'cut') window.electronAPI.runMenuCommand?.('edit-cut');
           else if (commandId === 'copy') window.electronAPI.runMenuCommand?.('edit-copy');
@@ -746,6 +772,8 @@ export default function NavBar({
       >
         {isBookmarked ? STAR_FILLED : STAR_EMPTY}
       </button>
+
+      <WindowOpacityControl />
 
       <ProfileMenuButton
         profiles={profiles}

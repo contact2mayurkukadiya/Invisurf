@@ -1,4 +1,4 @@
-import { paletteSvg, shieldSvg, globeSvg, menuMonitorSvg, powerSvg } from "./appAssetUrls";
+import { paletteSvg, shieldSvg, globeSvg, menuMonitorSvg, powerSvg, keyboardSvg } from "./appAssetUrls";
 
 export const SETTINGS_NAV_ITEMS = [
     {
@@ -12,6 +12,12 @@ export const SETTINGS_NAV_ITEMS = [
         section: 'appearance',
         label: 'Appearance',
         icon: paletteSvg,
+    },
+    {
+        id: 'shortcuts',
+        section: 'shortcuts',
+        label: 'Shortcuts',
+        icon: keyboardSvg,
     },
     {
         id: 'search_engine',
@@ -32,6 +38,36 @@ export const SETTINGS_NAV_ITEMS = [
         icon: powerSvg,
     },
 ];
+
+export const SHORTCUT_DEFINITIONS = [
+    {
+        category: 'Transparency Mode',
+        items: [
+            { id: 'transparencyNextBreakpoint', label: 'Next Breakpoint (+10% Opacity)', defaultShortcut: 'CmdOrCtrl+Shift+Plus', description: 'Jump forward to next transparency breakpoint' },
+            { id: 'transparencyPrevBreakpoint', label: 'Previous Breakpoint (-10% Opacity)', defaultShortcut: 'CmdOrCtrl+Shift+-', description: 'Jump backward to previous transparency breakpoint' },
+            { id: 'bossKey', label: 'Boss Key (Quick Minimize)', defaultShortcut: 'CmdOrCtrl+Alt+H', description: 'Instantly hides or minimizes the window' },
+        ],
+    },
+    {
+        category: 'Tabs & Windows',
+        items: [
+            { id: 'newTab', label: 'New Tab', defaultShortcut: 'CmdOrCtrl+T', description: 'Opens a new tab' },
+            { id: 'closeTab', label: 'Close Tab', defaultShortcut: 'CmdOrCtrl+W', description: 'Closes the current tab' },
+            { id: 'reopenTab', label: 'Reopen Closed Tab', defaultShortcut: 'CmdOrCtrl+Shift+T', description: 'Reopens the most recently closed tab' },
+            { id: 'newWindow', label: 'New Window', defaultShortcut: 'CmdOrCtrl+N', description: 'Opens a new browser window' },
+            { id: 'newStealthWindow', label: 'New Incognito Window', defaultShortcut: 'CmdOrCtrl+Shift+N', description: 'Opens a private browsing window' },
+            { id: 'history', label: 'Show History', defaultShortcut: 'CmdOrCtrl+Y', description: 'Opens browsing history' },
+            { id: 'print', label: 'Print Tab', defaultShortcut: 'CmdOrCtrl+P', description: 'Prints the current page' },
+            { id: 'zoomIn', label: 'Zoom In', defaultShortcut: 'CmdOrCtrl+Plus', description: 'Zooms in the active tab' },
+            { id: 'zoomOut', label: 'Zoom Out', defaultShortcut: 'CmdOrCtrl+-', description: 'Zooms out the active tab' },
+            { id: 'zoomReset', label: 'Reset Zoom', defaultShortcut: 'CmdOrCtrl+0', description: 'Resets active tab zoom to 100%' },
+        ],
+    },
+];
+
+export const DEFAULT_SHORTCUTS = Object.fromEntries(
+    SHORTCUT_DEFINITIONS.flatMap((cat) => cat.items.map((it) => [it.id, it.defaultShortcut]))
+);
 
 export const REPORT_NAV_ITEMS = [
     { id: 'browser_identity', section: 'browser_identity', label: 'Browser identity verification' },

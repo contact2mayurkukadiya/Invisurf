@@ -17,6 +17,7 @@ import NavBar from './components/NavBar';
 import BookmarkBar from './components/BookmarkBar';
 import SearchTabsModal from './components/SearchTabsModal';
 import CommandPaletteModal from './components/CommandPaletteModal';
+import OpacityToastOSD from './components/OpacityToastOSD';
 import { buildCommandPaletteCommands } from './commandPaletteCommands';
 import { TabOverlayProvider } from './context/TabOverlayContext';
 import { ChromeOverlayProvider } from './context/ChromeOverlayContext';
@@ -693,6 +694,7 @@ function AppShell() {
 
   return (
     <div className={`header${isStealthShell ? ' header--stealth-window' : ''}${isGhostShell ? ' header--ghost-window' : ''}`}>
+      <OpacityToastOSD />
       <CommandPaletteModal
         open={commandPaletteOpen}
         onClose={() => setCommandPaletteOpen(false)}

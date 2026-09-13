@@ -7,7 +7,8 @@ import { SETTINGS } from '../constants/conditionStrings.js';
 import { HighlightedText, textMatchesQuery } from '../utils/textHighlighter.jsx';
 import AssetMaskIcon from '../components/AssetMaskIcon.jsx';
 import { angleLeftSvg, angleRightSvg, bugReportSvg, checkSvg, cookieSvg, earthAmericasSvg, menuCopySvg, menuFindSvg, menuMonitorSvg , tabCloseSvg, trashSvg } from '../constants/appAssetUrls.js';
-import { SETTINGS_NAV_ITEMS, REPORT_NAV_ITEMS, STARTUP_OPTIONS, SEARCH_ENGINE_OPTIONS, APPEARANCE_MODE_SEGMENTS, LOG_CLEAR_RANGES, COOKIE_EXCEPTION_GROUPS, COOKIE_POLICY_OPTIONS } from '../constants/settings.js';
+import { SETTINGS_NAV_ITEMS, REPORT_NAV_ITEMS, STARTUP_OPTIONS, SEARCH_ENGINE_OPTIONS, APPEARANCE_MODE_SEGMENTS, LOG_CLEAR_RANGES, COOKIE_EXCEPTION_GROUPS, COOKIE_POLICY_OPTIONS, SHORTCUT_DEFINITIONS, DEFAULT_SHORTCUTS } from '../constants/settings.js';
+import { formatShortcutForDisplay, eventToShortcutString } from '../utils/shortcutUtils.js';
 
 function validateCookiePattern(pattern) {
   const value = String(pattern || '').trim();
@@ -285,6 +286,8 @@ export default function SettingsApp() {
   const [permissionsLoading, setPermissionsLoading] = useState(false);
   const [permissionsSearch, setPermissionsSearch] = useState('');
   const [permissionDeleteConfirm, setPermissionDeleteConfirm] = useState(null);
+  const [recordingShortcutId, setRecordingShortcutId] = useState(null);
+  const [shortcutNotice, setShortcutNotice] = useState(null);
 
   useInvsurfDocumentFavicon(isStealthWindow);
 
@@ -302,6 +305,17 @@ export default function SettingsApp() {
     });
     return () => {
       cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const unsub = window.electronAPI?.onWindowOpacityChanged?.((data) => {
+      if (data && typeof data.opacity === 'number') {
+        setSettings((prev) => (prev ? { ...prev, windowOpacity: data.opacity } : prev));
+      }
+    });
+    return () => {
+      if (typeof unsub === 'function') unsub();
     };
   }, []);
 
@@ -328,6 +342,84 @@ export default function SettingsApp() {
     setSettings(updated);
     await window.electronAPI.settingsSave(updated);
   }, []);
+
+  const currentShortcuts = useMemo(() => {
+    return { ...DEFAULT_SHORTCUTS, ...(settings?.shortcuts || {}) };
+  }, [settings?.shortcuts]);
+
+  useEffect(() => {
+    if (!recordingShortcutId) return;
+
+    const handleKeyDown = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (e.key === 'Escape') {
+        setRecordingShortcutId(null);
+        setShortcutNotice('Recording cancelled');
+        setTimeout(() => setShortcutNotice(null), 2000);
+        return;
+      }
+
+      const shortcutStr = eventToShortcutString(e);
+      if (!shortcutStr) return;
+
+      const conflictItem = SHORTCUT_DEFINITIONS.flatMap((c) => c.items).find(
+        (it) => it.id !== recordingShortcutId && currentShortcuts[it.id] === shortcutStr
+      );
+
+      const nextShortcuts = {
+        ...currentShortcuts,
+        [recordingShortcutId]: shortcutStr,
+      };
+
+      persist({
+        ...settings,
+        shortcuts: nextShortcuts,
+      });
+
+      setRecordingShortcutId(null);
+      if (conflictItem) {
+        setShortcutNotice(`Note: Also assigned to "${conflictItem.label}"`);
+      } else {
+        setShortcutNotice(`Shortcut updated: ${formatShortcutForDisplay(shortcutStr)}`);
+      }
+      setTimeout(() => setShortcutNotice(null), 3000);
+    };
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown, true);
+    };
+  }, [recordingShortcutId, currentShortcuts, settings, persist]);
+
+  const handleResetShortcut = useCallback(
+    (shortcutId) => {
+      const def = SHORTCUT_DEFINITIONS.flatMap((c) => c.items).find((it) => it.id === shortcutId);
+      if (!def) return;
+      const nextShortcuts = {
+        ...currentShortcuts,
+        [shortcutId]: def.defaultShortcut,
+      };
+      persist({
+        ...settings,
+        shortcuts: nextShortcuts,
+      });
+      setShortcutNotice(`Reset to default: ${formatShortcutForDisplay(def.defaultShortcut)}`);
+      setTimeout(() => setShortcutNotice(null), 2000);
+    },
+    [currentShortcuts, settings, persist]
+  );
+
+  const handleResetAllShortcuts = useCallback(() => {
+    persist({
+      ...settings,
+      shortcuts: { ...DEFAULT_SHORTCUTS },
+    });
+    setRecordingShortcutId(null);
+    setShortcutNotice('All shortcuts reset to defaults');
+    setTimeout(() => setShortcutNotice(null), 2500);
+  }, [settings, persist]);
 
   const handleContentProtectionChange = useCallback(async (value) => {
     await persist({ ...settings, contentProtection: value });
@@ -371,6 +463,29 @@ export default function SettingsApp() {
   const handleRelaunch = useCallback(() => {
     window.electronAPI.appRelaunch();
   }, []);
+
+  const handleWindowOpacityChange = useCallback(async (value) => {
+    const safe = Math.max(0.02, Math.min(1.0, value));
+    const rounded = Math.round(safe * 100) / 100;
+    if (window.electronAPI?.windowSetOpacity) {
+      await window.electronAPI.windowSetOpacity(rounded);
+    }
+    setSettings((prev) => (prev ? { ...prev, windowOpacity: rounded } : prev));
+  }, []);
+
+  const handleRememberOpacityChange = useCallback(async (checked) => {
+    await persist({ ...settings, rememberWindowOpacity: checked });
+  }, [settings, persist]);
+
+  const handleAutoFadeOnBlurChange = useCallback(async (checked) => {
+    await persist({ ...settings, autoFadeOnBlur: checked });
+  }, [settings, persist]);
+
+  const handleAutoFadeBlurOpacityChange = useCallback(async (value) => {
+    const safe = Math.max(0.02, Math.min(1.0, value));
+    const rounded = Math.round(safe * 100) / 100;
+    await persist({ ...settings, autoFadeBlurOpacity: rounded });
+  }, [settings, persist]);
 
   const cookieConfig = useMemo(() => ({
     globalPolicy: settings?.cookieConfig?.globalPolicy || 'allow',
@@ -698,10 +813,21 @@ export default function SettingsApp() {
         rows: [
           ['Brightness', 'Device follows your system. Light or Dark applies only to InviSurf.'],
           ['Accent', 'Colours the tab strip and toolbar. Custom builds a palette from one seed colour.'],
+          ['Transparency Mode', 'Window opacity, transparent multitasking, and auto-fade on blur.'],
+          ['Window Opacity', 'Adjust window transparency from 2% to 100%'],
+          ['Auto-fade on blur', 'Automatically lower window opacity when switching applications'],
           ...APPEARANCE_MODE_SEGMENTS.map((segment) => [segment.label, segment.title]),
           ...accentPresets.map((preset) => [preset.label, 'Accent colour preset']),
           ['Custom', 'Custom accent colour'],
         ],
+      },
+      {
+        view: 'shortcuts',
+        title: 'Shortcuts',
+        subtitle: 'Configure keyboard shortcuts',
+        rows: SHORTCUT_DEFINITIONS.flatMap((cat) =>
+          cat.items.map((it) => [it.label, it.description || it.defaultShortcut])
+        ),
       },
       {
         view: 'search_engine',
@@ -856,6 +982,131 @@ export default function SettingsApp() {
                   </span>
                 ) : null}
               </label>
+            </div>
+          </div>
+        </div>
+
+        <div className="appearance-block appearance-block--transparency">
+          <div className="appearance-block__intro">
+            <span className="setting-row__label">Transparency Mode</span>
+            <span className="setting-row__desc">
+              Control the window opacity for multitasking and stealth browsing.
+            </span>
+          </div>
+
+          <div className="transparency-slider-block">
+            <div className="transparency-slider-header">
+              <span className="transparency-slider-title">Window Opacity</span>
+              <span className="transparency-slider-value">
+                {Math.round((settings.windowOpacity ?? 1.0) * 100)}%
+              </span>
+            </div>
+            <input
+              type="range"
+              min="2"
+              max="100"
+              step="1"
+              value={Math.round((settings.windowOpacity ?? 1.0) * 100)}
+              onChange={(e) => handleWindowOpacityChange(Number(e.target.value) / 100)}
+              className="transparency-settings-slider"
+              aria-label="Window opacity percentage"
+              style={{
+                '--slider-fill': `${Math.max(2, Math.min(100, Math.round((settings.windowOpacity ?? 1.0) * 100)))}%`,
+              }}
+            />
+            <div className="transparency-presets-row" role="radiogroup" aria-label="Transparency presets">
+              {[
+                { step: 1, val: 0.10, label: '10%' },
+                { step: 2, val: 0.20, label: '20%' },
+                { step: 3, val: 0.30, label: '30%' },
+                { step: 4, val: 0.40, label: '40%' },
+                { step: 5, val: 0.50, label: '50%' },
+                { step: 6, val: 0.60, label: '60%' },
+                { step: 7, val: 0.70, label: '70%' },
+                { step: 8, val: 0.80, label: '80%' },
+                { step: 9, val: 0.90, label: '90%' },
+                { step: 10, val: 1.00, label: '100%' },
+              ].map((p) => {
+                const current = settings.windowOpacity ?? 1.0;
+                const active = Math.abs(current - p.val) < 0.04;
+                return (
+                  <button
+                    key={p.step}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    className={`transparency-preset-chip${active ? ' transparency-preset-chip--active' : ''}`}
+                    onClick={() => handleWindowOpacityChange(p.val)}
+                    title={`Preset ${p.step}: ${p.label} (${p.name})`}
+                  >
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="setting-row setting-row--sub" style={{ marginTop: '16px' }}>
+            <div className="setting-row__text">
+              <span className="setting-row__label">Remember opacity across sessions</span>
+              <span className="setting-row__desc">Restore your selected transparency level on next launch.</span>
+            </div>
+            <Toggle
+              checked={settings.rememberWindowOpacity !== false}
+              onChange={handleRememberOpacityChange}
+            />
+          </div>
+
+          <div className="setting-row setting-row--sub">
+            <div className="setting-row__text">
+              <span className="setting-row__label">Auto-fade on window blur / focus loss</span>
+              <span className="setting-row__desc">Fade the window automatically when switching to other apps.</span>
+            </div>
+            <Toggle
+              checked={!!settings.autoFadeOnBlur}
+              onChange={handleAutoFadeOnBlurChange}
+            />
+          </div>
+
+          {settings.autoFadeOnBlur && (
+            <div className="transparency-blur-subpanel">
+              <div className="transparency-slider-header">
+                <span className="transparency-slider-title">Blur Opacity Level</span>
+                <span className="transparency-slider-value">
+                  {Math.round((settings.autoFadeBlurOpacity ?? 0.30) * 100)}%
+                </span>
+              </div>
+              <input
+                type="range"
+                min="5"
+                max="80"
+                step="5"
+                value={Math.round((settings.autoFadeBlurOpacity ?? 0.30) * 100)}
+                onChange={(e) => handleAutoFadeBlurOpacityChange(Number(e.target.value) / 100)}
+                className="transparency-settings-slider"
+                aria-label="Blur opacity percentage"
+                style={{
+                  '--slider-fill': `${Math.max(5, Math.min(80, Math.round((settings.autoFadeBlurOpacity ?? 0.30) * 100)))}%`,
+                }}
+              />
+            </div>
+          )}
+
+          <div className="transparency-shortcuts-card">
+            <div className="transparency-shortcuts-title">Keyboard Shortcuts</div>
+            <div className="transparency-shortcuts-grid">
+              <div className="transparency-shortcut-item">
+                <kbd>Ctrl/Cmd + Shift + Plus</kbd>
+                <span>Jump to next opacity breakpoint (+10%)</span>
+              </div>
+              <div className="transparency-shortcut-item">
+                <kbd>Ctrl/Cmd + Shift + -</kbd>
+                <span>Jump to previous opacity breakpoint (-10%)</span>
+              </div>
+              <div className="transparency-shortcut-item">
+                <kbd>Ctrl/Cmd + Alt + H</kbd>
+                <span>Boss Key (Quick Minimize)</span>
+              </div>
             </div>
           </div>
         </div>
@@ -1571,10 +1822,89 @@ export default function SettingsApp() {
     </section>
   );
 
+  const renderShortcutsPanel = () => (
+    <section className="settings-section">
+      <div className="settings-section__header-row">
+        <div>
+          <h2 className="settings-section__title">Shortcuts</h2>
+          <p className="settings-section__desc">
+            Customize keyboard shortcuts for Transparency Mode, tabs, navigation, and window controls.
+            Click any shortcut badge to record a new key combination. Changes apply instantly without restarting.
+          </p>
+        </div>
+        <button
+          type="button"
+          className="diag-btn diag-btn--secondary shortcuts-reset-all-btn"
+          onClick={handleResetAllShortcuts}
+        >
+          Reset All to Defaults
+        </button>
+      </div>
+
+      {shortcutNotice && (
+        <div className="shortcuts-notice-banner" role="status">
+          {shortcutNotice}
+        </div>
+      )}
+
+      {SHORTCUT_DEFINITIONS.map((cat) => (
+        <div key={cat.category} className="settings-card shortcuts-category-card">
+          <div className="shortcuts-category-header">
+            <h3 className="shortcuts-category-title">{cat.category}</h3>
+          </div>
+          <div className="shortcuts-list">
+            {cat.items.map((item) => {
+              const currentVal = currentShortcuts[item.id] || item.defaultShortcut;
+              const isCustom = currentVal !== item.defaultShortcut;
+              const isRecording = recordingShortcutId === item.id;
+
+              return (
+                <div key={item.id} className={`setting-row shortcut-row${isRecording ? ' shortcut-row--recording' : ''}`}>
+                  <div className="setting-row__text">
+                    <span className="setting-row__label">{item.label}</span>
+                    <span className="setting-row__desc">{item.description}</span>
+                  </div>
+                  <div className="shortcut-actions">
+                    <button
+                      type="button"
+                      className={`shortcut-key-btn${isRecording ? ' shortcut-key-btn--recording' : ''}${isCustom ? ' shortcut-key-btn--custom' : ''}`}
+                      onClick={() => setRecordingShortcutId(isRecording ? null : item.id)}
+                      title={isRecording ? 'Press a key combination, or Esc to cancel' : 'Click to change shortcut'}
+                      aria-label={`${item.label} shortcut: ${formatShortcutForDisplay(currentVal)}. Click to change.`}
+                    >
+                      {isRecording ? (
+                        <span className="shortcut-recording-indicator">Press keys…</span>
+                      ) : (
+                        <span className="shortcut-key-text">{formatShortcutForDisplay(currentVal)}</span>
+                      )}
+                    </button>
+                    {isCustom && !isRecording && (
+                      <button
+                        type="button"
+                        className="shortcut-reset-btn"
+                        onClick={() => handleResetShortcut(item.id)}
+                        title="Reset to default"
+                        aria-label={`Reset ${item.label} to default shortcut`}
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </section>
+  );
+
   const renderActivePanel = () => {
     if (settingsSearch.trim()) return renderSettingsSearchPanel();
 
     switch (activeView) {
+      case 'shortcuts':
+        return renderShortcutsPanel();
       case 'appearance':
         return renderAppearancePanel();
       case 'search_engine':

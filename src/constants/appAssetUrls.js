@@ -82,3 +82,5 @@ export const unlockSvg = `${BASE}/unlock.svg`;
 export const waveLinesSvg = `${BASE}/wave-lines.svg`;
 export const rectangleVerticalHistorySvg = `${BASE}/rectangle-vertical-history.svg`;
 export const externalLinkSvg = `${BASE}/external-link.svg`;
+export const transparencySvg = `${BASE}/transparency.svg`;
+export const keyboardSvg = `${BASE}/keyboard.svg`;

@@ -133,6 +133,12 @@ function createWindow({
     applyShellWindowSecurity(window, { permissionFullscreen: C.PERMISSION.FULLSCREEN });
     applyContentProtection(window, loadSettings().contentProtection);
 
+    const initialSettings = loadSettings();
+    if (initialSettings.rememberWindowOpacity && typeof initialSettings.windowOpacity === 'number') {
+        const safeOpacity = Math.max(0.02, Math.min(1.0, initialSettings.windowOpacity));
+        try { window.setOpacity(safeOpacity); } catch (_) {}
+    }
+
     const context = {
         window,
         windowId: windowId || `window-${crypto.randomUUID()}`,
@@ -197,6 +203,20 @@ function createWindow({
             State.mainWindow = window;
         }
         menuUI.rebuildApplicationMenu();
+
+        const currentSettings = loadSettings();
+        if (currentSettings.autoFadeOnBlur) {
+            const activeOpacity = Math.max(0.02, Math.min(1.0, Number(currentSettings.windowOpacity) || 1.0));
+            try { window.setOpacity(activeOpacity); } catch (_) {}
+        }
+    });
+
+    window.on('blur', () => {
+        const currentSettings = loadSettings();
+        if (currentSettings.autoFadeOnBlur) {
+            const blurOpacity = Math.max(0.02, Math.min(1.0, Number(currentSettings.autoFadeBlurOpacity) || 0.30));
+            try { window.setOpacity(blurOpacity); } catch (_) {}
+        }
     });
 
     const { createTabContentContainer, layoutTabContentContainer, removeTabContentChildView, layoutActiveTabView, prewarmNewTabView } = require('./tabManager');

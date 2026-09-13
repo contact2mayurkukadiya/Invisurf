@@ -200,6 +200,79 @@ function registerIpcHandlers() {
         return { ok: true };
     });
 
+    ipcMain.handle(C.IPC_INVOKE.WINDOW_SET_OPACITY, (event, opacity) => {
+        if (!isSenderTrusted(event)) return 1.0;
+        const context = getWindowContextByEventSender(event.sender);
+        const win = context?.window || (BrowserWindow && BrowserWindow.fromWebContents(event.sender));
+        if (!win || win.isDestroyed()) return 1.0;
+        const num = typeof opacity === 'number' ? opacity : parseFloat(opacity);
+        const safeOpacity = Math.max(0.02, Math.min(1.0, isNaN(num) ? 1.0 : num));
+        try {
+            win.setOpacity(safeOpacity);
+        } catch (err) {
+            console.error('Failed to set window opacity:', err);
+        }
+        const settings = settingsService.loadSettings();
+        if (settings.rememberWindowOpacity) {
+            settings.windowOpacity = safeOpacity;
+            settingsService.saveSettings(settings);
+            settingsService.broadcastSettingsUpdate(settings);
+        }
+        try {
+            win.webContents.send(C.IPC_EVENT.WINDOW_OPACITY_CHANGED, { opacity: safeOpacity });
+        } catch (_) {}
+        return safeOpacity;
+    });
+
+    ipcMain.handle(C.IPC_INVOKE.WINDOW_GET_OPACITY, (event) => {
+        if (!isSenderTrusted(event)) return 1.0;
+        const context = getWindowContextByEventSender(event.sender);
+        const win = context?.window || (BrowserWindow && BrowserWindow.fromWebContents(event.sender));
+        if (!win || win.isDestroyed()) return 1.0;
+        try {
+            return win.getOpacity();
+        } catch (_) {
+            return 1.0;
+        }
+    });
+
+    ipcMain.handle(C.IPC_INVOKE.WINDOW_TOGGLE_BOSS_KEY, (event) => {
+        if (!isSenderTrusted(event)) return { ok: false };
+        const context = getWindowContextByEventSender(event.sender);
+        const win = context?.window || (BrowserWindow && BrowserWindow.fromWebContents(event.sender));
+        if (!win || win.isDestroyed()) return { ok: false };
+        try {
+            if (win.isMinimized()) {
+                win.restore();
+                win.focus();
+            } else {
+                win.minimize();
+            }
+            return { ok: true };
+        } catch (err) {
+            console.error('Boss key error:', err);
+            return { ok: false };
+        }
+    });
+
+    ipcMain.handle(C.IPC_INVOKE.TAB_ZOOM_IN, (event) => {
+        if (!isSenderTrusted(event)) return null;
+        const context = getWindowContextByEventSender(event.sender);
+        return tabManager.zoomInActiveTab(context);
+    });
+
+    ipcMain.handle(C.IPC_INVOKE.TAB_ZOOM_OUT, (event) => {
+        if (!isSenderTrusted(event)) return null;
+        const context = getWindowContextByEventSender(event.sender);
+        return tabManager.zoomOutActiveTab(context);
+    });
+
+    ipcMain.handle(C.IPC_INVOKE.TAB_ZOOM_RESET, (event) => {
+        if (!isSenderTrusted(event)) return null;
+        const context = getWindowContextByEventSender(event.sender);
+        return tabManager.resetZoomActiveTab(context);
+    });
+
     ipcMain.handle(C.IPC_INVOKE.WINDOW_GET_BOOTSTRAP, (event) => {
         if (!isSenderTrusted(event)) return null;
         const context = getWindowContextByEventSender(event.sender);

@@ -58,6 +58,22 @@ const COOKIE_CONFIG_DEFAULTS = {
     exceptions: [],
 };
 
+const DEFAULT_SHORTCUTS = {
+    transparencyNextBreakpoint: 'CmdOrCtrl+Shift+Plus',
+    transparencyPrevBreakpoint: 'CmdOrCtrl+Shift+-',
+    bossKey: 'CmdOrCtrl+Alt+H',
+    newTab: 'CmdOrCtrl+T',
+    newWindow: 'CmdOrCtrl+N',
+    newStealthWindow: 'CmdOrCtrl+Shift+N',
+    closeTab: 'CmdOrCtrl+W',
+    reopenTab: 'CmdOrCtrl+Shift+T',
+    history: 'CmdOrCtrl+Y',
+    print: 'CmdOrCtrl+P',
+    zoomIn: 'CmdOrCtrl+Plus',
+    zoomOut: 'CmdOrCtrl+-',
+    zoomReset: 'CmdOrCtrl+0',
+};
+
 const SETTINGS_DEFAULTS = {
     contentProtection: true,
     startupBehavior: 'continue', // 'fresh' | 'continue' | 'clearHistory'
@@ -68,6 +84,11 @@ const SETTINGS_DEFAULTS = {
     accentCustomHex: null,
     cookieConfig: COOKIE_CONFIG_DEFAULTS,
     cookieConfigByProfile: {},
+    windowOpacity: 1.0,
+    rememberWindowOpacity: true,
+    autoFadeOnBlur: false,
+    autoFadeBlurOpacity: 0.30,
+    shortcuts: DEFAULT_SHORTCUTS,
 };
 
 const SEARCH_ENGINES = {
@@ -111,6 +132,7 @@ module.exports = {
     CHROME_OVERLAY_POST_MAX_BYTES,
     SHELL_MENU_OVERLAY_KINDS,
     COOKIE_CONFIG_DEFAULTS,
+    DEFAULT_SHORTCUTS,
     SETTINGS_DEFAULTS,
     SEARCH_ENGINES,
     TAB_STRIP_CONTEXT_MENU_MAX_ITEMS,

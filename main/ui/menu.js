@@ -26,6 +26,37 @@ function openDownloadsFolder() {
     }
 }
 
+function setFocusedWindowOpacity(targetOpacity) {
+    const win = getFocusedShellWindow() || State.mainWindow;
+    if (!win || win.isDestroyed()) return;
+    const safeOpacity = Math.max(0.02, Math.min(1.0, Math.round(targetOpacity * 100) / 100));
+    try { win.setOpacity(safeOpacity); } catch (_) {}
+    const { loadSettings, saveSettings, broadcastSettingsUpdate } = require('../services/settingsService');
+    const settings = loadSettings();
+    if (settings.rememberWindowOpacity) {
+        settings.windowOpacity = safeOpacity;
+        saveSettings(settings);
+        broadcastSettingsUpdate(settings);
+    }
+    try { win.webContents.send(C.IPC_EVENT.WINDOW_OPACITY_CHANGED, { opacity: safeOpacity, source: 'menu' }); } catch (_) {}
+}
+
+function jumpWindowOpacityBreakpoint(direction) {
+    const win = getFocusedShellWindow() || State.mainWindow;
+    if (!win || win.isDestroyed()) return;
+    const BREAKPOINTS = [0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90, 1.00];
+    const curr = typeof win.getOpacity === 'function' ? win.getOpacity() : 1.0;
+    const curRounded = Math.round(curr * 100) / 100;
+    let target;
+    if (direction > 0) {
+        target = BREAKPOINTS.find((bp) => bp >= curRounded + 0.05) ?? 1.00;
+    } else {
+        const reversed = [...BREAKPOINTS].reverse();
+        target = reversed.find((bp) => bp <= curRounded - 0.05) ?? 0.10;
+    }
+    setFocusedWindowOpacity(target);
+}
+
 function buildApplicationMenu() {
     const tabManager = require('../windows/tabManager');
     const windowManager = require('../windows/windowManager');
@@ -105,6 +136,49 @@ function buildApplicationMenu() {
                     label: 'Reload',
                     accelerator: 'CmdOrCtrl+R',
                     click: () => focusedShellWebContents()?.send(C.IPC_EVENT.SHORTCUT_RELOAD)
+                },
+                { type: 'separator' },
+                {
+                    label: 'Zoom In',
+                    accelerator: 'CmdOrCtrl+Plus',
+                    click: () => tabManager.zoomInActiveTab(),
+                },
+                {
+                    label: 'Zoom Out',
+                    accelerator: 'CmdOrCtrl+-',
+                    click: () => tabManager.zoomOutActiveTab(),
+                },
+                {
+                    label: 'Reset Zoom',
+                    accelerator: 'CmdOrCtrl+0',
+                    click: () => tabManager.resetZoomActiveTab(),
+                },
+                { type: 'separator' },
+                {
+                    label: 'Transparency Mode',
+                    submenu: [
+                        {
+                            label: 'Next Breakpoint (+10%)',
+                            accelerator: 'CmdOrCtrl+Shift+Plus',
+                            click: () => jumpWindowOpacityBreakpoint(1),
+                        },
+                        {
+                            label: 'Previous Breakpoint (-10%)',
+                            accelerator: 'CmdOrCtrl+Shift+-',
+                            click: () => jumpWindowOpacityBreakpoint(-1),
+                        },
+                        { type: 'separator' },
+                        { label: '10% (Minimal Opacity)', click: () => setFocusedWindowOpacity(0.10) },
+                        { label: '20%', click: () => setFocusedWindowOpacity(0.20) },
+                        { label: '30%', click: () => setFocusedWindowOpacity(0.30) },
+                        { label: '40%', click: () => setFocusedWindowOpacity(0.40) },
+                        { label: '50% (Medium Opacity)', click: () => setFocusedWindowOpacity(0.50) },
+                        { label: '60%', click: () => setFocusedWindowOpacity(0.60) },
+                        { label: '70%', click: () => setFocusedWindowOpacity(0.70) },
+                        { label: '80%', click: () => setFocusedWindowOpacity(0.80) },
+                        { label: '90%', click: () => setFocusedWindowOpacity(0.90) },
+                        { label: '100% (Solid Opacity)', click: () => setFocusedWindowOpacity(1.00) },
+                    ],
                 },
                 { type: 'separator' },
                 {

@@ -399,7 +399,13 @@ const C = Object.freeze({
         "PERMISSIONS_GET_ALL": "permissions:get-all",
         "PERMISSIONS_DELETE": "permissions:delete",
         "PERMISSIONS_CLEAR_ALL": "permissions:clear-all",
-        "PERMISSIONS_PROMPT_RESPOND": "permissions:prompt-respond"
+        "PERMISSIONS_PROMPT_RESPOND": "permissions:prompt-respond",
+        "WINDOW_SET_OPACITY": "window:set-opacity",
+        "WINDOW_GET_OPACITY": "window:get-opacity",
+        "WINDOW_TOGGLE_BOSS_KEY": "window:toggle-boss-key",
+        "TAB_ZOOM_IN": "tab:zoom-in",
+        "TAB_ZOOM_OUT": "tab:zoom-out",
+        "TAB_ZOOM_RESET": "tab:zoom-reset"
     },
     "IPC_SEND": {
         "NEW_TAB": "new-tab",
@@ -450,7 +456,8 @@ const C = Object.freeze({
         "TAB_AWOKEN": "tab:awoken",
         "TOOLTIP_UPDATE": "tooltip:update",
         "PERMISSION_PROMPT_REQUEST": "permission:prompt-request",
-        "PERMISSION_PROMPT_DISMISSED": "permission:prompt-dismissed"
+        "PERMISSION_PROMPT_DISMISSED": "permission:prompt-dismissed",
+        "WINDOW_OPACITY_CHANGED": "window:opacity-changed"
     }
 });
 
@@ -700,6 +707,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.on(C.IPC_EVENT.PERMISSION_PROMPT_DISMISSED, handler);
         return () => ipcRenderer.removeListener(C.IPC_EVENT.PERMISSION_PROMPT_DISMISSED, handler);
     },
+
+    // Window Transparency / Opacity Mode
+    windowSetOpacity: (opacity) => ipcRenderer.invoke(C.IPC_INVOKE.WINDOW_SET_OPACITY, opacity),
+    windowGetOpacity: () => ipcRenderer.invoke(C.IPC_INVOKE.WINDOW_GET_OPACITY),
+    windowToggleBossKey: () => ipcRenderer.invoke(C.IPC_INVOKE.WINDOW_TOGGLE_BOSS_KEY),
+    onWindowOpacityChanged: (callback) => {
+        const handler = (_event, data) => callback(data);
+        ipcRenderer.on(C.IPC_EVENT.WINDOW_OPACITY_CHANGED, handler);
+        return () => ipcRenderer.removeListener(C.IPC_EVENT.WINDOW_OPACITY_CHANGED, handler);
+    },
+
+    // Tab Zoom
+    tabZoomIn: () => ipcRenderer.invoke(C.IPC_INVOKE.TAB_ZOOM_IN),
+    tabZoomOut: () => ipcRenderer.invoke(C.IPC_INVOKE.TAB_ZOOM_OUT),
+    tabZoomReset: () => ipcRenderer.invoke(C.IPC_INVOKE.TAB_ZOOM_RESET),
 
     // Platform identifier
     platform: process.platform,

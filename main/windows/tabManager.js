@@ -578,6 +578,31 @@ function triggerFindInActiveTab() {
     }
 }
 
+function zoomInActiveTab(context) {
+    const activeView = (context?.activeTabId ? context.tabs[context.activeTabId] : null) || getActiveTabView();
+    if (!activeView || activeView.webContents.isDestroyed()) return null;
+    const currentZoom = activeView.webContents.getZoomFactor();
+    const newZoom = Math.min(3.0, Math.round((currentZoom + 0.1) * 10) / 10);
+    activeView.webContents.setZoomFactor(newZoom);
+    return newZoom;
+}
+
+function zoomOutActiveTab(context) {
+    const activeView = (context?.activeTabId ? context.tabs[context.activeTabId] : null) || getActiveTabView();
+    if (!activeView || activeView.webContents.isDestroyed()) return null;
+    const currentZoom = activeView.webContents.getZoomFactor();
+    const newZoom = Math.max(0.25, Math.round((currentZoom - 0.1) * 10) / 10);
+    activeView.webContents.setZoomFactor(newZoom);
+    return newZoom;
+}
+
+function resetZoomActiveTab(context) {
+    const activeView = (context?.activeTabId ? context.tabs[context.activeTabId] : null) || getActiveTabView();
+    if (!activeView || activeView.webContents.isDestroyed()) return null;
+    activeView.webContents.setZoomFactor(1.0);
+    return 1.0;
+}
+
 function buildDevToolsTypographyCss() {
     let monoStack;
     if (process.platform === C.PLATFORM.DARWIN) {
@@ -1145,6 +1170,9 @@ module.exports = {
     openUndockedDevToolsForActiveTab,
     printActiveTab,
     triggerFindInActiveTab,
+    zoomInActiveTab,
+    zoomOutActiveTab,
+    resetZoomActiveTab,
     prewarmNewTabView,
     createTab
 };
