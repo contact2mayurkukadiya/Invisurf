@@ -32,13 +32,37 @@ export function renderSubmenuAt(anchorRect, items, submenuWidth) {
     const anchorLeft = Number(anchorRect?.left) || 0;
     const anchorTop = Number(anchorRect?.top) || 0;
 
-    const left = Math.max(8, Math.round(anchorLeft - width - 6));
-    const top = Math.max(8, Math.min(window.innerHeight - 8, Math.round(anchorTop - 4)));
+    // Safe margins to ensure box-shadow (blur 16px) is never clipped
+    const minLeft = 24;
+    const marginTop = 6;
+    const marginBottom = 28;
+
+    let left = Math.round(anchorLeft - width - 6);
+    if (left < minLeft) {
+        const rightAttempt = Math.round(Number(anchorRect?.right || anchorLeft) + 6);
+        if (rightAttempt + width <= window.innerWidth - 24) {
+            left = rightAttempt;
+        } else {
+            left = Math.max(8, left);
+        }
+    }
 
     DOM.submenu.style.left = left + 'px';
-    DOM.submenu.style.top = top + 'px';
     DOM.submenu.style.width = width + 'px';
+    DOM.submenu.style.maxHeight = Math.max(120, window.innerHeight - marginTop - marginBottom) + 'px';
     DOM.submenu.classList.add('co-visible');
+
+    // Measure rendered height and adjust vertical position so the bottom shadow is never clipped
+    const subHeight = DOM.submenu.offsetHeight || 0;
+    const maxBottom = window.innerHeight - marginBottom;
+    let top = Math.round(anchorTop - 4);
+
+    if (top + subHeight > maxBottom) {
+        top = maxBottom - subHeight;
+    }
+    top = Math.max(marginTop, top);
+
+    DOM.submenu.style.top = top + 'px';
 }
 
 export function renderAppMenu(payload) {
@@ -59,7 +83,7 @@ export function renderAppMenu(payload) {
     DOM.panel.style.width = width + 'px';
     DOM.panel.style.minWidth = width + 'px';
     DOM.panel.style.maxWidth = width + 'px';
-    DOM.panel.style.maxHeight = Math.max(240, Math.min(metrics.viewportHeight - top - 8, window.innerHeight - panelPoint.top - 8)) + 'px';
+    DOM.panel.style.maxHeight = Math.max(240, Math.min(metrics.viewportHeight - top - 8, window.innerHeight - panelPoint.top - 28)) + 'px';
     DOM.panel.style.overflow = 'visible';
     DOM.panel.classList.add('co-panel--app-menu');
 

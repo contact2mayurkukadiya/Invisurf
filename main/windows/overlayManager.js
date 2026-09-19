@@ -201,7 +201,12 @@ function computeMenuOverlayBounds(context, patch) {
         const maxH = Math.max(100, Math.min(windowH * 0.9, windowH - top - pad));
         const listHeight = items.length === 0 ? 56 : Math.min(items.length * 36 + 8, maxH - 40);
         const height = Math.min(maxH, 40 + Math.max(56, listHeight));
-        return menuOverlayBoundsFromPanel(context, { left, top, width, height });
+        return menuOverlayBoundsFromPanel(context, { left, top, width, height }, {
+            shadowMarginTop: 6,
+            shadowMarginBottom: 28,
+            shadowMarginLeft: 28,
+            shadowMarginRight: 28,
+        });
     }
 
     if (kind === 'bookmarkEditor') {
@@ -226,7 +231,12 @@ function computeMenuOverlayBounds(context, patch) {
         const rows = items.length + 1 + (patch.showEdit ? 1 : 0);
         const separators = 1 + (patch.showEdit ? 1 : 0);
         const height = Math.min(windowH - top - pad, rows * 42 + separators * 13 + 16);
-        return menuOverlayBoundsFromPanel(context, { left, top, width, height });
+        return menuOverlayBoundsFromPanel(context, { left, top, width, height }, {
+            shadowMarginTop: 6,
+            shadowMarginBottom: 28,
+            shadowMarginLeft: 28,
+            shadowMarginRight: 28,
+        });
     }
 
     if (kind === 'siteInfo') {
@@ -281,9 +291,15 @@ function computeMenuOverlayBounds(context, patch) {
             if (!item?.submenuKey || !Array.isArray(submenus[item.submenuKey])) return maxWidth;
             return Math.max(maxWidth, Math.round(Number(item.submenuWidth) || 320));
         }, 0);
+        const maxAllowedExtraBottom = Math.max(0, windowH - top - height - pad);
+        const extraBottom = submenuWidth ? Math.min(maxAllowedExtraBottom, Math.max(28, submenuHeight)) : 0;
         return menuOverlayBoundsFromPanel(context, { left, top, width, height }, {
-            extraLeft: submenuWidth ? submenuWidth + 6 : 0,
-            extraBottom: submenuWidth ? 16 : 0,
+            extraLeft: submenuWidth ? submenuWidth + 8 : 0,
+            extraBottom,
+            shadowMarginTop: 6,
+            shadowMarginBottom: 28,
+            shadowMarginLeft: 28,
+            shadowMarginRight: 28,
         });
     }
 

@@ -365,11 +365,11 @@
     padding: 0;
     overflow: hidden;
     max-height: 90vh;
-    background: var(--chrome-bookmark-bar, var(--chrome-nav-bg, #2d3e45));
-    color: var(--chrome-bkm-text, var(--chrome-fg, rgba(255, 255, 255, 0.88)));
+    background: var(--chrome-nav-bg, #394d55);
+    color: var(--chrome-fg, rgba(255, 255, 255, 0.95));
     border: 1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.12));
-    border-radius: 10px;
-    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.22), 0 2px 8px rgba(0, 0, 0, 0.14);
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.12);
 }
 
 #panel.co-panel--folder-menu.co-visible {

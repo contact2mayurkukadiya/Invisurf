@@ -464,28 +464,6 @@ export default function SettingsApp() {
     window.electronAPI.appRelaunch();
   }, []);
 
-  const handleWindowOpacityChange = useCallback(async (value) => {
-    const safe = Math.max(0.02, Math.min(1.0, value));
-    const rounded = Math.round(safe * 100) / 100;
-    if (window.electronAPI?.windowSetOpacity) {
-      await window.electronAPI.windowSetOpacity(rounded);
-    }
-    setSettings((prev) => (prev ? { ...prev, windowOpacity: rounded } : prev));
-  }, []);
-
-  const handleRememberOpacityChange = useCallback(async (checked) => {
-    await persist({ ...settings, rememberWindowOpacity: checked });
-  }, [settings, persist]);
-
-  const handleAutoFadeOnBlurChange = useCallback(async (checked) => {
-    await persist({ ...settings, autoFadeOnBlur: checked });
-  }, [settings, persist]);
-
-  const handleAutoFadeBlurOpacityChange = useCallback(async (value) => {
-    const safe = Math.max(0.02, Math.min(1.0, value));
-    const rounded = Math.round(safe * 100) / 100;
-    await persist({ ...settings, autoFadeBlurOpacity: rounded });
-  }, [settings, persist]);
 
   const cookieConfig = useMemo(() => ({
     globalPolicy: settings?.cookieConfig?.globalPolicy || 'allow',
@@ -813,9 +791,6 @@ export default function SettingsApp() {
         rows: [
           ['Brightness', 'Device follows your system. Light or Dark applies only to InviSurf.'],
           ['Accent', 'Colours the tab strip and toolbar. Custom builds a palette from one seed colour.'],
-          ['Transparency Mode', 'Window opacity, transparent multitasking, and auto-fade on blur.'],
-          ['Window Opacity', 'Adjust window transparency from 2% to 100%'],
-          ['Auto-fade on blur', 'Automatically lower window opacity when switching applications'],
           ...APPEARANCE_MODE_SEGMENTS.map((segment) => [segment.label, segment.title]),
           ...accentPresets.map((preset) => [preset.label, 'Accent colour preset']),
           ['Custom', 'Custom accent colour'],
@@ -986,130 +961,7 @@ export default function SettingsApp() {
           </div>
         </div>
 
-        <div className="appearance-block appearance-block--transparency">
-          <div className="appearance-block__intro">
-            <span className="setting-row__label">Transparency Mode</span>
-            <span className="setting-row__desc">
-              Control the window opacity for multitasking and stealth browsing.
-            </span>
-          </div>
 
-          <div className="transparency-slider-block">
-            <div className="transparency-slider-header">
-              <span className="transparency-slider-title">Window Opacity</span>
-              <span className="transparency-slider-value">
-                {Math.round((settings.windowOpacity ?? 1.0) * 100)}%
-              </span>
-            </div>
-            <input
-              type="range"
-              min="2"
-              max="100"
-              step="1"
-              value={Math.round((settings.windowOpacity ?? 1.0) * 100)}
-              onChange={(e) => handleWindowOpacityChange(Number(e.target.value) / 100)}
-              className="transparency-settings-slider"
-              aria-label="Window opacity percentage"
-              style={{
-                '--slider-fill': `${Math.max(2, Math.min(100, Math.round((settings.windowOpacity ?? 1.0) * 100)))}%`,
-              }}
-            />
-            <div className="transparency-presets-row" role="radiogroup" aria-label="Transparency presets">
-              {[
-                { step: 1, val: 0.10, label: '10%' },
-                { step: 2, val: 0.20, label: '20%' },
-                { step: 3, val: 0.30, label: '30%' },
-                { step: 4, val: 0.40, label: '40%' },
-                { step: 5, val: 0.50, label: '50%' },
-                { step: 6, val: 0.60, label: '60%' },
-                { step: 7, val: 0.70, label: '70%' },
-                { step: 8, val: 0.80, label: '80%' },
-                { step: 9, val: 0.90, label: '90%' },
-                { step: 10, val: 1.00, label: '100%' },
-              ].map((p) => {
-                const current = settings.windowOpacity ?? 1.0;
-                const active = Math.abs(current - p.val) < 0.04;
-                return (
-                  <button
-                    key={p.step}
-                    type="button"
-                    role="radio"
-                    aria-checked={active}
-                    className={`transparency-preset-chip${active ? ' transparency-preset-chip--active' : ''}`}
-                    onClick={() => handleWindowOpacityChange(p.val)}
-                    title={`Preset ${p.step}: ${p.label} (${p.name})`}
-                  >
-                    {p.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="setting-row setting-row--sub" style={{ marginTop: '16px' }}>
-            <div className="setting-row__text">
-              <span className="setting-row__label">Remember opacity across sessions</span>
-              <span className="setting-row__desc">Restore your selected transparency level on next launch.</span>
-            </div>
-            <Toggle
-              checked={settings.rememberWindowOpacity !== false}
-              onChange={handleRememberOpacityChange}
-            />
-          </div>
-
-          <div className="setting-row setting-row--sub">
-            <div className="setting-row__text">
-              <span className="setting-row__label">Auto-fade on window blur / focus loss</span>
-              <span className="setting-row__desc">Fade the window automatically when switching to other apps.</span>
-            </div>
-            <Toggle
-              checked={!!settings.autoFadeOnBlur}
-              onChange={handleAutoFadeOnBlurChange}
-            />
-          </div>
-
-          {settings.autoFadeOnBlur && (
-            <div className="transparency-blur-subpanel">
-              <div className="transparency-slider-header">
-                <span className="transparency-slider-title">Blur Opacity Level</span>
-                <span className="transparency-slider-value">
-                  {Math.round((settings.autoFadeBlurOpacity ?? 0.30) * 100)}%
-                </span>
-              </div>
-              <input
-                type="range"
-                min="5"
-                max="80"
-                step="5"
-                value={Math.round((settings.autoFadeBlurOpacity ?? 0.30) * 100)}
-                onChange={(e) => handleAutoFadeBlurOpacityChange(Number(e.target.value) / 100)}
-                className="transparency-settings-slider"
-                aria-label="Blur opacity percentage"
-                style={{
-                  '--slider-fill': `${Math.max(5, Math.min(80, Math.round((settings.autoFadeBlurOpacity ?? 0.30) * 100)))}%`,
-                }}
-              />
-            </div>
-          )}
-
-          <div className="transparency-shortcuts-card">
-            <div className="transparency-shortcuts-title">Keyboard Shortcuts</div>
-            <div className="transparency-shortcuts-grid">
-              <div className="transparency-shortcut-item">
-                <kbd>Ctrl/Cmd + Shift + Plus</kbd>
-                <span>Jump to next opacity breakpoint (+10%)</span>
-              </div>
-              <div className="transparency-shortcut-item">
-                <kbd>Ctrl/Cmd + Shift + -</kbd>
-                <span>Jump to previous opacity breakpoint (-10%)</span>
-              </div>
-              <div className="transparency-shortcut-item">
-                <kbd>Ctrl/Cmd + Alt + H</kbd>
-                <span>Boss Key (Quick Minimize)</span>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
     </section>
   );
