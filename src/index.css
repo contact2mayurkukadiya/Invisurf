@@ -264,8 +264,25 @@ body:has(.header--stealth-window) .tab-content-snapshot {
     color: var(--chrome-accent, #8b80ff);
     letter-spacing: 0.4px;
     user-select: none;
-    pointer-events: none;
+    pointer-events: auto;
+    cursor: pointer;
     flex-shrink: 0;
+    transition: all 0.18s ease;
+}
+
+.ghost-badge:hover {
+    filter: brightness(1.12);
+    transform: translateY(-0.5px);
+}
+
+.ghost-badge:active {
+    transform: translateY(0);
+}
+
+.ghost-badge--passthrough {
+    background: rgba(245, 158, 11, 0.2) !important;
+    border: 1px dashed #f59e0b !important;
+    color: #fbbf24 !important;
 }
 
 [data-effective-appearance="dark"] .ghost-badge {
@@ -294,6 +311,18 @@ body:has(.header--stealth-window) .tab-content-snapshot {
     border-radius: 50%;
     background-color: var(--chrome-accent, #8b80ff);
     box-shadow: 0 0 6px var(--chrome-accent, #8b80ff);
+    transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.ghost-badge-dot--passthrough {
+    background-color: #f59e0b !important;
+    box-shadow: 0 0 7px #f59e0b !important;
+    animation: ghostPulse 1.8s infinite ease-in-out;
+}
+
+@keyframes ghostPulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.8); }
 }
 
 @media (prefers-color-scheme: light) {

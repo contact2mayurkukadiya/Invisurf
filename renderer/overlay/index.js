@@ -11,6 +11,8 @@ import { renderCookieControls, renderDownloadPanel } from './components/compactP
 import { renderOmniboxSuggestions } from './components/omnibox.js';
 import { renderLensSelection } from './components/lensSelection.js';
 import { renderPermissionPrompt } from './components/permissionPrompt.js';
+import { renderTransparencyMenu } from './components/transparencyMenu.js';
+import { renderClickThroughOSD } from './components/clickThroughOSD.js';
 
 DOM.backdrop.addEventListener('mousedown', function () {
     notifyHost({ type: 'dismiss' });
@@ -67,6 +69,8 @@ if (window.electronAPI && window.electronAPI.onChromeOverlayV1Patch) {
                 case 'bookmarkFolderMenu': return renderBookmarkFolderMenu(patch);
                 case 'bookmarkEditor': return renderBookmarkEditor(patch);
                 case 'permissionPrompt': return renderPermissionPrompt(patch);
+                case 'transparencyMenu': return renderTransparencyMenu(patch);
+                case 'clickThroughOSD': return renderClickThroughOSD(patch);
             }
         } catch (err) {
             // If any menu crashes, log it and safely reset the overlay to prevent freezing

@@ -142,7 +142,11 @@ function estimateMenuRowsHeight(items, rowHeight = 38, separatorHeight = 13, pad
 
 function menuOverlayBoundsFromPanel(context, panelRect, options = {}) {
     const pad = 8;
-    const shadowMargin = Number.isFinite(Number(options.shadowMargin)) ? Number(options.shadowMargin) : 16;
+    const defaultMargin = Number.isFinite(Number(options.shadowMargin)) ? Number(options.shadowMargin) : 16;
+    const shadowMarginLeft = Number.isFinite(Number(options.shadowMarginLeft)) ? Number(options.shadowMarginLeft) : defaultMargin;
+    const shadowMarginRight = Number.isFinite(Number(options.shadowMarginRight)) ? Number(options.shadowMarginRight) : defaultMargin;
+    const shadowMarginTop = Number.isFinite(Number(options.shadowMarginTop)) ? Number(options.shadowMarginTop) : defaultMargin;
+    const shadowMarginBottom = Number.isFinite(Number(options.shadowMarginBottom)) ? Number(options.shadowMarginBottom) : defaultMargin;
     const { width: windowW, height: windowH } = context.window.getContentBounds();
     const panelLeft = clampNumber(Math.round(Number(panelRect.left) || 0), pad, windowW - pad);
     const panelTop = clampNumber(Math.round(Number(panelRect.top) || 0), pad, windowH - pad);
@@ -153,10 +157,10 @@ function menuOverlayBoundsFromPanel(context, panelRect, options = {}) {
     const extraTop = Math.max(0, Math.round(Number(options.extraTop) || 0));
     const extraBottom = Math.max(0, Math.round(Number(options.extraBottom) || 0));
 
-    const wantedLeft = panelLeft - extraLeft - shadowMargin;
-    const wantedTop = panelTop - extraTop - shadowMargin;
-    const wantedRight = panelLeft + panelWidth + extraRight + shadowMargin;
-    const wantedBottom = panelTop + panelHeight + extraBottom + shadowMargin;
+    const wantedLeft = panelLeft - extraLeft - shadowMarginLeft;
+    const wantedTop = panelTop - extraTop - shadowMarginTop;
+    const wantedRight = panelLeft + panelWidth + extraRight + shadowMarginRight;
+    const wantedBottom = panelTop + panelHeight + extraBottom + shadowMarginBottom;
     const x = Math.max(0, Math.min(windowW - 1, wantedLeft));
     const y = Math.max(0, Math.min(windowH - 1, wantedTop));
     const right = Math.max(x + 1, Math.min(windowW, wantedRight));
@@ -281,6 +285,33 @@ function computeMenuOverlayBounds(context, patch) {
             extraLeft: submenuWidth ? submenuWidth + 6 : 0,
             extraBottom: submenuWidth ? 16 : 0,
         });
+    }
+
+    if (kind === 'transparencyMenu') {
+        const ar = patch.anchorRect || {};
+        const panelWidth = 260;
+        const panelHeight = 52;
+        const anchorL = Math.round(Number(ar.left) || 0);
+        const anchorW = Math.max(1, Math.round(Number(ar.width) || 32));
+        const anchorT = Math.round(Number(ar.top) || 0);
+        const anchorH = Math.max(1, Math.round(Number(ar.height) || 32));
+        const left = clampNumber(anchorL + anchorW - panelWidth, pad, windowW - panelWidth - pad);
+        const top  = clampNumber(anchorT + anchorH + 6, pad, windowH - panelHeight - pad);
+        return menuOverlayBoundsFromPanel(context, { left, top, width: panelWidth, height: panelHeight }, {
+            shadowMarginTop: 6,
+            shadowMarginBottom: 24,
+            shadowMarginLeft: 24,
+            shadowMarginRight: 24,
+        });
+    }
+
+    if (kind === 'clickThroughOSD') {
+        // Natural menu-styled notification panel, floating below the toolbar
+        const osdWidth  = 280;
+        const osdHeight = 78;
+        const left = Math.round((windowW - osdWidth) / 2);
+        const top  = clampNumber(80, pad, windowH - osdHeight - pad);
+        return menuOverlayBoundsFromPanel(context, { left, top, width: osdWidth, height: osdHeight }, { shadowMargin: 28 });
     }
 
     return null;

@@ -1,167 +1,148 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { useWindowOpacity, TRANSPARENCY_PRESETS, MIN_OPACITY, MAX_OPACITY } from '../hooks/useWindowOpacity';
-import { useTabOverlay } from '../context/TabOverlayContext';
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
+import { useWindowOpacity, MIN_OPACITY, MAX_OPACITY } from '../hooks/useWindowOpacity';
+import { useChromeShellMenuOverlay } from '../context/ChromeOverlayContext';
 import { transparencySvg } from '../constants/appAssetUrls';
 import AssetMaskIcon from './AssetMaskIcon.jsx';
 import './WindowOpacityControl.css';
 
 const TRANSPARENCY_ICON = <AssetMaskIcon icon={transparencySvg} size={16} />;
 
+/**
+ * WindowOpacityControl
+ *
+ * Eye-icon button in the toolbar that opens the Transparency Mode popup
+ * inside chromeShellMenuOverlayView — the WebContentsView layer that sits
+ * above all tab content, so the popup is never hidden behind a web page.
+ *
+ * Lifecycle mirrors ProfileMenuButton:
+ *   reset() → acquire() → post(patch) → release() (on close / unmount)
+ */
 export default function WindowOpacityControl() {
-  const { opacity, opacityPercent, setOpacity, setPreset, presets, jumpNextBreakpoint, jumpPrevBreakpoint } = useWindowOpacity();
-  const { beginOverlay, endOverlay } = useTabOverlay();
+  const { opacityPercent, setOpacity } = useWindowOpacity();
+  const { reset, acquire, release, post } = useChromeShellMenuOverlay();
+
   const [open, setOpen] = useState(false);
-  const containerRef = useRef(null);
-  const sliderRef = useRef(null);
+  const openRef    = useRef(false);
+  const btnRef     = useRef(null);
+  /** True while our own reset() is in-flight — ignore superseded during that window. */
+  const pendingResetRef  = useRef(false);
+  /** Main process evicted our lease via reset; cleanup must NOT call release(). */
+  const leaseRevokedRef  = useRef(false);
+  /** True when setOpacity was called as a result of the overlay slider — skip re-posting. */
+  const fromOverlayRef   = useRef(false);
+  /** Timestamp (ms) of the last overlay-initiated dismiss — guards against backdrop+button double-fire. */
+  const justClosedAtRef  = useRef(0);
 
-  const close = useCallback(() => {
-    setOpen(false);
-  }, []);
+  openRef.current = open;
 
-  const toggle = useCallback(() => {
-    setOpen((prev) => !prev);
-  }, []);
+  // ── Build the overlay patch ─────────────────────────────────────────────
+  const buildPatch = useCallback(() => {
+    const r = btnRef.current
+      ? btnRef.current.getBoundingClientRect()
+      : { left: 0, top: 0, width: 0, height: 0 };
+    return {
+      kind: 'transparencyMenu',
+      anchorRect: { left: r.left, top: r.top, width: r.width, height: r.height },
+      opacityPercent,
+    };
+  }, [opacityPercent]);
 
-  // Use TabOverlay so the popover can float down over WebContentsView
+  const postPatch = useCallback(async () => {
+    try { await post(buildPatch()); } catch (_) {}
+  }, [post, buildPatch]);
+
+  // ── Open lifecycle: reset → acquire → post ──────────────────────────────
+  useLayoutEffect(() => {
+    if (!open) return undefined;
+    let cancelled = false;
+    (async () => {
+      pendingResetRef.current = true;
+      try {
+        await reset();
+        await acquire();
+        if (cancelled) { await release(); return; }
+        await postPatch();
+      } catch (err) {
+        console.error('[WindowOpacityControl] overlay open:', err);
+      } finally {
+        pendingResetRef.current = false;
+      }
+    })();
+    return () => {
+      cancelled = true;
+      pendingResetRef.current = false;
+      if (leaseRevokedRef.current) {
+        leaseRevokedRef.current = false;
+        return;
+      }
+      void release();
+    };
+  }, [open, reset, acquire, release, postPatch]);
+
+  // ── Re-post when opacity changes while open — but NOT if the change
+  // came from the overlay slider itself (would rebuild the DOM mid-drag).
   useEffect(() => {
-    if (open) {
-      void beginOverlay();
-    } else {
-      endOverlay();
+    if (!openRef.current) return;
+    if (fromOverlayRef.current) {
+      fromOverlayRef.current = false;
+      return;
     }
-    return () => {
-      if (open) endOverlay();
-    };
-  }, [open, beginOverlay, endOverlay]);
+    void postPatch();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opacityPercent]);
 
-  // Click outside and Escape key listeners
+  // ── Handle events routed back from the overlay renderer ─────────────────
   useEffect(() => {
-    if (!open) return;
+    const unsub = window.electronAPI?.onChromeOverlayV1HostEvent?.((data) => {
+      if (!openRef.current) return;
+      const t = data?.type;
 
-    const handlePointerDown = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
-        close();
+      if (t === 'dismiss') {
+        justClosedAtRef.current = Date.now();
+        setOpen(false);
+        return;
       }
-    };
-
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        close();
+      if (t === 'transparencySetOpacity' && typeof data.opacity === 'number') {
+        const safe = Math.max(MIN_OPACITY, Math.min(MAX_OPACITY, data.opacity));
+        // Mark as overlay-originated so the re-post effect skips rebuilding the panel
+        fromOverlayRef.current = true;
+        setOpacity(safe);
       }
-    };
+    });
+    return () => { if (typeof unsub === 'function') unsub(); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-    window.addEventListener('pointerdown', handlePointerDown);
-    window.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      window.removeEventListener('pointerdown', handlePointerDown);
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [open, close]);
-
-  const handleSliderChange = (e) => {
-    const val = Number(e.target.value) / 100;
-    setOpacity(val);
-  };
-
-  const isMac = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform);
-  const modifierKey = isMac ? '⌘' : 'Ctrl';
+  // ── Close when another overlay takes the surface ────────────────────────
+  useEffect(() => {
+    const unsub = window.electronAPI?.onChromeShellMenuOverlaySuperseded?.(() => {
+      if (openRef.current && !pendingResetRef.current) {
+        leaseRevokedRef.current = true;
+        setOpen(false);
+      }
+    });
+    return () => { if (typeof unsub === 'function') unsub(); };
+  }, []);
 
   return (
-    <div className="window-opacity-control" ref={containerRef}>
+    <div className="window-opacity-control">
       <button
+        ref={btnRef}
         id="transparency-btn"
         className={`btn window-opacity-trigger${open ? ' window-opacity-trigger--active' : ''}`}
-        title={`Transparency Mode (${opacityPercent}%)`}
+        title={`Transparency Mode — ${opacityPercent}%`}
         aria-label="Transparency Mode"
         aria-expanded={open}
         aria-haspopup="dialog"
-        onClick={toggle}
+        onClick={() => {
+          // Guard: if the overlay backdrop just sent a dismiss (within 200ms),
+          // this click is the tail of the same gesture — don't reopen.
+          if (Date.now() - justClosedAtRef.current < 200) return;
+          setOpen((prev) => !prev);
+        }}
       >
         {TRANSPARENCY_ICON}
       </button>
-
-      {open && (
-        <div
-          className="window-opacity-popover"
-          role="dialog"
-          aria-label="Window Transparency Controls"
-        >
-          <div className="window-opacity-popover__header">
-            <div className="window-opacity-popover__title-wrap">
-              <span className="window-opacity-popover__title">Transparency Mode</span>
-            </div>
-            <span className="window-opacity-popover__percent">{opacityPercent}%</span>
-          </div>
-
-          <div className="window-opacity-popover__slider-row">
-            <button
-              type="button"
-              className="window-opacity-step-btn"
-              onClick={jumpPrevBreakpoint}
-              title="Previous Breakpoint (-10%)"
-              aria-label="Previous Breakpoint"
-            >
-              −
-            </button>
-            <input
-              ref={sliderRef}
-              type="range"
-              min="2"
-              max="100"
-              step="1"
-              value={opacityPercent}
-              onChange={handleSliderChange}
-              className="window-opacity-slider"
-              aria-label="Adjust window opacity"
-              style={{
-                '--slider-fill': `${Math.max(2, Math.min(100, opacityPercent))}%`,
-              }}
-            />
-            <button
-              type="button"
-              className="window-opacity-step-btn"
-              onClick={jumpNextBreakpoint}
-              title="Next Breakpoint (+10%)"
-              aria-label="Next Breakpoint"
-            >
-              +
-            </button>
-          </div>
-
-          <div className="window-opacity-presets" role="radiogroup" aria-label="Quick Presets">
-            {presets.map((p) => {
-              const active = Math.abs(opacity - p.value) < 0.04;
-              return (
-                <button
-                  key={p.step}
-                  type="button"
-                  role="radio"
-                  aria-checked={active}
-                  className={`window-opacity-preset-btn${active ? ' window-opacity-preset-btn--active' : ''}`}
-                  onClick={() => setPreset(p.step)}
-                  title={`Preset ${p.step}: ${p.label} (${p.name})`}
-                >
-                  <span className="window-opacity-preset-num">{p.step}</span>
-                  <span className="window-opacity-preset-label">{p.label}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="window-opacity-popover__footer">
-            <div className="window-opacity-shortcut-item">
-              <kbd>{modifierKey}+Shift++ / -</kbd>
-              <span>Next / Prev Breakpoint</span>
-            </div>
-            <div className="window-opacity-shortcut-item">
-              <kbd>{modifierKey}+Alt+H</kbd>
-              <span>Boss Key</span>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

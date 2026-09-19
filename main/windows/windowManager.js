@@ -136,7 +136,7 @@ function createWindow({
     const initialSettings = loadSettings();
     if (initialSettings.rememberWindowOpacity && typeof initialSettings.windowOpacity === 'number') {
         const safeOpacity = Math.max(0.02, Math.min(1.0, initialSettings.windowOpacity));
-        try { window.setOpacity(safeOpacity); } catch (_) {}
+        try { window.setOpacity(safeOpacity); } catch (_) { }
     }
 
     const context = {
@@ -207,7 +207,7 @@ function createWindow({
         const currentSettings = loadSettings();
         if (currentSettings.autoFadeOnBlur) {
             const activeOpacity = Math.max(0.02, Math.min(1.0, Number(currentSettings.windowOpacity) || 1.0));
-            try { window.setOpacity(activeOpacity); } catch (_) {}
+            try { window.setOpacity(activeOpacity); } catch (_) { }
         }
     });
 
@@ -215,7 +215,7 @@ function createWindow({
         const currentSettings = loadSettings();
         if (currentSettings.autoFadeOnBlur) {
             const blurOpacity = Math.max(0.02, Math.min(1.0, Number(currentSettings.autoFadeBlurOpacity) || 0.30));
-            try { window.setOpacity(blurOpacity); } catch (_) {}
+            try { window.setOpacity(blurOpacity); } catch (_) { }
         }
     });
 
@@ -403,7 +403,7 @@ function createWindow({
             try {
                 const { getPermissionController } = require('../permissions/PermissionController');
                 getPermissionController().db.unregisterEphemeralProfile(context.stealthTabsPartition);
-            } catch (_) {}
+            } catch (_) { }
         }
 
         if (!profileStillOpen) {
@@ -470,8 +470,106 @@ function createProfilePickerWindow() {
     });
 }
 
+/**
+ * Enables or disables click-through (mouse pass-through) on a ghost window.
+ *
+ * When click-through is ON the window can't be focused by clicking, so
+ * before-input-event shortcuts stop working. We compensate by registering
+ * Ctrl+Shift+G as a globalShortcut while click-through is active and
+ * unregistering it when it's turned off.
+ *
+ * The OSD notification is posted directly to chromeShellMenuOverlayView so it
+ * is always visible above tab WebContentsViews.
+ */
+function setWindowClickThrough(context, enable, source = 'manual') {
+    if (!context?.window || context.window.isDestroyed() || !context.ghostWindow) return false;
+    context.isClickThrough = !!enable;
+
+    // ── Native + Electron layer ───────────────────────────────────────────
+    try {
+        const { setClickThrough } = require('../native');
+        setClickThrough(context.window, context.isClickThrough);
+    } catch (err) {
+        console.error('[windowManager] setClickThrough native:', err);
+    }
+
+    try {
+        context.window.setIgnoreMouseEvents(context.isClickThrough, { forward: true });
+    } catch (err) {
+        console.error('[windowManager] setIgnoreMouseEvents:', err);
+    }
+
+    // ── Global shortcut management ────────────────────────────────────────
+    // When click-through is on, the window can't receive keyboard focus, so
+    // before-input-event won't fire. Register a globalShortcut as fallback.
+    try {
+        const { globalShortcut } = require('electron');
+        const ACCEL = 'CmdOrCtrl+Shift+G';
+        globalShortcut.unregister(ACCEL);
+        if (context.isClickThrough) {
+            globalShortcut.register(ACCEL, () => {
+                if (!context.window || context.window.isDestroyed()) {
+                    globalShortcut.unregister(ACCEL);
+                    return;
+                }
+                setWindowClickThrough(context, false, 'globalShortcut');
+            });
+        }
+    } catch (err) {
+        console.error('[windowManager] globalShortcut management:', err);
+    }
+
+    // ── OSD via shell menu overlay (always above tab content) ─────────────
+    try {
+        const overlayView = context.chromeShellMenuOverlayView;
+        if (overlayView && !overlayView.webContents.isDestroyed()) {
+            const overlayManager = require('./overlayManager');
+            const shortcutLabel = process.platform === 'darwin' ? '⌘⇧G' : 'Ctrl+Shift+G';
+            const patch = {
+                kind: 'clickThroughOSD',
+                isClickThrough: context.isClickThrough,
+                shortcutLabel,
+            };
+            const bounds = overlayManager.computeMenuOverlayBounds(context, patch);
+            if (bounds) {
+                overlayView.setBounds({ x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height });
+                patch.overlayBounds = bounds;
+                patch.overlayViewport = { width: bounds.viewportWidth, height: bounds.viewportHeight };
+            }
+            overlayManager.ensureChromeOverlayOnTop(context);
+            overlayView.webContents.send(C.IPC_EVENT.CHROME_OVERLAY_PATCH, patch);
+        }
+    } catch (err) {
+        console.error('[windowManager] clickThroughOSD overlay:', err);
+    }
+
+    // ── Also notify the shell renderer (for any legacy listeners) ─────────
+    try {
+        context.window.webContents.send(C.IPC_EVENT.GHOST_CLICK_THROUGH_CHANGED, {
+            isClickThrough: context.isClickThrough,
+            source,
+        });
+    } catch (_) {}
+
+    // ── Rebuild app menu to reflect new state ─────────────────────────────
+    try {
+        const menuUI = require('../ui/menu');
+        menuUI.rebuildApplicationMenu();
+    } catch (_) {}
+
+    return context.isClickThrough;
+}
+
+function toggleWindowClickThrough(context, source = 'manual') {
+    if (!context?.ghostWindow) return false;
+    return setWindowClickThrough(context, !context.isClickThrough, source);
+}
+
 module.exports = {
     getPrimaryWorkAreaBounds,
     createWindow,
     createProfilePickerWindow,
+    setWindowClickThrough,
+    toggleWindowClickThrough,
 };
+

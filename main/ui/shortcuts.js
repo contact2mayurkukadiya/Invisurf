@@ -100,6 +100,16 @@ function handleShortcuts(event, input) {
         return;
     }
 
+    // 6b. Ghost Window Click-Through Toggle
+    if (matchesShortcut(input, shortcuts.toggleClickThrough)) {
+        event.preventDefault();
+        if (context?.ghostWindow) {
+            const { toggleWindowClickThrough } = require('../windows/windowManager');
+            toggleWindowClickThrough(context, 'shortcut');
+        }
+        return;
+    }
+
     // 7. Tab Zoom
     if (matchesShortcut(input, shortcuts.zoomIn)) {
         event.preventDefault();

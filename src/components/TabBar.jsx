@@ -1,4 +1,4 @@
-import React, { useRef, useCallback, useMemo, useState, useLayoutEffect } from 'react';
+import React, { useEffect, useRef, useCallback, useMemo, useState, useLayoutEffect } from 'react';
 import { useSelector } from 'react-redux';
 import Tab from './Tab';
 import { tabAddSvg } from '../constants/appAssetUrls';
@@ -36,6 +36,7 @@ export default function TabBar({
 
   const [isStuckToRight, setIsStuckToRight] = useState(false);
   const [tabWidth, setTabWidth] = useState(240);
+  const [isClickThrough, setIsClickThrough] = useState(false);
   const tabBarRef = useRef(null);
   const tabTrackRef = useRef(null);
   const tabContainerRef = useRef(null);
@@ -87,6 +88,32 @@ export default function TabBar({
 
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
+  }, []);
+
+  useEffect(() => {
+    if (!isGhostWindow) return;
+    let mounted = true;
+    window.electronAPI?.ghostGetClickThrough?.().then((val) => {
+      if (mounted && typeof val === 'boolean') {
+        setIsClickThrough(val);
+      }
+    }).catch(() => {});
+
+    const unsubscribe = window.electronAPI?.onGhostClickThroughChanged?.((data) => {
+      if (mounted && data && typeof data.isClickThrough === 'boolean') {
+        setIsClickThrough(data.isClickThrough);
+      }
+    });
+
+    return () => {
+      mounted = false;
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, [isGhostWindow]);
+
+  const handleGhostBadgeClick = useCallback((e) => {
+    e.stopPropagation();
+    window.electronAPI?.ghostToggleClickThrough?.();
   }, []);
 
   const handleTabHoverEnter = useCallback((id, tabEl) => {
@@ -207,10 +234,16 @@ export default function TabBar({
       onMouseDown={isGhostWindow ? handleGhostDragMouseDown : undefined}
     >
       {isGhostWindow && !isMac && (
-        <div className="ghost-badge ghost-badge--left" title="Ghost Window: Non-activating floating browser">
-          <span className="ghost-badge-dot" />
-          <span>Ghost</span>
-        </div>
+        <button
+          type="button"
+          className={`ghost-badge ghost-badge--left${isClickThrough ? ' ghost-badge--passthrough' : ''}`}
+          onClick={handleGhostBadgeClick}
+          title={isClickThrough ? "Click-Through: ON (Passthrough) • Press Ctrl+Shift+G to restore" : "Click-Through: OFF (Interactive) • Click or Ctrl+Shift+G to enable passthrough"}
+          aria-label="Ghost Window Click-Through Status"
+        >
+          <span className={`ghost-badge-dot${isClickThrough ? ' ghost-badge-dot--passthrough' : ''}`} />
+          <span>{isClickThrough ? 'Ghost • Passthrough' : 'Ghost'}</span>
+        </button>
       )}
       <div
         ref={tabContainerRef}
@@ -241,10 +274,16 @@ export default function TabBar({
         {ADD_ICON}
       </button>
       {isGhostWindow && isMac && (
-        <div className="ghost-badge ghost-badge--right" title="Ghost Window: Non-activating floating browser">
-          <span className="ghost-badge-dot" />
-          <span>Ghost</span>
-        </div>
+        <button
+          type="button"
+          className={`ghost-badge ghost-badge--right${isClickThrough ? ' ghost-badge--passthrough' : ''}`}
+          onClick={handleGhostBadgeClick}
+          title={isClickThrough ? "Click-Through: ON (Passthrough) • Press ⌘⇧G to restore" : "Click-Through: OFF (Interactive) • Click or ⌘⇧G to enable passthrough"}
+          aria-label="Ghost Window Click-Through Status"
+        >
+          <span className={`ghost-badge-dot${isClickThrough ? ' ghost-badge-dot--passthrough' : ''}`} />
+          <span>{isClickThrough ? 'Ghost • Passthrough' : 'Ghost'}</span>
+        </button>
       )}
     </div>
   );

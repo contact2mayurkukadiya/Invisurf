@@ -279,6 +279,9 @@ const IPC_INVOKE = freeze({
   WINDOW_CLOSE_IF_STEALTH: 'window:close-if-stealth',
   WINDOW_CLOSE_CURRENT: 'window:close-current',
   GHOST_CLOSE: 'ghost:close',
+  GHOST_TOGGLE_CLICK_THROUGH: 'ghost:toggle-click-through',
+  GHOST_SET_CLICK_THROUGH: 'ghost:set-click-through',
+  GHOST_GET_CLICK_THROUGH: 'ghost:get-click-through',
   WINDOW_GET_BOOTSTRAP: 'window:get-bootstrap',
   PROFILE_LIST: 'profile:list',
   PROFILE_GET_CURRENT: 'profile:get-current',
@@ -419,6 +422,7 @@ const IPC_EVENT = freeze({
   PERMISSION_PROMPT_REQUEST: 'permission:prompt-request',
   PERMISSION_PROMPT_DISMISSED: 'permission:prompt-dismissed',
   WINDOW_OPACITY_CHANGED: 'window:opacity-changed',
+  GHOST_CLICK_THROUGH_CHANGED: 'ghost:click-through-changed',
 });
 
 /** Custom DOM events (renderer-only) */

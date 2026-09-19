@@ -172,6 +172,29 @@ function registerIpcHandlers() {
         }
     });
 
+
+    ipcMain.handle(C.IPC_INVOKE.GHOST_TOGGLE_CLICK_THROUGH || 'ghost:toggle-click-through', (event) => {
+        if (!isSenderTrusted(event)) return false;
+        const context = getWindowContextByEventSender(event.sender);
+        if (!context?.ghostWindow) return false;
+        const { toggleWindowClickThrough } = require('../windows/windowManager');
+        return toggleWindowClickThrough(context, 'ipc');
+    });
+
+    ipcMain.handle(C.IPC_INVOKE.GHOST_SET_CLICK_THROUGH || 'ghost:set-click-through', (event, enable) => {
+        if (!isSenderTrusted(event)) return false;
+        const context = getWindowContextByEventSender(event.sender);
+        if (!context?.ghostWindow) return false;
+        const { setWindowClickThrough } = require('../windows/windowManager');
+        return setWindowClickThrough(context, !!enable, 'ipc');
+    });
+
+    ipcMain.handle(C.IPC_INVOKE.GHOST_GET_CLICK_THROUGH || 'ghost:get-click-through', (event) => {
+        if (!isSenderTrusted(event)) return false;
+        const context = getWindowContextByEventSender(event.sender);
+        return !!context?.isClickThrough;
+    });
+
     ipcMain.on(C.IPC_SEND.GHOST_DRAG || 'ghost:drag', (event, { deltaX, deltaY } = {}) => {
         if (!isSenderTrusted(event)) return;
         const context = getWindowContextByEventSender(event.sender);
@@ -220,7 +243,7 @@ function registerIpcHandlers() {
         }
         try {
             win.webContents.send(C.IPC_EVENT.WINDOW_OPACITY_CHANGED, { opacity: safeOpacity });
-        } catch (_) {}
+        } catch (_) { }
         return safeOpacity;
     });
 
@@ -641,6 +664,15 @@ function registerIpcHandlers() {
     ipcMain.on(C.IPC_SEND.CHROME_OVERLAY_FROM_OVERLAY, (e, data) => {
         const context = getWindowContextByChromeOverlaySender(e.sender);
         if (!context?.window?.webContents || context.window.webContents.isDestroyed()) return;
+
+        if (data?.type === 'clickThroughOSDHide') {
+            try {
+                if (context.chromeShellMenuOverlayView && !context.chromeShellMenuOverlayView.webContents.isDestroyed()) {
+                    context.chromeShellMenuOverlayView.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+                }
+            } catch (_) {}
+            return;
+        }
 
         if (data?.type === C.OVERLAY.PERMISSION_PROMPT_RESPONSE || data?.type === 'permissionPromptResponse') {
             siteSettingsService.respondToPrompt(data.promptId, data.decision, data.persist === true);

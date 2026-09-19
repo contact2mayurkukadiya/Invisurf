@@ -24,6 +24,7 @@ export function buildCommandPaletteCommands(ctx) {
     tabDup: mac ? '⌘⇧D' : 'Ctrl+Shift+D',
     tabSearch: mac ? '⇧⌘A' : 'Shift+Ctrl+A',
     palette: mac ? '⌘⇧P' : 'Ctrl+Shift+P',
+    ghostClickThrough: mac ? '⌘⇧G' : 'Ctrl+Shift+G',
   };
 
   /** @type {CommandPaletteItem[]} */
@@ -51,6 +52,15 @@ export function buildCommandPaletteCommands(ctx) {
       keywords: 'ghost non-activating focus float interactive',
       run: () => {
         void ctx.createGhostWindow?.();
+      },
+    },
+    {
+      category: 'Window',
+      label: 'Toggle Ghost Click-Through (Passthrough)',
+      shortcut: S.ghostClickThrough,
+      keywords: 'ghost click through passthrough hit test transparent non-activating',
+      run: () => {
+        void ctx.toggleGhostClickThrough?.();
       },
     },
     {

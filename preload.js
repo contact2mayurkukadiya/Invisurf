@@ -321,6 +321,9 @@ const C = Object.freeze({
         "WINDOW_CLOSE_IF_STEALTH": "window:close-if-stealth",
         "WINDOW_CLOSE_CURRENT": "window:close-current",
         "GHOST_CLOSE": "ghost:close",
+        "GHOST_TOGGLE_CLICK_THROUGH": "ghost:toggle-click-through",
+        "GHOST_SET_CLICK_THROUGH": "ghost:set-click-through",
+        "GHOST_GET_CLICK_THROUGH": "ghost:get-click-through",
         "WINDOW_GET_BOOTSTRAP": "window:get-bootstrap",
         "PROFILE_LIST": "profile:list",
         "PROFILE_GET_CURRENT": "profile:get-current",
@@ -457,7 +460,8 @@ const C = Object.freeze({
         "TOOLTIP_UPDATE": "tooltip:update",
         "PERMISSION_PROMPT_REQUEST": "permission:prompt-request",
         "PERMISSION_PROMPT_DISMISSED": "permission:prompt-dismissed",
-        "WINDOW_OPACITY_CHANGED": "window:opacity-changed"
+        "WINDOW_OPACITY_CHANGED": "window:opacity-changed",
+        "GHOST_CLICK_THROUGH_CHANGED": "ghost:click-through-changed"
     }
 });
 
@@ -548,6 +552,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     closeCurrentWindow: () => ipcRenderer.invoke(C.IPC_INVOKE.WINDOW_CLOSE_CURRENT),
     ghostClose: () => ipcRenderer.invoke(C.IPC_INVOKE.GHOST_CLOSE),
     ghostDrag: (deltaX, deltaY) => ipcRenderer.send(C.IPC_SEND.GHOST_DRAG, { deltaX, deltaY }),
+    ghostToggleClickThrough: () => ipcRenderer.invoke(C.IPC_INVOKE.GHOST_TOGGLE_CLICK_THROUGH),
+    ghostSetClickThrough: (enable) => ipcRenderer.invoke(C.IPC_INVOKE.GHOST_SET_CLICK_THROUGH, enable),
+    ghostGetClickThrough: () => ipcRenderer.invoke(C.IPC_INVOKE.GHOST_GET_CLICK_THROUGH),
+    onGhostClickThroughChanged: (callback) => {
+        const handler = (_event, data) => callback(data);
+        ipcRenderer.on(C.IPC_EVENT.GHOST_CLICK_THROUGH_CHANGED, handler);
+        return () => ipcRenderer.removeListener(C.IPC_EVENT.GHOST_CLICK_THROUGH_CHANGED, handler);
+    },
     windowGetBootstrap: () => ipcRenderer.invoke(C.IPC_INVOKE.WINDOW_GET_BOOTSTRAP),
     isStealthWindow: () => ipcRenderer.invoke(C.IPC_INVOKE.IS_STEALTH_WINDOW),
     isGhostWindow: () => ipcRenderer.invoke(C.IPC_INVOKE.IS_GHOST_WINDOW),

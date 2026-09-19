@@ -30,6 +30,9 @@ let enumChildCallbackPtr = null;
 
 // Win32 Constants
 const GWL_EXSTYLE = -20;
+const WS_EX_TOPMOST = 0x00000008;
+const WS_EX_TRANSPARENT = 0x00000020;
+const WS_EX_LAYERED = 0x00080000;
 const WS_EX_NOACTIVATE = 0x08000000;
 
 const WM_ACTIVATE = 0x0006;
@@ -48,6 +51,7 @@ const SWP_NOMOVE = 0x0002;
 const SWP_NOZORDER = 0x0004;
 const SWP_NOACTIVATE = 0x0010;
 const SWP_FRAMECHANGED = 0x0020;
+const SWP_SAFE_FLAGS = SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED;
 
 const GHOST_SUBCLASS_ID = 0x47484F53; // 'GHOS'
 
@@ -109,7 +113,15 @@ function initWin32Native() {
         // BOOL CALLBACK EnumChildProc(HWND hWnd, LPARAM lParam);
         const EnumProto = koffi.proto('bool EnumProto(void *hWnd, intptr_t lParam)');
         enumChildCallbackPtr = koffi.register((hWnd, lParam) => {
-            // Child rendering windows must not be blocked from receiving focus/input
+            if (lParam === 1) {
+                // Enable click-through on child render widget HWND
+                const cur = Number(GetWindowLongPtrW(hWnd, GWL_EXSTYLE));
+                SetWindowLongPtrW(hWnd, GWL_EXSTYLE, cur | WS_EX_TRANSPARENT);
+            } else if (lParam === 2) {
+                // Disable click-through on child render widget HWND
+                const cur = Number(GetWindowLongPtrW(hWnd, GWL_EXSTYLE));
+                SetWindowLongPtrW(hWnd, GWL_EXSTYLE, cur & ~WS_EX_TRANSPARENT);
+            }
             return true;
         }, koffi.pointer(EnumProto));
 
@@ -141,14 +153,13 @@ function makeGhostWin32(handleBuffer) {
     if (!hwnd || !IsWindow(hwnd)) return false;
 
     try {
-        // 1. Set WS_EX_NOACTIVATE extended style on top-level HWND
+        // 1. Set WS_EX_NOACTIVATE and WS_EX_LAYERED, ensure WS_EX_TRANSPARENT is initially OFF
         const currentExStyle = Number(GetWindowLongPtrW(hwnd, GWL_EXSTYLE));
-        const newExStyle = currentExStyle | WS_EX_NOACTIVATE;
+        const newExStyle = (currentExStyle | WS_EX_NOACTIVATE | WS_EX_LAYERED) & ~WS_EX_TRANSPARENT;
         SetWindowLongPtrW(hwnd, GWL_EXSTYLE, newExStyle);
 
-        // 2. Refresh frame with SWP_NOACTIVATE
-        SetWindowPos(hwnd, null, 0, 0, 0, 0,
-            SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+        // 2. Refresh frame with SWP_SAFE_FLAGS (prevent focus stealing and preserve Z-order)
+        SetWindowPos(hwnd, null, 0, 0, 0, 0, SWP_SAFE_FLAGS);
 
         // 3. Subclass top-level HWND
         if (!hookedHwnds.has(hwnd)) {
@@ -184,7 +195,43 @@ function hookChildWindowsWin32(handleBuffer) {
     }
 }
 
+/**
+ * Toggle mouse click-through (hit-testing passthrough) on Win32.
+ * Strictly modifies ONLY the WS_EX_TRANSPARENT bit, keeping WS_EX_NOACTIVATE intact.
+ * Uses SWP_SAFE_FLAGS so the window never activates or changes Z-order.
+ * @param {Buffer} handleBuffer Buffer returned by win.getNativeWindowHandle()
+ * @param {boolean} enable
+ */
+function setClickThroughWin32(handleBuffer, enable) {
+    if (!initWin32Native()) return false;
+    const hwnd = resolveHwndPointer(handleBuffer);
+    if (!hwnd || !IsWindow(hwnd)) return false;
+
+    try {
+        const currentExStyle = Number(GetWindowLongPtrW(hwnd, GWL_EXSTYLE));
+        let newExStyle;
+        if (enable) {
+            newExStyle = currentExStyle | WS_EX_TRANSPARENT;
+        } else {
+            newExStyle = currentExStyle & ~WS_EX_TRANSPARENT;
+        }
+        // Strict Isolation Rule: re-assert core ghost flags WS_EX_NOACTIVATE and WS_EX_LAYERED
+        newExStyle = (newExStyle | WS_EX_NOACTIVATE | WS_EX_LAYERED);
+
+        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, newExStyle);
+        SetWindowPos(hwnd, null, 0, 0, 0, 0, SWP_SAFE_FLAGS);
+
+        // Update child Chromium HWNDs
+        EnumChildWindows(hwnd, enumChildCallbackPtr, enable ? 1 : 2);
+        return true;
+    } catch (err) {
+        console.error('[ghost-win32] Failed to set click-through:', err);
+        return false;
+    }
+}
+
 module.exports = {
     makeGhostWin32,
     hookChildWindowsWin32,
+    setClickThroughWin32,
 };

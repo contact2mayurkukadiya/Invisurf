@@ -26,6 +26,10 @@ function startWatchers(app) {
 
         const stampWatcher = chokidar.watch(rendererReloadStamp, { ignoreInitial: true });
         stampWatcher.on('change', () => {
+            try {
+                const { clearAppAssetCache } = require('../services/networkService');
+                clearAppAssetCache();
+            } catch (_) {}
             for (const win of BrowserWindow.getAllWindows()) {
                 if (win.isDestroyed()) continue;
                 win.webContents.reloadIgnoringCache();

@@ -484,3 +484,132 @@
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+
+/* ── Transparency Menu – range slider thumb ─────────────────────────────── */
+input[type="range"].tm-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 6px;
+    border-radius: 3px;
+    outline: none;
+    cursor: pointer;
+    margin: 4px 0;
+    width: 100%;
+    background: linear-gradient(
+        to right,
+        var(--chrome-fg, rgba(255, 255, 255, 0.85)) 0%,
+        var(--chrome-fg, rgba(255, 255, 255, 0.85)) var(--tm-pct, 100%),
+        var(--chrome-tab-separator, rgba(0, 0, 0, 0.15)) var(--tm-pct, 100%),
+        var(--chrome-tab-separator, rgba(0, 0, 0, 0.15)) 100%
+    );
+}
+
+input[type="range"].tm-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #ffffff;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5), 0 0 0 2px var(--accent-primary, #818cf8);
+    cursor: pointer;
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+input[type="range"].tm-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.15);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6), 0 0 0 3px var(--accent-primary, #818cf8);
+}
+
+input[type="range"].tm-slider::-webkit-slider-thumb:active {
+    transform: scale(1.05);
+}
+
+/* Click-Through Notification Menu Content (Styled naturally like bookmarkContextMenu) */
+.co-click-through-menu-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.2;
+    user-select: none;
+}
+
+.co-click-through-menu-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.co-click-through-menu-title {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.1px;
+}
+
+.co-click-through-menu-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 8px;
+    border-radius: 9999px; /* Both ends fully rounded pill like titlebar */
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.3px;
+    line-height: 1.2;
+    user-select: none;
+    flex-shrink: 0;
+}
+
+.co-click-through-badge-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: currentColor;
+    box-shadow: 0 0 6px currentColor;
+    flex-shrink: 0;
+}
+
+/* ON: Passthrough (Amber chip, rounded both ends) */
+.co-click-through-menu-badge--passthrough {
+    background: rgba(245, 158, 11, 0.2);
+    border: 1px solid rgba(245, 158, 11, 0.4);
+    color: #fbbf24;
+}
+
+/* OFF: Ghost (Purple chip matching top titlebar, rounded both ends) */
+.co-click-through-menu-badge--ghost {
+    background: rgba(130, 120, 255, 0.18);
+    border: 1px solid rgba(130, 120, 255, 0.42);
+    color: #c4bfff;
+}
+
+html[data-forced-appearance="light"] .co-click-through-menu-badge--ghost {
+    color: #5844e3;
+    background: rgba(88, 68, 227, 0.12);
+    border-color: rgba(88, 68, 227, 0.35);
+}
+
+.co-click-through-menu-hint {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 5px 14px;
+    font-size: 11px;
+    color: var(--chrome-fg, rgba(255, 255, 255, 0.7));
+    opacity: 0.75;
+    user-select: none;
+}
+
+.co-click-through-menu-hint kbd {
+    display: inline-block;
+    padding: 1px 5px;
+    font-size: 10px;
+    font-family: inherit;
+    background: var(--chrome-tab-hover-bg, rgba(255, 255, 255, 0.1));
+    border: 1px solid var(--chrome-tab-separator, rgba(255, 255, 255, 0.15));
+    border-radius: 4px;
+    color: inherit;
+}

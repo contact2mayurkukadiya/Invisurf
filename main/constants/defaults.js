@@ -51,6 +51,8 @@ const SHELL_MENU_OVERLAY_KINDS = new Set([
     'siteInfo',
     'cookieControls',
     'downloadPanel',
+    'transparencyMenu',
+    'clickThroughOSD',
 ]);
 
 const COOKIE_CONFIG_DEFAULTS = {
@@ -61,6 +63,7 @@ const COOKIE_CONFIG_DEFAULTS = {
 const DEFAULT_SHORTCUTS = {
     transparencyNextBreakpoint: 'CmdOrCtrl+Shift+Plus',
     transparencyPrevBreakpoint: 'CmdOrCtrl+Shift+-',
+    toggleClickThrough: 'CmdOrCtrl+Shift+G',
     bossKey: 'CmdOrCtrl+Alt+H',
     newTab: 'CmdOrCtrl+T',
     newWindow: 'CmdOrCtrl+N',

@@ -26,7 +26,7 @@ export function hideAll(options = { hideLens: true }) {
         if (DOM.panel) {
             DOM.panel.classList.remove(
                 'co-visible', 'co-panel--editor', 'co-panel--omnibox',
-                'co-panel--folder-menu', 'co-panel--app-menu'
+                'co-panel--folder-menu', 'co-panel--app-menu', 'co-panel--click-through-osd'
             );
             DOM.panel.style.cssText = ''; // Completely wipes leftover inline styles!
             DOM.panel.innerHTML = '';

@@ -33,6 +33,7 @@ let sel_respondsToSelector = null;
 let sel_setBecomesKeyOnlyIfNeeded = null;
 let sel_setPreventsActivation = null;
 let sel_setFloatingPanel = null;
+let sel_setIgnoresMouseEvents = null;
 
 let nsWindowClass = null;
 let nsPanelClass = null;
@@ -67,6 +68,7 @@ function initDarwinNative() {
         sel_setBecomesKeyOnlyIfNeeded = sel_registerName('setBecomesKeyOnlyIfNeeded:');
         sel_setPreventsActivation = sel_registerName('_setPreventsActivation:');
         sel_setFloatingPanel = sel_registerName('setFloatingPanel:');
+        sel_setIgnoresMouseEvents = sel_registerName('setIgnoresMouseEvents:');
 
         nsWindowClass = objc_getClass('NSWindow');
         nsPanelClass = objc_getClass('NSPanel');
@@ -208,7 +210,31 @@ function setGhostApplicationModeDarwin(enabled) {
     // Kept for interface compatibility
 }
 
+function setClickThroughDarwin(handleBuffer, enable) {
+    if (!initDarwinNative()) return false;
+    if (!handleBuffer || !Buffer.isBuffer(handleBuffer)) return false;
+
+    try {
+        const rawPtr = handleBuffer.length === 8
+            ? handleBuffer.readBigUInt64LE()
+            : BigInt(handleBuffer.readUInt32LE(0));
+        if (!rawPtr || rawPtr === 0n) return false;
+
+        const nsWindow = safeResolveNSWindow(rawPtr);
+        if (!nsWindow || nsWindow === 0n) return false;
+
+        if (sel_respondsToSelector && sel_setIgnoresMouseEvents && msgSend_bool_id(nsWindow, sel_respondsToSelector, sel_setIgnoresMouseEvents)) {
+            msgSend_void_bool(nsWindow, sel_setIgnoresMouseEvents, !!enable);
+            return true;
+        }
+    } catch (err) {
+        console.error('[ghost-darwin] Failed to set click-through:', err);
+    }
+    return false;
+}
+
 module.exports = {
     makeGhostDarwin,
     setGhostApplicationModeDarwin,
+    setClickThroughDarwin,
 };

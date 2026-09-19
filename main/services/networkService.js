@@ -24,21 +24,34 @@ function appRendererPath(relativePath) {
 }
 
 async function readAppAsset(filePath) {
-    const cached = appAssetCache.get(filePath);
-    if (cached) return cached;
-    const pending = appAssetReads.get(filePath);
-    if (pending) return pending;
+    if (app.isPackaged) {
+        const cached = appAssetCache.get(filePath);
+        if (cached) return cached;
+        const pending = appAssetReads.get(filePath);
+        if (pending) return pending;
+    }
 
     const read = fs.promises.readFile(filePath)
         .then((data) => {
-            appAssetCache.set(filePath, data);
+            if (app.isPackaged) {
+                appAssetCache.set(filePath, data);
+            }
             return data;
         })
         .finally(() => {
-            appAssetReads.delete(filePath);
+            if (app.isPackaged) {
+                appAssetReads.delete(filePath);
+            }
         });
-    appAssetReads.set(filePath, read);
+    if (app.isPackaged) {
+        appAssetReads.set(filePath, read);
+    }
     return read;
+}
+
+function clearAppAssetCache() {
+    appAssetCache.clear();
+    appAssetReads.clear();
 }
 
 /** Warm only the tiny, self-contained NTP document and its JavaScript bundle. */
@@ -154,6 +167,7 @@ function installSessionNetworkGuards(targetSession, options = {}) {
 module.exports = {
     registerAppProtocolForSession,
     prewarmNewTabAssets,
+    clearAppAssetCache,
     pickResponseHeadersForDiag,
     recordCompatEvent,
     getSessionPolicyDeps,

@@ -46,6 +46,7 @@ export const SHORTCUT_DEFINITIONS = [
             { id: 'transparencyNextBreakpoint', label: 'Next Breakpoint (+10% Opacity)', defaultShortcut: 'CmdOrCtrl+Shift+Plus', description: 'Jump forward to next transparency breakpoint' },
             { id: 'transparencyPrevBreakpoint', label: 'Previous Breakpoint (-10% Opacity)', defaultShortcut: 'CmdOrCtrl+Shift+-', description: 'Jump backward to previous transparency breakpoint' },
             { id: 'bossKey', label: 'Boss Key (Quick Minimize)', defaultShortcut: 'CmdOrCtrl+Alt+H', description: 'Instantly hides or minimizes the window' },
+            { id: 'toggleClickThrough', label: 'Toggle Click-Through (Ghost Window)', defaultShortcut: 'CmdOrCtrl+Shift+G', description: 'Toggles mouse hit-testing passthrough on Ghost Windows. This shortcut is profile-specific — each profile\'s ghost window can have its own key combination.' },
         ],
     },
     {

@@ -95,16 +95,7 @@ function buildApplicationMenu() {
                         windowManager.createWindow({ profileId: context.profileId, stealthWindow: true });
                     },
                 },
-                {
-                    label: 'New Ghost Window',
-                    accelerator: 'CmdOrCtrl+Alt+G',
-                    click: () => {
-                        const w = getFocusedShellWindow() || State.mainWindow;
-                        const context = getWindowContextByBrowserWindow(w);
-                        const profileId = context?.profileId || State.defaultProfileId;
-                        windowManager.createWindow({ profileId, ghostWindow: true });
-                    },
-                },
+
                 {
                     label: 'New Window',
                     accelerator: 'CmdOrCtrl+N',
@@ -200,6 +191,34 @@ function buildApplicationMenu() {
                         {
                             label: 'JavaScript Console',
                             click: () => tabManager.openDevToolsForActiveTab('console'),
+                        },
+                    ],
+                },
+                { type: 'separator' },
+                {
+                    label: 'Ghost Window',
+                    submenu: [
+                        {
+                            label: 'New Ghost Window',
+                            accelerator: 'CmdOrCtrl+Alt+G',
+                            click: () => {
+                                const w = getFocusedShellWindow() || State.mainWindow;
+                                const context = getWindowContextByBrowserWindow(w);
+                                const profileId = context?.profileId || State.defaultProfileId;
+                                windowManager.createWindow({ profileId, ghostWindow: true });
+                            },
+                        },
+                        {
+                            label: 'Toggle Ghost Click-Through',
+                            accelerator: 'CmdOrCtrl+Shift+G',
+                            click: () => {
+                                const w = getFocusedShellWindow() || State.mainWindow;
+                                const context = getWindowContextByBrowserWindow(w);
+                                if (context?.ghostWindow) {
+                                    const { toggleWindowClickThrough } = require('../windows/windowManager');
+                                    toggleWindowClickThrough(context, 'view-menu');
+                                }
+                            },
                         },
                     ],
                 },
