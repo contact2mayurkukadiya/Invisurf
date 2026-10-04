@@ -6,6 +6,7 @@ import { updateTab, updateTabUrl, setSearchEngine, setShowBookmarkBar } from '..
 export function useElectronIPC({
   onNewTab,
   onTabCreated,
+  onTabClosedExternal,
   onTabSwitched,
   onTabAwoken,
   onCloseTab,
@@ -47,6 +48,12 @@ export function useElectronIPC({
     api.onTabCreated((data) => {
       onTabCreated(data);
     });
+
+    if (api.onTabClosedExternal) {
+      api.onTabClosedExternal(({ id }) => {
+        if (id) onTabClosedExternal?.(id);
+      });
+    }
 
     api.onTabSwitched(({ id }) => {
       onTabSwitched(id);

@@ -54,6 +54,8 @@ function createWindow({
     const { getPermissionController } = require('../permissions/PermissionController');
     const permController = getPermissionController();
     permController.registerSession(mappedSession, { profileId: resolvedProfileId, isIncognito: false });
+    const { getExtensionController } = require('../extensions/ExtensionController');
+    void getExtensionController().registerSession(resolvedProfileId, mappedSession);
 
     // This is deliberately best-effort and is shared safely across all
     // partitions: these are packaged, profile-independent renderer assets.
@@ -150,6 +152,7 @@ function createWindow({
         stealthTabsPartition,
         tabs: {},
         sleepingTabs: {},
+        tabOrder: [],
         // Detached, fully loaded spare used only for the next foreground NTP.
         prewarmedNtp: null,
         activeTabId: null,
@@ -203,20 +206,6 @@ function createWindow({
             State.mainWindow = window;
         }
         menuUI.rebuildApplicationMenu();
-
-        const currentSettings = loadSettings();
-        if (currentSettings.autoFadeOnBlur) {
-            const activeOpacity = Math.max(0.02, Math.min(1.0, Number(currentSettings.windowOpacity) || 1.0));
-            try { window.setOpacity(activeOpacity); } catch (_) { }
-        }
-    });
-
-    window.on('blur', () => {
-        const currentSettings = loadSettings();
-        if (currentSettings.autoFadeOnBlur) {
-            const blurOpacity = Math.max(0.02, Math.min(1.0, Number(currentSettings.autoFadeBlurOpacity) || 0.30));
-            try { window.setOpacity(blurOpacity); } catch (_) { }
-        }
     });
 
     const { createTabContentContainer, layoutTabContentContainer, removeTabContentChildView, layoutActiveTabView, prewarmNewTabView } = require('./tabManager');

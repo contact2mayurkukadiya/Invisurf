@@ -260,11 +260,15 @@ https://www.flaticon.com/search?word=folder&weight=regular&type=uicon
 
 - Profiles/History/Settings/Bookmarks Export and import
 - Profiles/History/Settings/Bookmarks Server Sync
-- Tab Groups
-- Extension Support
+- Tab Groups (`chrome.tabGroups` API integration for tab organizers)
+- Extension Side Panel (`chrome.sidePanel` - docked sidebar container for ChatGPT, Claude, Grammarly, etc.)
+- Extension Screen & Tab Media Capture (`chrome.desktopCapture` / `chrome.tabCapture` - native source picker modal for Loom, Screencastify)
+- Extension DevTools Panels (`chrome.devtools` - React, Vue, Redux DevTools integration)
+- Extension Session Restore (`chrome.sessions` - recently closed tabs stack)
+- Per-Site Content & Privacy Settings (`chrome.contentSettings` / `chrome.privacy` - granular site permission overrides)
+- Reading List UI & Storage (`chrome.readingList` - save-for-later reader manager)
 - Download/Permission Popups
 - Split Tabs
 - InBuilt VPN
 - InBuild AdBlocker
-- Auto-complete menu item fix - show netiv query instead of url.
-- 
+- Auto-complete menu item fix - show native query instead of url.

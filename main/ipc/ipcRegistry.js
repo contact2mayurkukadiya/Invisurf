@@ -675,7 +675,156 @@ function registerIpcHandlers() {
         }
 
         if (data?.type === C.OVERLAY.PERMISSION_PROMPT_RESPONSE || data?.type === 'permissionPromptResponse') {
+            if (data.promptId && typeof data.promptId === 'string' && data.promptId.startsWith('ext-perm-')) {
+                overlayManager.hidePermissionPromptOverlay(context);
+                if (data.decision === 'allow' || data.decision === 'allow-this-session') {
+                    const extId = data.metadata?.extensionId || data.promptId.replace(/^ext-perm-/, '').replace(/-\d+$/, '');
+                    const anchorRect = data.metadata?.anchorRect || null;
+                    const activeTabId = context.activeTabId;
+                    const activeTab = context.tabs?.[activeTabId];
+                    const tabUrl = activeTab?.webContents?.getURL?.() || '';
+                    if (extId && tabUrl) {
+                        try {
+                            const origin = new URL(tabUrl).origin;
+                            const { getExtensionController } = require('../extensions/ExtensionController');
+                            const controller = getExtensionController();
+                            const targetProfile = context.profileId || State.defaultProfileId;
+                            controller.grantOriginAccess(targetProfile, extId, origin);
+                            console.log(`[ExtensionIPC] Permission granted for ${extId} on ${origin}`);
+                            void controller.activateExtensionAction(targetProfile, extId, context, anchorRect);
+                        } catch (_) {}
+                    }
+                }
+                return;
+            }
             siteSettingsService.respondToPrompt(data.promptId, data.decision, data.persist === true);
+            return;
+        }
+
+        if (data?.type === 'extensionInstallResponse') {
+            const { getExtensionController } = require('../extensions/ExtensionController');
+            const controller = getExtensionController();
+            overlayManager.hideExtensionInstallPromptOverlay(context);
+
+            if (data.decision === 'allow' && data.installToken) {
+                controller.confirmInstall(data.installToken)
+                    .then((result) => {
+                        console.log(`[ExtensionController] Installed extension ${result?.extension?.id || ''}`);
+                        if (context.window && !context.window.isDestroyed()) {
+                            context.window.webContents.send('extensions:updated', { profileId: context.profileId });
+                        }
+                        if (context.tabs) {
+                            for (const view of Object.values(context.tabs)) {
+                                if (view?.webContents && !view.webContents.isDestroyed()) {
+                                    view.webContents.send('extensions:install-completed', {
+                                        extensionId: result?.extension?.id,
+                                    });
+                                }
+                            }
+                        }
+                    })
+                    .catch((err) => {
+                        console.error('[ExtensionController] Install error:', err);
+                        if (context.tabs) {
+                            for (const view of Object.values(context.tabs)) {
+                                if (view?.webContents && !view.webContents.isDestroyed()) {
+                                    view.webContents.send('extensions:install-cancelled', {
+                                        error: err?.message || 'Failed to install',
+                                    });
+                                }
+                            }
+                        }
+                    });
+            } else if (data.installToken) {
+                const pending = controller.pendingInstalls.get(data.installToken);
+                const extensionId = pending?.extensionId;
+                controller.cancelInstall(data.installToken);
+                if (extensionId && context.tabs) {
+                    for (const view of Object.values(context.tabs)) {
+                        if (view?.webContents && !view.webContents.isDestroyed()) {
+                            view.webContents.send('extensions:install-cancelled', { extensionId });
+                        }
+                    }
+                }
+            }
+            return;
+        }
+
+        if (data?.type === 'dismiss' && context.activeExtensionInstallPrompt) {
+            const installToken = context.activeExtensionInstallPrompt.installToken;
+            const { getExtensionController } = require('../extensions/ExtensionController');
+            const controller = getExtensionController();
+            const pending = controller.pendingInstalls.get(installToken);
+            const extensionId = pending?.extensionId;
+            controller.cancelInstall(installToken);
+            overlayManager.hideExtensionInstallPromptOverlay(context);
+            if (extensionId && context.tabs) {
+                for (const view of Object.values(context.tabs)) {
+                    if (view?.webContents && !view.webContents.isDestroyed()) {
+                        view.webContents.send('extensions:install-cancelled', { extensionId });
+                    }
+                }
+            }
+            return;
+        }
+
+        if (data?.type === 'extensionToggle') {
+            const { getExtensionController } = require('../extensions/ExtensionController');
+            const controller = getExtensionController();
+            const targetProfile = context.profileId || State.defaultProfileId;
+            const exts = controller.getInstalledExtensions(targetProfile);
+            const target = exts.find(e => e.id === data.extensionId);
+            if (target) {
+                const action = target.enabled
+                    ? controller.disableExtension(targetProfile, data.extensionId)
+                    : controller.enableExtension(targetProfile, data.extensionId);
+                action.then(() => {
+                    if (context.window && !context.window.isDestroyed()) {
+                        context.window.webContents.send('extensions:updated', { profileId: targetProfile });
+                    }
+                }).catch(err => console.error('Overlay extensionToggle error:', err));
+            }
+            return;
+        }
+
+        if (data?.type === 'extensionUninstall') {
+            const { getExtensionController } = require('../extensions/ExtensionController');
+            const controller = getExtensionController();
+            const targetProfile = context.profileId || State.defaultProfileId;
+            controller.uninstallExtension(targetProfile, data.extensionId)
+                .then(() => {
+                    if (context.window && !context.window.isDestroyed()) {
+                        context.window.webContents.send('extensions:updated', { profileId: targetProfile });
+                    }
+                })
+                .catch(err => console.error('Overlay extensionUninstall error:', err));
+            return;
+        }
+
+        if (data?.type === 'extensionNavigate') {
+            overlayManager.dismissChromeShellMenuOverlay(context, 'browser-action');
+            if (context.window && !context.window.isDestroyed()) {
+                context.window.webContents.send('app:navigate-url', { url: data.url });
+            }
+            return;
+        }
+
+        if (data?.type === 'extensionTogglePin') {
+            const { getExtensionController } = require('../extensions/ExtensionController');
+            const controller = getExtensionController();
+            const targetProfile = context.profileId || State.defaultProfileId;
+            controller.togglePinExtension(targetProfile, data.extensionId);
+            if (context.window && !context.window.isDestroyed()) {
+                context.window.webContents.send('extensions:updated', { profileId: targetProfile });
+            }
+            return;
+        }
+
+        if (data?.type === 'extensionActivate') {
+            const { getExtensionController } = require('../extensions/ExtensionController');
+            const controller = getExtensionController();
+            const targetProfile = context.profileId || State.defaultProfileId;
+            void controller.activateExtensionAction(targetProfile, data.extensionId, context, data.anchorRect);
             return;
         }
 
@@ -769,72 +918,7 @@ function registerIpcHandlers() {
         const id = payload?.id;
         const closeWindowIfLast = payload?.closeWindowIfLast === true;
         if (!id || typeof id !== 'string') return;
-        overlayManager.dismissChromeShellMenuOverlay(context, 'browser-action');
-
-        const tabSnapshot = sessionService.captureClosedTabSnapshot(context, id);
-        if (State.appLogger) {
-            State.appLogger.info('ipc:close-tab', { windowId: context.windowId, profileId: context.profileId, tabId: id, captured: !!tabSnapshot, url: tabSnapshot?.url || null });
-        }
-
-        delete context.sleepingTabs[id];
-
-        if (State.detachedTabWindows.has(id)) {
-            const w = State.detachedTabWindows.get(id);
-            if (w && !w.isDestroyed()) w.close();
-            return;
-        }
-
-        const totalTabsRemaining = Object.keys(context.tabs).length + Object.keys(context.sleepingTabs).length;
-        const willCloseWindow = closeWindowIfLast && totalTabsRemaining <= 1;
-
-        if (context.tabs[id]) {
-            tabManager.removeTabContentChildView(context, context.tabs[id]);
-            context.tabs[id].webContents.destroy();
-            delete context.tabs[id];
-            State.tabIdToWindowId.delete(id);
-            lensManager.destroyLensSession(context, id);
-            if (context.activeTabId === id) context.activeTabId = null;
-        }
-        State.pendingTransitionsByTab.delete(String(id));
-        if (State.historyService) State.historyService.clearTab(id);
-        compatDiagnostics.clear(id);
-
-        if (willCloseWindow) {
-            let windowBounds = null;
-            try {
-                if (context.window && !context.window.isDestroyed()) {
-                    windowBounds = context.window.getBounds();
-                }
-            } catch (_) { }
-
-            const windowSnapshot = {
-                type: 'window',
-                profileId: context.profileId,
-                ghostWindow: !!context.ghostWindow,
-                bounds: windowBounds,
-                tabs: tabSnapshot ? [tabSnapshot] : (context.ghostWindow ? [{ id, title: 'Ghost Window', url: '' }] : []),
-                activeTabId: id,
-            };
-            sessionService.pushRecentlyClosedEntry(context.profileId, windowSnapshot);
-            context._closedWindowSnapshotPushed = true;
-        } else if (tabSnapshot) {
-            sessionService.pushRecentlyClosedEntry(context.profileId, {
-                type: 'tab',
-                title: tabSnapshot.title,
-                url: tabSnapshot.url,
-                history: tabSnapshot.history,
-                ghostWindow: !!context.ghostWindow,
-            });
-        }
-
-        const tabsRemaining = Object.keys(context.tabs).length + Object.keys(context.sleepingTabs).length;
-        if (closeWindowIfLast && tabsRemaining === 0) {
-            try {
-                if (!context.window.isDestroyed()) context.window.close();
-            } catch (err) {
-                if (State.appLogger) State.appLogger.error('ipc:close-tab:close-window', { windowId: context.windowId, error: State.appLogger.serializeError(err) });
-            }
-        }
+        tabManager.closeTab(context, id, { closeWindowIfLast });
     });
 
     ipcMain.on(C.IPC_SEND.GO_BACK, (e, { id }) => {
@@ -1440,6 +1524,9 @@ function registerIpcHandlers() {
         if (!isSenderTrusted(e)) return false;
         const context = getWindowContextByEventSender(e.sender);
         if (!context) return false;
+        if (Array.isArray(data?.tabs)) {
+            context.tabOrder = data.tabs.map(t => t.id);
+        }
         if (context.stealthWindow) return true;
 
         const { startupBehavior } = settingsService.loadSettings();
@@ -1684,6 +1771,9 @@ function registerIpcHandlers() {
         }
         return data;
     });
+
+    const { registerExtensionIpcHandlers } = require('./extensionIpc');
+    registerExtensionIpcHandlers();
 }
 
 module.exports = { registerIpcHandlers };

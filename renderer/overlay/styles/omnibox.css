@@ -212,3 +212,8 @@
     background: rgba(255, 255, 255, 0.08);
     color: #aaa;
 }
+
+.co-ob-badge--extension {
+    background: rgba(168, 85, 247, 0.2);
+    color: #c084fc;
+}

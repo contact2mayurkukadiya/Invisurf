@@ -3,6 +3,7 @@ export const OB_ICON_SVG = {
     search: 'assets/images/search.svg',
     bookmark: 'assets/images/bookmark.svg',
     keyword: 'assets/images/keyword.svg',
+    extension: 'assets/images/keyword.svg',
     url: 'assets/images/url.svg',
 };
 

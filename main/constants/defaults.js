@@ -53,6 +53,9 @@ const SHELL_MENU_OVERLAY_KINDS = new Set([
     'downloadPanel',
     'transparencyMenu',
     'clickThroughOSD',
+    'permissionPrompt',
+    'extensionInstallPrompt',
+    'extensionMenu',
 ]);
 
 const COOKIE_CONFIG_DEFAULTS = {

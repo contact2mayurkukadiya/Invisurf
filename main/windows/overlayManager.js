@@ -123,6 +123,9 @@ function ensureChromeOverlayOnTop(context) {
         if (context.tooltipView && !context.tooltipView.webContents.isDestroyed()) {
             cv.addChildView(context.tooltipView);
         }
+        if (context.activeExtensionPopup?.view && !context.activeExtensionPopup.view.webContents.isDestroyed()) {
+            cv.addChildView(context.activeExtensionPopup.view);
+        }
     } catch (err) {
         console.error('ensureChromeOverlayOnTop', err?.message || err);
     }
@@ -263,15 +266,28 @@ function computeMenuOverlayBounds(context, patch) {
         return menuOverlayBoundsFromPanel(context, { left, top, width: panelWidth, height });
     }
 
-    if (kind === 'cookieControls' || kind === 'downloadPanel') {
+    if (kind === 'extensionInstallPrompt') {
+        const panelWidth = 400;
+        const left = clampNumber(Math.round((windowW - panelWidth) / 2), pad, windowW - panelWidth - pad);
+        const top = 50;
+        const height = Math.min(480, windowH - top - pad);
+        return menuOverlayBoundsFromPanel(context, { left, top, width: panelWidth, height }, {
+            shadowMarginTop: 8,
+            shadowMarginBottom: 32,
+            shadowMarginLeft: 32,
+            shadowMarginRight: 32,
+        });
+    }
+
+    if (kind === 'cookieControls' || kind === 'downloadPanel' || kind === 'extensionMenu') {
         const ar = patch.anchorRect || {};
-        const panelWidth = kind === 'cookieControls' ? 340 : 300;
-        const left0 = Math.round(Number(ar.left) || 0);
+        const panelWidth = kind === 'cookieControls' ? 340 : (kind === 'extensionMenu' ? 320 : 300);
+        const left0 = Math.round(Number(ar.right != null ? ar.right - panelWidth : ar.left) || 0);
         const top0 = Math.round(Number(ar.top) || 0);
         const h0 = Math.max(1, Math.round(Number(ar.height) || 32));
         const left = clampNumber(left0, pad, windowW - panelWidth - pad);
         const top = clampNumber(top0 + h0 + 6, pad, windowH - 220 - pad);
-        const height = Math.max(160, Math.min(windowH * 0.45, windowH - top - pad));
+        const height = Math.max(220, Math.min(windowH * 0.65, windowH - top - pad));
         return menuOverlayBoundsFromPanel(context, { left, top, width: panelWidth, height });
     }
 
@@ -610,6 +626,160 @@ function hidePermissionPromptOverlay(context) {
     dismissChromeShellMenuOverlay(context);
 }
 
+function showExtensionInstallPromptOverlay(context, promptPayload) {
+    if (!context?.window || context.window.isDestroyed()) return;
+    createChromeShellMenuOverlayLayer(context);
+    const ov = context.chromeShellMenuOverlayView;
+    if (!isViewWebContentsAlive(ov)) return;
+
+    context.activeExtensionInstallPrompt = promptPayload;
+    context.chromeShellMenuOverlayAcquireCount = (context.chromeShellMenuOverlayAcquireCount || 0) + 1;
+    ensureChromeOverlayOnTop(context);
+
+    const patch = {
+        kind: 'extensionInstallPrompt',
+        ...promptPayload,
+    };
+
+    const bounds = computeMenuOverlayBounds(context, patch);
+    if (bounds) {
+        ov.setBounds(bounds);
+    }
+    ov.webContents.send(C.IPC_EVENT.CHROME_OVERLAY_PATCH, patch);
+}
+
+function hideExtensionInstallPromptOverlay(context) {
+    if (!context) return;
+    context.activeExtensionInstallPrompt = null;
+    if (context.chromeShellMenuOverlayView && !context.chromeShellMenuOverlayView.webContents.isDestroyed()) {
+        try {
+            context.chromeShellMenuOverlayView.webContents.send(C.IPC_EVENT.CHROME_OVERLAY_PATCH, { kind: 'hide' });
+            context.chromeShellMenuOverlayView.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+        } catch (_) {}
+    }
+    dismissChromeShellMenuOverlay(context);
+}
+
+async function showExtensionPopup(context, extension, anchorRect) {
+    if (!context?.window || context.window.isDestroyed()) return;
+
+    if (context.activeExtensionPopup) {
+        const isSame = context.activeExtensionPopup.extensionId === extension.id;
+        hideExtensionPopup(context);
+        if (isSame) return;
+    }
+
+    const fs = require('fs');
+    const path = require('path');
+    const { session } = require('electron');
+
+    if (!extension || !extension.path || !fs.existsSync(extension.path)) {
+        console.warn(`[showExtensionPopup] Extension path not found on disk for ${extension?.id}: ${extension?.path}`);
+        return;
+    }
+
+    const targetSession = context.partition ? session.fromPartition(context.partition) : session.defaultSession;
+    let allLoaded = targetSession.extensions ? targetSession.extensions.getAllExtensions() : [];
+    let loadedExt = allLoaded.find(e =>
+        e.id === extension.id ||
+        e.id === extension.runtimeId ||
+        (e.path && path.resolve(e.path) === path.resolve(extension.path))
+    );
+
+    if (!loadedExt && targetSession.extensions) {
+        try {
+            const { ensureExtensionPolyfills } = require('../extensions/ExtensionInstaller');
+            ensureExtensionPolyfills(extension.path, extension.id);
+            loadedExt = await targetSession.extensions.loadExtension(extension.path);
+            console.log(`[showExtensionPopup] Dynamically loaded extension ${extension.id} (id: ${loadedExt?.id}) into session partition: ${context.partition}`);
+        } catch (loadErr) {
+            console.error(`[showExtensionPopup] Failed to load extension ${extension.id} into session:`, loadErr);
+            return;
+        }
+    }
+
+    const actualId = loadedExt?.id || extension.runtimeId || extension.id;
+    const popupFile = extension.popupFile || 'popup.html';
+    const popupUrl = `chrome-extension://${actualId}/${popupFile}`;
+
+    const cv = context.window.contentView;
+    const { buildExtensionWebPreferences } = require('../../runtime/webPreferences');
+
+    const popupView = new WebContentsView({
+        webPreferences: buildExtensionWebPreferences({
+            partition: context.partition,
+        }),
+    });
+
+    const pad = 8;
+    const width = 360;
+    const height = 480;
+    const { width: windowW } = context.window.getContentBounds();
+    const anchor = anchorRect || { left: 400, top: 40, right: 430, bottom: 68 };
+    const left = Math.max(pad, Math.min((anchor.right != null ? anchor.right - width : anchor.left || 0), windowW - width - pad));
+    const top = Math.round(anchor.bottom != null ? anchor.bottom + 6 : 44);
+
+    popupView.setBounds({ x: left, y: top, width, height });
+    cv.addChildView(popupView);
+
+    context.activeExtensionPopup = {
+        extensionId: extension.id,
+        view: popupView,
+    };
+
+    let cleanupDone = false;
+    const handlePopupError = (reason) => {
+        if (cleanupDone) return;
+        cleanupDone = true;
+        console.error(`[showExtensionPopup] Popup failed to load (${reason}), hiding popup overlay.`);
+        hideExtensionPopup(context);
+    };
+
+    popupView.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+        handlePopupError(`${errorCode}: ${errorDescription} at ${validatedURL}`);
+    });
+
+    popupView.webContents.loadURL(popupUrl).catch(err => {
+        handlePopupError(err?.message || err);
+    });
+
+    try {
+        popupView.webContents.focus();
+    } catch (_) {}
+
+    let blurTimer = null;
+    const onBlur = () => {
+        blurTimer = setTimeout(() => {
+            hideExtensionPopup(context);
+        }, 200);
+    };
+    const onFocus = () => {
+        if (blurTimer) {
+            clearTimeout(blurTimer);
+            blurTimer = null;
+        }
+    };
+    popupView.webContents.on('blur', onBlur);
+    popupView.webContents.on('focus', onFocus);
+    popupView.webContents.on('close', () => {
+        hideExtensionPopup(context);
+    });
+}
+
+function hideExtensionPopup(context) {
+    if (!context?.activeExtensionPopup) return;
+    try {
+        const view = context.activeExtensionPopup.view;
+        context.activeExtensionPopup = null;
+        if (view && !view.webContents.isDestroyed()) {
+            view.webContents.removeAllListeners('blur');
+            view.webContents.removeAllListeners('focus');
+            context.window.contentView.removeChildView(view);
+            view.webContents.destroy();
+        }
+    } catch (_) {}
+}
+
 module.exports = {
     createChromeOverlayLayer,
     createChromeOmniboxOverlayLayer,
@@ -634,5 +804,9 @@ module.exports = {
     layoutChromeOverlayBounds,
     layoutChromeOverlayFullWindowBounds,
     showPermissionPromptOverlay,
-    hidePermissionPromptOverlay
+    hidePermissionPromptOverlay,
+    showExtensionInstallPromptOverlay,
+    hideExtensionInstallPromptOverlay,
+    showExtensionPopup,
+    hideExtensionPopup
 };

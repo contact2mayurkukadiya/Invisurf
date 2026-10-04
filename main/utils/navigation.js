@@ -106,9 +106,10 @@ function isAllowedTabNavigationUrl(targetUrl) {
 function normalizeInternalSchemeUrl(displayUrl) {
     if (!displayUrl || typeof displayUrl !== 'string') return '';
     const t = displayUrl.trim().toLowerCase();
-    if (t === C.URL.STEALTH_HISTORY || t === C.URL.HISTORY_DISPLAY) return C.URL.HISTORY_DISPLAY;
-    if (t === C.URL.STEALTH_BOOKMARK || t === C.URL.BOOKMARK_DISPLAY) return C.URL.BOOKMARK_DISPLAY;
-    if (t === C.URL.STEALTH_SETTINGS || t === C.URL.SETTINGS_DISPLAY) return C.URL.SETTINGS_DISPLAY;
+    if (t === 'chrome://history' || t === C.URL.STEALTH_HISTORY || t === C.URL.HISTORY_DISPLAY) return C.URL.HISTORY_DISPLAY;
+    if (t === 'chrome://bookmarks' || t === 'chrome://bookmark' || t === C.URL.STEALTH_BOOKMARK || t === C.URL.BOOKMARK_DISPLAY) return C.URL.BOOKMARK_DISPLAY;
+    if (t === 'chrome://settings' || t === C.URL.STEALTH_SETTINGS || t === C.URL.SETTINGS_DISPLAY) return C.URL.SETTINGS_DISPLAY;
+    if (t === 'chrome://extensions' || t === C.URL.STEALTH_EXTENSIONS || t === C.URL.EXTENSIONS_DISPLAY) return C.URL.EXTENSIONS_DISPLAY;
     return displayUrl.trim();
 }
 
@@ -117,9 +118,10 @@ function resolveInternalPageUrl(rawUrl) {
     const trimmed = rawUrl.trim();
     if (!trimmed) return '';
     const normalizedUrl = trimmed.toLowerCase();
-    if (normalizedUrl === C.URL.STEALTH_HISTORY || normalizedUrl === C.URL.HISTORY_DISPLAY) return C.URL.HISTORY_LOAD;
-    if (normalizedUrl === C.URL.STEALTH_BOOKMARK || normalizedUrl === C.URL.BOOKMARK_DISPLAY) return C.URL.BOOKMARK_LOAD;
-    if (normalizedUrl === C.URL.STEALTH_SETTINGS || normalizedUrl === C.URL.SETTINGS_DISPLAY) return C.URL.SETTINGS_LOAD;
+    if (normalizedUrl === 'chrome://history' || normalizedUrl === C.URL.STEALTH_HISTORY || normalizedUrl === C.URL.HISTORY_DISPLAY) return C.URL.HISTORY_LOAD;
+    if (normalizedUrl === 'chrome://bookmarks' || normalizedUrl === 'chrome://bookmark' || normalizedUrl === C.URL.STEALTH_BOOKMARK || normalizedUrl === C.URL.BOOKMARK_DISPLAY) return C.URL.BOOKMARK_LOAD;
+    if (normalizedUrl === 'chrome://settings' || normalizedUrl === C.URL.STEALTH_SETTINGS || normalizedUrl === C.URL.SETTINGS_DISPLAY) return C.URL.SETTINGS_LOAD;
+    if (normalizedUrl === 'chrome://extensions' || normalizedUrl === C.URL.STEALTH_EXTENSIONS || normalizedUrl === C.URL.EXTENSIONS_DISPLAY) return C.URL.EXTENSIONS_LOAD;
     if (normalizedUrl === C.URL.NTP_DISPLAY) return CANONICAL_NTP_HTML;
     return trimmed;
 }
@@ -179,6 +181,7 @@ function toDisplayUrl(rawUrl) {
     if (rawUrl.startsWith(C.URL.SCHEME_APP) && rawUrl.includes(C.URL.FRAGMENT_HISTORY)) return C.URL.HISTORY_DISPLAY;
     if (rawUrl.startsWith(C.URL.SCHEME_APP) && rawUrl.includes(C.URL.FRAGMENT_BOOKMARK)) return C.URL.BOOKMARK_DISPLAY;
     if (rawUrl.startsWith(C.URL.SCHEME_APP) && rawUrl.includes(C.URL.FRAGMENT_SETTINGS)) return C.URL.SETTINGS_DISPLAY;
+    if (rawUrl.startsWith(C.URL.SCHEME_APP) && rawUrl.includes(C.URL.FRAGMENT_EXTENSIONS)) return C.URL.EXTENSIONS_DISPLAY;
     if (rawUrl.startsWith(C.URL.SCHEME_APP) && rawUrl.includes(C.URL.FRAGMENT_NEWTAB)) return '';
     return rawUrl;
 }
@@ -216,10 +219,11 @@ function transitionFromNavigationSource(source) {
 function isInternalPageUrl(url) {
     if (!url) return false;
     const ul = url.toLowerCase();
-    if (ul.startsWith(C.URL.SCHEME_STEALTH) || ul.startsWith(C.URL.SCHEME_INVISURF)) return true;
+    if (ul.startsWith(C.URL.SCHEME_STEALTH) || ul.startsWith(C.URL.SCHEME_INVISURF) || ul.startsWith('chrome://')) return true;
     if (url.startsWith(C.URL.SCHEME_APP) && url.includes(C.URL.PATH_HISTORY_HTML)) return true;
     if (url.startsWith(C.URL.SCHEME_APP) && url.includes(C.URL.PATH_BOOKMARK_HTML)) return true;
     if (url.startsWith(C.URL.SCHEME_APP) && url.includes(C.URL.PATH_SETTINGS_HTML)) return true;
+    if (url.startsWith(C.URL.SCHEME_APP) && url.includes(C.URL.PATH_EXTENSIONS_HTML)) return true;
     if (url.startsWith(C.URL.SCHEME_APP) && url.includes(C.URL.FRAGMENT_NEWTAB)) return true;
     return false;
 }
