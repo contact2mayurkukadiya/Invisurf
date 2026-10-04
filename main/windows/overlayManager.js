@@ -59,6 +59,13 @@ function createChromeShellMenuOverlayLayer(context) {
     overlayView.setBackgroundColor('#00000000');
     overlayView.webContents.once('did-finish-load', () => {
         sendChromeShellMenuOverlayThemePatch(context);
+        if (context.activeExtensionInstallPrompt) {
+            showExtensionInstallPromptOverlay(context, context.activeExtensionInstallPrompt);
+        }
+        if (context.activeExtensionPopup) {
+            const { currentWidth, currentHeight } = context.activeExtensionPopup;
+            updateExtensionPopupShadow(context, currentWidth || 380, currentHeight || 420);
+        }
     });
     overlayView.webContents.on('blur', () => {
         dismissChromeShellMenuOverlayOnBlur(context);
@@ -270,12 +277,12 @@ function computeMenuOverlayBounds(context, patch) {
         const panelWidth = 400;
         const left = clampNumber(Math.round((windowW - panelWidth) / 2), pad, windowW - panelWidth - pad);
         const top = 50;
-        const height = Math.min(480, windowH - top - pad);
+        const height = Math.min(520, windowH - top - pad);
         return menuOverlayBoundsFromPanel(context, { left, top, width: panelWidth, height }, {
-            shadowMarginTop: 8,
-            shadowMarginBottom: 32,
-            shadowMarginLeft: 32,
-            shadowMarginRight: 32,
+            shadowMarginTop: 24,
+            shadowMarginBottom: 48,
+            shadowMarginLeft: 36,
+            shadowMarginRight: 36,
         });
     }
 
@@ -288,7 +295,13 @@ function computeMenuOverlayBounds(context, patch) {
         const left = clampNumber(left0, pad, windowW - panelWidth - pad);
         const top = clampNumber(top0 + h0 + 6, pad, windowH - 220 - pad);
         const height = Math.max(220, Math.min(windowH * 0.65, windowH - top - pad));
-        return menuOverlayBoundsFromPanel(context, { left, top, width: panelWidth, height });
+        return menuOverlayBoundsFromPanel(context, { left, top, width: panelWidth, height }, {
+            extraLeft: kind === 'extensionMenu' ? 260 : 0,
+            shadowMarginTop: 16,
+            shadowMarginBottom: 32,
+            shadowMarginLeft: 24,
+            shadowMarginRight: 24,
+        });
     }
 
     if (kind === 'appMenu') {
@@ -344,6 +357,22 @@ function computeMenuOverlayBounds(context, patch) {
         const left = Math.round((windowW - osdWidth) / 2);
         const top  = clampNumber(80, pad, windowH - osdHeight - pad);
         return menuOverlayBoundsFromPanel(context, { left, top, width: osdWidth, height: osdHeight }, { shadowMargin: 28 });
+    }
+
+    if (kind === 'extensionPopupShadow') {
+        const pr = patch.popupRect || {};
+        const panelRect = {
+            left: Math.round(Number(pr.left) || 0),
+            top: Math.round(Number(pr.top) || 0),
+            width: Math.max(1, Math.round(Number(pr.width) || 380)),
+            height: Math.max(1, Math.round(Number(pr.height) || 420)),
+        };
+        return menuOverlayBoundsFromPanel(context, panelRect, {
+            shadowMarginTop: 14,
+            shadowMarginBottom: 38,
+            shadowMarginLeft: 38,
+            shadowMarginRight: 38,
+        });
     }
 
     return null;
@@ -617,6 +646,8 @@ function showPermissionPromptOverlay(context, promptPayload) {
     const bounds = computeMenuOverlayBounds(context, patch);
     if (bounds) {
         ov.setBounds(bounds);
+        patch.overlayBounds = bounds;
+        patch.overlayViewport = { width: bounds.viewportWidth, height: bounds.viewportHeight };
     }
     ov.webContents.send(C.IPC_EVENT.CHROME_OVERLAY_PATCH, patch);
 }
@@ -636,14 +667,23 @@ function showExtensionInstallPromptOverlay(context, promptPayload) {
     context.chromeShellMenuOverlayAcquireCount = (context.chromeShellMenuOverlayAcquireCount || 0) + 1;
     ensureChromeOverlayOnTop(context);
 
+    const { getChromeOverlayThemePatchForContext } = require('../services/settingsService');
+    const themePatch = getChromeOverlayThemePatchForContext(context);
+    try {
+        ov.webContents.send(C.IPC_EVENT.CHROME_OVERLAY_PATCH, themePatch);
+    } catch (_) {}
+
     const patch = {
         kind: 'extensionInstallPrompt',
+        theme: themePatch,
         ...promptPayload,
     };
 
     const bounds = computeMenuOverlayBounds(context, patch);
     if (bounds) {
         ov.setBounds(bounds);
+        patch.overlayBounds = bounds;
+        patch.overlayViewport = { width: bounds.viewportWidth, height: bounds.viewportHeight };
     }
     ov.webContents.send(C.IPC_EVENT.CHROME_OVERLAY_PATCH, patch);
 }
@@ -658,6 +698,141 @@ function hideExtensionInstallPromptOverlay(context) {
         } catch (_) {}
     }
     dismissChromeShellMenuOverlay(context);
+}
+
+function readPopupConfiguredDimensions(extension) {
+    let width = null;
+    let height = null;
+    const fs = require('fs');
+    const path = require('path');
+
+    try {
+        let manifest = extension.manifest;
+        if (!manifest && extension.path) {
+            const manifestPath = path.join(extension.path, 'manifest.json');
+            if (fs.existsSync(manifestPath)) {
+                manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+            }
+        }
+        if (manifest) {
+            const action = manifest.action || manifest.browser_action || {};
+            const rawW = action.default_width || action.width || action.popup_width || manifest.default_width || manifest.popup_width;
+            const rawH = action.default_height || action.height || action.popup_height || manifest.default_height || manifest.popup_height;
+            if (rawW) width = parseInt(rawW, 10);
+            if (rawH) height = parseInt(rawH, 10);
+        }
+
+        // Check popup HTML file for CSS width and height
+        const popupFile = extension.popupFile || 'popup.html';
+        if (extension.path && popupFile) {
+            const popupPath = path.join(extension.path, popupFile);
+            if (fs.existsSync(popupPath)) {
+                const htmlContent = fs.readFileSync(popupPath, 'utf8');
+                if (!width) {
+                    const match = htmlContent.match(/(?:body|html)[^{]*\{[^}]*width:\s*(\d+)px/i) ||
+                                  htmlContent.match(/style=["'][^"']*width:\s*(\d+)px/i);
+                    if (match) width = parseInt(match[1], 10);
+                }
+                if (!height) {
+                    const match = htmlContent.match(/(?:body|html)[^{]*\{[^}]*height:\s*(\d+)px/i) ||
+                                  htmlContent.match(/style=["'][^"']*height:\s*(\d+)px/i);
+                    if (match) height = parseInt(match[1], 10);
+                }
+            }
+        }
+    } catch (_) {}
+
+    return {
+        width: Number.isFinite(width) && width > 0 ? width : null,
+        height: Number.isFinite(height) && height > 0 ? height : null,
+    };
+}
+
+function computeExtensionPopupBounds(context, anchorRect, width = 380, height = 420) {
+    const pad = 8;
+    const { width: windowW, height: windowH } = context.window.getContentBounds();
+    const anchor = anchorRect || { left: 400, top: 40, right: 430, bottom: 68 };
+    const top = Math.round(anchor.bottom != null ? anchor.bottom + 6 : 44);
+
+    // Chrome limits: min 100x60, max 800x600, clamped to window bounds
+    const maxAllowedWidth = Math.max(100, Math.min(800, windowW - 2 * pad));
+    const maxAllowedHeight = Math.max(60, Math.min(600, windowH - top - pad));
+
+    const finalW = clampNumber(Math.round(Number(width) || 380), 100, maxAllowedWidth);
+    const finalH = clampNumber(Math.round(Number(height) || 420), 60, maxAllowedHeight);
+
+    const anchorRight = anchor.right != null ? anchor.right : (anchor.left != null ? anchor.left + (anchor.width || 32) : 400);
+    const left = clampNumber(anchorRight - finalW, pad, windowW - finalW - pad);
+
+    return {
+        x: Math.round(left),
+        y: Math.round(top),
+        width: Math.round(finalW),
+        height: Math.round(finalH),
+    };
+}
+
+function updateExtensionPopupShadow(context, width, height) {
+    if (!context?.activeExtensionPopup) return;
+    createChromeShellMenuOverlayLayer(context);
+    const ov = context.chromeShellMenuOverlayView;
+    if (!isViewWebContentsAlive(ov)) return;
+
+    const { anchorRect } = context.activeExtensionPopup;
+    const bounds = computeExtensionPopupBounds(context, anchorRect, width, height);
+    const patch = {
+        kind: 'extensionPopupShadow',
+        anchorRect,
+        popupRect: {
+            left: bounds.x,
+            top: bounds.y,
+            width: bounds.width,
+            height: bounds.height,
+        },
+    };
+    const ovBounds = computeMenuOverlayBounds(context, patch);
+    if (ovBounds) {
+        ov.setBounds(ovBounds);
+        patch.overlayBounds = ovBounds;
+        patch.overlayViewport = { width: ovBounds.viewportWidth, height: ovBounds.viewportHeight };
+    }
+    try {
+        ov.webContents.send(C.IPC_EVENT.CHROME_OVERLAY_PATCH, patch);
+    } catch (_) {}
+}
+
+function resizeExtensionPopup(context, width, height) {
+    if (!context?.activeExtensionPopup?.view) return;
+    const { view, anchorRect } = context.activeExtensionPopup;
+    if (view.webContents.isDestroyed()) return;
+
+    const bounds = computeExtensionPopupBounds(context, anchorRect, width, height);
+    const cur = view.getBounds();
+    if (Math.abs(cur.width - bounds.width) > 1 || Math.abs(cur.height - bounds.height) > 1 ||
+        Math.abs(cur.x - bounds.x) > 1 || Math.abs(cur.y - bounds.y) > 1) {
+        view.setBounds(bounds);
+        context.activeExtensionPopup.currentWidth = bounds.width;
+        context.activeExtensionPopup.currentHeight = bounds.height;
+        updateExtensionPopupShadow(context, bounds.width, bounds.height);
+    }
+}
+
+function layoutExtensionPopupBounds(context) {
+    if (!context?.activeExtensionPopup?.view) return;
+    const { currentWidth, currentHeight } = context.activeExtensionPopup;
+    resizeExtensionPopup(context, currentWidth || 380, currentHeight || 420);
+}
+
+const { ipcMain } = require('electron');
+if (!global.__invisurfExtensionPopupResizeHandlerRegistered) {
+    global.__invisurfExtensionPopupResizeHandlerRegistered = true;
+    ipcMain.on('invisurf:resize-extension-popup', (event, data) => {
+        const { getWindowContextByChromeOverlaySender } = require('./windowContextUtils');
+        const ctx = getWindowContextByChromeOverlaySender(event.sender);
+        if (ctx && ctx.activeExtensionPopup?.view?.webContents === event.sender) {
+            resizeExtensionPopup(ctx, data?.width, data?.height);
+        }
+    });
 }
 
 async function showExtensionPopup(context, extension, anchorRect) {
@@ -710,22 +885,34 @@ async function showExtensionPopup(context, extension, anchorRect) {
             partition: context.partition,
         }),
     });
+    try {
+        popupView.setBackgroundColor('#00000000');
+    } catch (_) {}
 
-    const pad = 8;
-    const width = 360;
-    const height = 480;
-    const { width: windowW } = context.window.getContentBounds();
-    const anchor = anchorRect || { left: 400, top: 40, right: 430, bottom: 68 };
-    const left = Math.max(pad, Math.min((anchor.right != null ? anchor.right - width : anchor.left || 0), windowW - width - pad));
-    const top = Math.round(anchor.bottom != null ? anchor.bottom + 6 : 44);
-
-    popupView.setBounds({ x: left, y: top, width, height });
-    cv.addChildView(popupView);
+    const configured = readPopupConfiguredDimensions(extension);
+    const initialWidth = configured.width || 380;
+    const initialHeight = configured.height || 420;
+    const bounds = computeExtensionPopupBounds(context, anchorRect, initialWidth, initialHeight);
 
     context.activeExtensionPopup = {
         extensionId: extension.id,
         view: popupView,
+        anchorRect,
+        currentWidth: bounds.width,
+        currentHeight: bounds.height,
+        configuredWidth: configured.width,
+        configuredHeight: configured.height,
     };
+
+    createChromeShellMenuOverlayLayer(context);
+    const ov = context.chromeShellMenuOverlayView;
+    if (ov && !ov.webContents.isDestroyed()) {
+        updateExtensionPopupShadow(context, bounds.width, bounds.height);
+        cv.addChildView(ov);
+    }
+
+    popupView.setBounds(bounds);
+    cv.addChildView(popupView);
 
     let cleanupDone = false;
     const handlePopupError = (reason) => {
@@ -734,6 +921,51 @@ async function showExtensionPopup(context, extension, anchorRect) {
         console.error(`[showExtensionPopup] Popup failed to load (${reason}), hiding popup overlay.`);
         hideExtensionPopup(context);
     };
+
+    const measureAndResize = async () => {
+        if (!context?.activeExtensionPopup || popupView.webContents.isDestroyed()) return;
+        try {
+            const dims = await popupView.webContents.executeJavaScript(`
+                (() => {
+                    try {
+                        const doc = document.documentElement;
+                        const body = document.body;
+                        if (!doc || !body) return null;
+                        const rect = body.getBoundingClientRect();
+                        const w = Math.max(doc.scrollWidth || 0, body.scrollWidth || 0, Math.ceil(rect.width) || 0);
+                        const h = Math.max(doc.scrollHeight || 0, body.scrollHeight || 0, Math.ceil(rect.height) || 0);
+                        return { width: Math.round(w), height: Math.round(h) };
+                    } catch (_) {
+                        return null;
+                    }
+                })()
+            `);
+            if (dims && dims.width > 0 && dims.height > 0) {
+                const targetW = context.activeExtensionPopup?.configuredWidth || dims.width;
+                const targetH = context.activeExtensionPopup?.configuredHeight || dims.height;
+                const safeW = Math.max(targetW, dims.width);
+                const safeH = Math.max(targetH, dims.height);
+                resizeExtensionPopup(context, safeW, safeH);
+            }
+        } catch (_) {}
+    };
+
+    popupView.webContents.on('dom-ready', () => {
+        try {
+            popupView.webContents.insertCSS(`
+                html, body {
+                    border-radius: 8px !important;
+                }
+            `);
+        } catch (_) {}
+        measureAndResize();
+    });
+
+    popupView.webContents.on('did-finish-load', () => {
+        measureAndResize();
+        setTimeout(measureAndResize, 80);
+        setTimeout(measureAndResize, 250);
+    });
 
     popupView.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
         handlePopupError(`${errorCode}: ${errorDescription} at ${validatedURL}`);
@@ -777,6 +1009,12 @@ function hideExtensionPopup(context) {
             context.window.contentView.removeChildView(view);
             view.webContents.destroy();
         }
+        if (context.chromeShellMenuOverlayView && !context.chromeShellMenuOverlayView.webContents.isDestroyed()) {
+            try {
+                context.chromeShellMenuOverlayView.webContents.send(C.IPC_EVENT.CHROME_OVERLAY_PATCH, { kind: 'hide' });
+                context.chromeShellMenuOverlayView.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+            } catch (_) {}
+        }
     } catch (_) {}
 }
 
@@ -808,5 +1046,9 @@ module.exports = {
     showExtensionInstallPromptOverlay,
     hideExtensionInstallPromptOverlay,
     showExtensionPopup,
-    hideExtensionPopup
+    hideExtensionPopup,
+    resizeExtensionPopup,
+    layoutExtensionPopupBounds,
+    computeExtensionPopupBounds,
+    readPopupConfiguredDimensions
 };

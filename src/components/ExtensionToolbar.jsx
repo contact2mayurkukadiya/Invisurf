@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useChromeShellMenuOverlay } from '../context/ChromeOverlayContext';
+import './ExtensionToolbar.css';
 
 export default function ExtensionToolbar({ onNavigate }) {
   const [extensions, setExtensions] = useState([]);
@@ -11,7 +12,7 @@ export default function ExtensionToolbar({ onNavigate }) {
 
   const { reset, acquire, release, post } = useChromeShellMenuOverlay();
   const pendingOwnResetRef = useRef(false);
-  const leaseRevokedByResetRef = useRef(false);
+  const justClosedAtRef = useRef(0);
 
   const loadExtensions = useCallback(async () => {
     try {
@@ -26,17 +27,109 @@ export default function ExtensionToolbar({ onNavigate }) {
           }
         }
         setActionBadges(prev => ({ ...initialBadges, ...prev }));
+        return validList;
       }
     } catch (err) {
       console.warn('Failed to load extensions for toolbar:', err);
     }
+    return [];
   }, []);
+
+  const extensionsRef = useRef([]);
+  extensionsRef.current = extensions;
+  const postMenuPayloadRef = useRef(null);
+
+  const postMenuPayload = useCallback(async (currentExtensions) => {
+    if (!triggerRef.current) return;
+    const br = triggerRef.current.getBoundingClientRect();
+    const list = currentExtensions || extensionsRef.current;
+
+    const payload = {
+      kind: 'extensionMenu',
+      extensions: list.map(e => ({
+        id: e.id,
+        name: e.name,
+        version: e.version,
+        enabled: e.enabled,
+        pinned: !!e.pinned,
+        pinnedAt: e.pinnedAt || 0,
+        iconDataUrl: e.iconDataUrl || null,
+        hasPopup: e.hasPopup,
+        hasHostAccess: !(e.id === 'omnibox' || e.name?.toLowerCase() === 'omnibox' || (e.permissions?.hostPermissions && e.permissions.hostPermissions.length === 0)),
+      })),
+      anchorRect: {
+        left: Math.round(br.left),
+        top: Math.round(br.top),
+        right: Math.round(br.right),
+        bottom: Math.round(br.bottom),
+        width: Math.round(br.width),
+        height: Math.round(br.height),
+      },
+    };
+
+    try {
+      await post(payload);
+    } catch (err) {
+      console.error('ExtensionToolbar chromeShellMenuOverlayV1Post', err);
+    }
+  }, [post]);
+  postMenuPayloadRef.current = postMenuPayload;
+
+  const closeMenu = useCallback(async () => {
+    if (!openRef.current) return;
+    openRef.current = false;
+    setOpen(false);
+    try {
+      await release();
+    } catch (err) {
+      console.error('ExtensionToolbar release error:', err);
+    }
+  }, [release]);
+
+  const openMenu = useCallback(async () => {
+    if (openRef.current) {
+      await closeMenu();
+      return;
+    }
+    const freshList = await loadExtensions();
+    pendingOwnResetRef.current = true;
+    try {
+      await reset();
+      await acquire();
+      openRef.current = true;
+      setOpen(true);
+      await postMenuPayload(freshList);
+    } catch (err) {
+      console.error('ExtensionToolbar openMenu error:', err);
+      openRef.current = false;
+      setOpen(false);
+      try { await release(); } catch (_) {}
+    } finally {
+      setTimeout(() => {
+        pendingOwnResetRef.current = false;
+      }, 300);
+    }
+  }, [acquire, closeMenu, loadExtensions, postMenuPayload, release, reset]);
+
+  const handleToggleMenu = useCallback(() => {
+    // Guard against backdrop dismiss click-through double-fire
+    if (Date.now() - justClosedAtRef.current < 200) return;
+    if (openRef.current) {
+      void closeMenu();
+    } else {
+      void openMenu();
+    }
+  }, [closeMenu, openMenu]);
 
   useEffect(() => {
     loadExtensions();
 
     const unsubUpdated = window.extensionAPI?.onExtensionsUpdated?.(() => {
-      loadExtensions();
+      loadExtensions().then((list) => {
+        if (openRef.current && postMenuPayloadRef.current) {
+          void postMenuPayloadRef.current(list);
+        }
+      });
     });
 
     const unsubAction = window.extensionAPI?.onActionStateUpdated?.(({ extensionId, state }) => {
@@ -52,92 +145,20 @@ export default function ExtensionToolbar({ onNavigate }) {
     };
   }, [loadExtensions]);
 
-  const syncMenuToOverlay = useCallback(async (currentExtensions) => {
-    if (!triggerRef.current) return;
-    const br = triggerRef.current.getBoundingClientRect();
-    const list = currentExtensions || extensions;
-
-    const payload = {
-      kind: 'extensionMenu',
-      extensions: list.map(e => ({
-        id: e.id,
-        name: e.name,
-        version: e.version,
-        enabled: e.enabled,
-        pinned: !!e.pinned,
-        pinnedAt: e.pinnedAt || 0,
-        iconDataUrl: e.iconDataUrl || null,
-        hasPopup: e.hasPopup,
-      })),
-      anchorRect: {
-        left: br.left,
-        top: br.top,
-        right: br.right,
-        bottom: br.bottom,
-        width: br.width,
-        height: br.height,
-      },
-    };
-
-    try {
-      await post(payload);
-    } catch (err) {
-      console.error('ExtensionToolbar chromeShellMenuOverlayV1Post', err);
-    }
-  }, [extensions, post]);
-
-  // Sync open state with the Chrome Shell Menu Overlay
-  useLayoutEffect(() => {
-    if (!open) return undefined;
-    let cancelled = false;
-
-    (async () => {
-      pendingOwnResetRef.current = true;
-      try {
-        await reset();
-        await acquire();
-        if (cancelled) {
-          await release();
-          return;
-        }
-        await syncMenuToOverlay();
-      } catch (err) {
-        console.error('ExtensionToolbar overlay open', err);
-      } finally {
-        pendingOwnResetRef.current = false;
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      pendingOwnResetRef.current = false;
-      if (leaseRevokedByResetRef.current) {
-        leaseRevokedByResetRef.current = false;
-        return;
-      }
-      void release();
-    };
-  }, [open, reset, acquire, release, syncMenuToOverlay]);
-
-  // Update overlay content when extensions state updates while menu is open
-  useEffect(() => {
-    if (open) {
-      void syncMenuToOverlay(extensions);
-    }
-  }, [extensions, open, syncMenuToOverlay]);
-
   // Listen for overlay dismiss or actions
   useEffect(() => {
     const unsub = window.electronAPI?.onChromeOverlayV1HostEvent?.(async (data) => {
       if (!openRef.current) return;
       const t = data?.type;
       if (t === 'dismiss') {
-        setOpen(false);
+        justClosedAtRef.current = Date.now();
+        void closeMenu();
       } else if (t === 'extensionToggle') {
         try {
           if (window.extensionAPI?.toggle) {
             await window.extensionAPI.toggle(data.extensionId);
-            loadExtensions();
+            const list = await loadExtensions();
+            if (openRef.current) void postMenuPayload(list);
           }
         } catch (e) {
           console.error('Failed to toggle extension:', e);
@@ -146,12 +167,14 @@ export default function ExtensionToolbar({ onNavigate }) {
         try {
           if (window.extensionAPI?.togglePin) {
             await window.extensionAPI.togglePin(data.extensionId);
-            loadExtensions();
+            const list = await loadExtensions();
+            if (openRef.current) void postMenuPayload(list);
           }
         } catch (e) {
           console.error('Failed to toggle extension pin:', e);
         }
       } else if (t === 'extensionActivate') {
+        void closeMenu();
         try {
           if (window.extensionAPI?.activateAction) {
             const tr = triggerRef.current?.getBoundingClientRect();
@@ -172,13 +195,14 @@ export default function ExtensionToolbar({ onNavigate }) {
         try {
           if (window.extensionAPI?.uninstall) {
             await window.extensionAPI.uninstall(data.extensionId);
-            loadExtensions();
+            const list = await loadExtensions();
+            if (openRef.current) void postMenuPayload(list);
           }
         } catch (e) {
           console.error('Failed to uninstall extension:', e);
         }
       } else if (t === 'extensionNavigate') {
-        setOpen(false);
+        void closeMenu();
         if (typeof onNavigate === 'function') {
           onNavigate(data.url);
         } else if (window.electronAPI?.createTab) {
@@ -188,18 +212,27 @@ export default function ExtensionToolbar({ onNavigate }) {
     });
 
     return typeof unsub === 'function' ? unsub : undefined;
-  }, [loadExtensions, onNavigate]);
+  }, [closeMenu, loadExtensions, onNavigate, postMenuPayload]);
 
   // Handle overlay superseded
   useEffect(() => {
     const unsub = window.electronAPI?.onChromeShellMenuOverlaySuperseded?.(() => {
       if (pendingOwnResetRef.current) return;
       if (!openRef.current) return;
-      leaseRevokedByResetRef.current = true;
-      setOpen(false);
+      void closeMenu();
     });
     return typeof unsub === 'function' ? unsub : undefined;
-  }, []);
+  }, [closeMenu]);
+
+  // Reposition on window resize if open
+  useEffect(() => {
+    if (!open) return undefined;
+    const onResize = () => {
+      void postMenuPayload();
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [open, postMenuPayload]);
 
   // Listen to global app navigate requests from overlay
   useEffect(() => {
@@ -234,9 +267,13 @@ export default function ExtensionToolbar({ onNavigate }) {
     }
   };
 
+  const hasPinned = pinnedExtensions.length > 0;
+
   return (
-    <div style={{ display: 'flex', alignItems: 'center' }}>
-      {/* Pinned Extension Action Icons on Toolbar (Max 5) */}
+    <div
+      className={`extensions-toolbar-container${hasPinned ? ' extensions-toolbar-container--has-pinned' : ''}${open ? ' is-open' : ''}`}
+    >
+      {/* Pinned Extension Action Icons on Toolbar */}
       {pinnedExtensions.map((ext) => {
         const badge = actionBadges[ext.id];
         const badgeText = badge?.badgeText || '';
@@ -246,57 +283,25 @@ export default function ExtensionToolbar({ onNavigate }) {
         return (
           <button
             key={ext.id}
-            className="btn"
+            className="btn extension-action-btn"
             title={`${ext.name} (v${ext.version})`}
-            style={{
-              padding: '3px',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: '28px',
-              height: '28px',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              marginRight: '2px',
-              border: 'none',
-              background: 'transparent',
-              color: 'inherit',
-              position: 'relative',
-            }}
             onClick={(e) => handleActionClick(e, ext)}
           >
             {ext.iconDataUrl ? (
               <img
                 src={ext.iconDataUrl}
                 alt={ext.name}
-                style={{
-                  width: '18px',
-                  height: '18px',
-                  objectFit: 'contain',
-                  borderRadius: '3px',
-                }}
+                className="extension-action-img"
               />
             ) : (
-              <span style={{ fontSize: '15px', lineHeight: 1 }}>🧩</span>
+              <span className="extension-action-fallback">🧩</span>
             )}
             {badgeText ? (
               <span
+                className="extension-badge"
                 style={{
-                  position: 'absolute',
-                  bottom: '1px',
-                  right: '1px',
                   backgroundColor: badgeBg,
                   color: badgeColor,
-                  fontSize: '9px',
-                  fontWeight: '700',
-                  padding: '0 2.5px',
-                  borderRadius: '3px',
-                  lineHeight: '11px',
-                  pointerEvents: 'none',
-                  maxWidth: '18px',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
                 }}
               >
                 {badgeText}
@@ -310,35 +315,23 @@ export default function ExtensionToolbar({ onNavigate }) {
       <button
         ref={triggerRef}
         id="extensions-menu-btn"
-        className={`btn ${open ? 'active' : ''}`}
+        className={`btn extensions-menu-btn${open ? ' active' : ''}`}
         title="Extensions"
         aria-label="Extensions"
         aria-expanded={open}
-        onClick={() => setOpen(prev => !prev)}
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: '28px',
-          height: '28px',
-          borderRadius: '6px',
-          cursor: 'pointer',
-          border: 'none',
-          background: open ? 'rgba(255, 255, 255, 0.12)' : 'transparent',
-          color: 'inherit',
-        }}
+        onClick={handleToggleMenu}
       >
         <svg
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
+          width="18"
+          height="18"
+          viewBox="0 0 20 20"
           fill="none"
           stroke="currentColor"
-          strokeWidth="2"
+          strokeWidth="1.6"
           strokeLinecap="round"
           strokeLinejoin="round"
         >
-          <path d="M20.5 11H19V7a2 2 0 0 0-2-2h-4V3.5a2.5 2.5 0 0 0-5 0V5H4a2 2 0 0 0-2 2v3.8h1.5a2.5 2.5 0 0 1 0 5H2V20a2 2 0 0 0 2 2h3.8v-1.5a2.5 2.5 0 0 1 5 0V22H17a2 2 0 0 0 2-2v-4h1.5a2.5 2.5 0 0 0 0-5z" />
+          <path d="M 3.5 6 C 3.5 5.17 4.17 4.5 5 4.5 H 7.75 V 3.25 C 7.75 2.28 8.53 1.5 9.5 1.5 C 10.47 1.5 11.25 2.28 11.25 3.25 V 4.5 H 14 C 14.83 4.5 15.5 5.17 15.5 6 V 8.75 H 16.75 C 17.72 8.75 18.5 9.53 18.5 10.5 C 18.5 11.47 17.72 12.25 16.75 12.25 H 15.5 V 15 C 15.5 15.83 14.83 16.5 14 16.5 H 5 C 4.17 16.5 3.5 15.83 3.5 15 V 12.25 H 4.75 C 5.72 12.25 6.5 11.47 6.5 10.5 C 6.5 9.53 5.72 8.75 4.75 8.75 H 3.5 Z" />
         </svg>
       </button>
     </div>

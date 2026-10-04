@@ -1198,6 +1198,82 @@ function generateWorkerPolyfill(extensionId, manifest = null, messages = null) {
         onInputCancelled: _createEventTarget('chrome.omnibox.onInputCancelled'),
     };
 
+    // 24. chrome.desktopCapture
+    let _desktopCaptureRequestId = 1000;
+    const _cancelledDesktopCaptureRequests = new Set();
+    self.chrome.desktopCapture = {
+        chooseDesktopMedia: (sources, targetTab, callback) => {
+            let cb = callback;
+            let tab = targetTab;
+            if (typeof targetTab === 'function') {
+                cb = targetTab;
+                tab = null;
+            }
+            _desktopCaptureRequestId += 1;
+            const reqId = _desktopCaptureRequestId;
+
+            _call('desktopCapture.chooseDesktopMedia', { sources, targetTab: tab })
+                .then(res => {
+                    if (_cancelledDesktopCaptureRequests.has(reqId)) {
+                        _cancelledDesktopCaptureRequests.delete(reqId);
+                        if (typeof cb === 'function') cb('', {});
+                        return;
+                    }
+                    if (typeof cb === 'function') {
+                        cb(res?.streamId || '', res?.options || {});
+                    }
+                })
+                .catch(err => {
+                    console.warn('[InviSurf Polyfill chooseDesktopMedia Error]:', err);
+                    if (typeof cb === 'function') cb('', {});
+                });
+
+            return reqId;
+        },
+        cancelChooseDesktopMedia: (requestId) => {
+            _cancelledDesktopCaptureRequests.add(Number(requestId));
+            _call('desktopCapture.cancelChooseDesktopMedia', { requestId: Number(requestId) }).catch(() => {});
+        },
+    };
+
+    // 25. chrome.tabCapture
+    self.chrome.tabCapture = {
+        getMediaStreamId: (options, callback) => {
+            let cb = callback;
+            let opt = options;
+            if (typeof options === 'function') {
+                cb = options;
+                opt = {};
+            }
+            const p = _call('tabCapture.getMediaStreamId', { options: opt || {} });
+            if (typeof cb === 'function') {
+                p.then(id => cb(id)).catch(() => cb(''));
+            }
+            return p;
+        },
+        capture: (options, callback) => {
+            let cb = callback;
+            let opt = options;
+            if (typeof options === 'function') {
+                cb = options;
+                opt = {};
+            }
+            const p = _call('tabCapture.capture', { options: opt || {} });
+            if (typeof cb === 'function') {
+                p.then(res => cb(res)).catch(() => cb(null));
+            }
+            return p;
+        },
+        getCapturedTabs: (callback) => {
+            const p = _call('tabCapture.getCapturedTabs');
+            if (typeof callback === 'function') {
+                p.then(tabs => callback(tabs || [])).catch(() => callback([]));
+            }
+            return p;
+        },
+        onStatusChanged: _createEventTarget('chrome.tabCapture.onStatusChanged'),
+    };
+
     // Start background event poller
     _startEventLoop();
 })();

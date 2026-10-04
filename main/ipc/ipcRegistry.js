@@ -852,6 +852,9 @@ function registerIpcHandlers() {
             lensManager.copyLensSelectionText(context).catch((err) => { console.error('lensCopyText', err?.message || err); });
             return;
         }
+        if (data?.type === 'dismiss' && context?.activeExtensionPopup) {
+            overlayManager.hideExtensionPopup(context);
+        }
         try {
             context.window.webContents.send(C.IPC_EVENT.CHROME_OVERLAY_HOST, data ?? {});
         } catch (err) {

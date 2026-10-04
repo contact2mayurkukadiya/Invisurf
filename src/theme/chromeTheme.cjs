@@ -946,7 +946,12 @@ function enrichUnifiedToolbarTokens(tokens, effectiveDark) {
   Object.assign(next, toolbarIconTokensFromAppearance(navForToolbarIcons, effectiveDark));
 
   const well = next['--chrome-url-well'];
-  Object.assign(next, omniboxFocusTokens(well, effectiveDark, accentHint));
+  const focus = omniboxFocusTokens(well, effectiveDark, accentHint);
+  Object.assign(next, focus);
+
+  const accentColor = focus['--chrome-omnibox-selection-bg'] || (effectiveDark ? '#8ab4f8' : '#1a73e8');
+  next['--chrome-accent'] = accentColor;
+  next['--chrome-secondary-fg'] = effectiveDark ? 'rgba(255, 255, 255, 0.68)' : 'rgba(23, 27, 32, 0.65)';
 
   return next;
 }

@@ -831,19 +831,15 @@ try {
         prepareInstall: (extensionId) => ipcRenderer.invoke('extensions:webstore-prepare-install', { extensionId }),
     });
 
-    const triggerWebstore = () => {
-        if (typeof window !== 'undefined' && window.location && String(window.location.href).includes('chromewebstore.google.com')) {
-            const { initWebstoreBridge } = require('./runtime/webstoreScript');
-            initWebstoreBridge(ipcRenderer);
-        }
-    };
+    // Bridge installation lifecycle events to window for webstore script
+    ipcRenderer.on('extensions:install-completed', (_event, data) => {
+        window.dispatchEvent(new CustomEvent('invisurf:install-completed', { detail: data }));
+    });
 
-    if (typeof window !== 'undefined') {
-        triggerWebstore();
-        window.addEventListener('DOMContentLoaded', triggerWebstore);
-        window.addEventListener('load', triggerWebstore);
-    }
+    ipcRenderer.on('extensions:install-cancelled', (_event, data) => {
+        window.dispatchEvent(new CustomEvent('invisurf:install-cancelled', { detail: data }));
+    });
 } catch (err) {
-    console.warn('Failed to initialize webstore bridge:', err);
+    console.warn('Failed to initialize webstore bridge in preload:', err);
 }
 

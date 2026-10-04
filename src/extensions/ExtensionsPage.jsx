@@ -293,9 +293,10 @@ export default function ExtensionsPage() {
 
         {/* Main Area */}
         <main className="extensions-main">
-          <h2 className="extensions-section-title">
-            {searchQuery ? `Search results (${filteredExtensions.length})` : 'All extensions'}
-          </h2>
+          <div className="extensions-main-container">
+            <h2 className="extensions-section-title">
+              {searchQuery ? `Search results (${filteredExtensions.length})` : 'All extensions'}
+            </h2>
 
           {loading ? (
             <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--chrome-secondary-fg)' }}>
@@ -442,6 +443,7 @@ export default function ExtensionsPage() {
               ))}
             </div>
           )}
+          </div>
         </main>
       </div>
 

@@ -20,6 +20,7 @@ const { getHistoryManager } = require('./HistoryManager');
 const { getIdentityManager } = require('./IdentityManager');
 const { getOffscreenManager } = require('./OffscreenManager');
 const { getOmniboxManager } = require('./OmniboxManager');
+const { getMediaCaptureManager } = require('./MediaCaptureManager');
 const ExtensionStorage = require('../ExtensionStorage');
 
 /**
@@ -150,6 +151,11 @@ class IpcBridge {
         });
         getOmniboxManager().on('omnibox-input-cancelled', ({ extensionId }) => {
             this.broadcastEvent(extensionId, 'chrome.omnibox.onInputCancelled', []);
+        });
+
+        // Forward tab capture status events
+        getMediaCaptureManager().on('tab-capture-status-changed', ({ info }) => {
+            this.broadcastToAllExtensions('chrome.tabCapture.onStatusChanged', [info]);
         });
     }
 
@@ -917,6 +923,39 @@ class IpcBridge {
                 return getOmniboxManager().setDefaultSuggestion(cleanExtId, args.suggestion);
             case 'omnibox.sendSuggestions':
                 return getOmniboxManager().receiveSuggestions(args.suggestCallbackId, args.suggestions);
+
+            // ==================== MEDIA CAPTURE ====================
+            case 'desktopCapture.chooseDesktopMedia':
+                return getMediaCaptureManager().chooseDesktopMedia(cleanExtId, args.sources, args.targetTab, sender);
+            case 'desktopCapture.cancelChooseDesktopMedia':
+                return getMediaCaptureManager().cancelChooseDesktopMedia(args.requestId);
+            case 'tabCapture.getMediaStreamId':
+                return getMediaCaptureManager().getMediaStreamId(args.options, sender);
+            case 'tabCapture.capture':
+                return getMediaCaptureManager().captureTab(args.options, sender);
+            case 'tabCapture.getCapturedTabs':
+                return getMediaCaptureManager().getCapturedTabs();
+            case 'tabCapture.stopCapture':
+                return getMediaCaptureManager().stopCapture(args.streamId);
+
+            // ==================== SYSTEM PERMISSIONS ====================
+            case 'system.openScreenCaptureSettings': {
+                const { shell } = require('electron');
+                if (process.platform === 'darwin') {
+                    shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture');
+                }
+                return { ok: true };
+            }
+            case 'system.getMediaAccessStatus': {
+                const { systemPreferences } = require('electron');
+                let screenStatus = 'granted';
+                if (process.platform === 'darwin' && systemPreferences?.getMediaAccessStatus) {
+                    try {
+                        screenStatus = systemPreferences.getMediaAccessStatus('screen');
+                    } catch (_) {}
+                }
+                return { screen: screenStatus };
+            }
 
             default:
                 console.warn(`[IpcBridge] Unhandled method: ${method}`);

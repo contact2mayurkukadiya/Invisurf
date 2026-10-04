@@ -279,6 +279,14 @@ function createWindow({
         if ((context.chromeOmniboxOverlayAcquireCount || 0) > 0 && context.lastOmniboxOverlayPatch) {
             layoutOmniboxOverlayBounds(context, context.lastOmniboxOverlayPatch);
         }
+        if (context.activeExtensionPopup) {
+            const { layoutExtensionPopupBounds } = require('./overlayManager');
+            layoutExtensionPopupBounds(context);
+        }
+        if (context.activeExtensionInstallPrompt) {
+            const { showExtensionInstallPromptOverlay } = require('./overlayManager');
+            showExtensionInstallPromptOverlay(context, context.activeExtensionInstallPrompt);
+        }
         ensureChromeOverlayOnTop(context);
     });
 
