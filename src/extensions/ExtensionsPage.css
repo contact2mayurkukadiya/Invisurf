@@ -1,0 +1,557 @@
+/* Chrome-style Extensions Page Styles driven by semantic Chrome Theme Tokens */
+
+.extensions-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--chrome-content-bg, var(--chrome-shell-tint, #f1f3f4));
+  color: var(--chrome-fg, #202124);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Top Header ────────────────────────────────────────── */
+.extensions-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  height: 56px;
+  background-color: var(--chrome-nav-bg, #ffffff);
+  border-bottom: 1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.12));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.extensions-header__left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 200px;
+}
+
+.extensions-header__menu-btn {
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--chrome-fg, #202124);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.extensions-header__menu-btn:hover {
+  background-color: var(--chrome-tab-hover-bg, rgba(0, 0, 0, 0.06));
+}
+
+.extensions-header__title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--chrome-fg, #202124);
+  letter-spacing: -0.01em;
+}
+
+.extensions-header__title-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--chrome-accent, #1a73e8);
+}
+
+.extensions-header__search-container {
+  flex: 1;
+  max-width: 680px;
+  margin: 0 24px;
+}
+
+.extensions-header__search-box {
+  display: flex;
+  align-items: center;
+  background-color: var(--chrome-url-well, #f1f3f4);
+  border: 1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.08));
+  border-radius: 24px;
+  padding: 0 16px;
+  height: 38px;
+  transition: all 0.2s ease;
+}
+
+.extensions-header__search-box:focus-within {
+  background-color: var(--chrome-nav-bg, #ffffff);
+  border-color: var(--chrome-accent, #1a73e8);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+}
+
+.extensions-header__search-icon {
+  color: var(--chrome-secondary-fg, #5f6368);
+  margin-right: 10px;
+  display: flex;
+  align-items: center;
+}
+
+.extensions-header__search-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--chrome-fg, #202124);
+  font-size: 14px;
+}
+
+.extensions-header__search-input::placeholder {
+  color: var(--chrome-secondary-fg, #5f6368);
+  opacity: 0.8;
+}
+
+.extensions-header__search-clear {
+  background: transparent;
+  border: none;
+  color: var(--chrome-secondary-fg, #5f6368);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  border-radius: 50%;
+}
+
+.extensions-header__search-clear:hover {
+  color: var(--chrome-fg, #202124);
+  background-color: var(--chrome-tab-hover-bg, rgba(0, 0, 0, 0.08));
+}
+
+.extensions-header__right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 180px;
+  justify-content: flex-end;
+}
+
+.extensions-header__devmode {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--chrome-fg, #202124);
+  user-select: none;
+  cursor: pointer;
+}
+
+/* ── Developer Mode Toolbar ────────────────────────────── */
+.extensions-dev-toolbar {
+  background-color: var(--chrome-nav-bg, #ffffff);
+  border-bottom: 1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.12));
+  padding: 8px 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  animation: slideDown 0.15s ease-out;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.extensions-dev-btn {
+  background: transparent;
+  border: 1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.2));
+  border-radius: 6px;
+  color: var(--chrome-accent, #1a73e8);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.extensions-dev-btn:hover {
+  background-color: var(--chrome-tab-hover-bg, rgba(26, 115, 232, 0.08));
+  border-color: var(--chrome-accent, #1a73e8);
+}
+
+/* ── Layout & Body ─────────────────────────────────────── */
+.extensions-body {
+  display: flex;
+  flex: 1;
+  position: relative;
+}
+
+/* Sidebar Drawer */
+.extensions-sidebar {
+  width: 240px;
+  background-color: var(--chrome-nav-bg, #ffffff);
+  border-right: 1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.12));
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 16px 0;
+  flex-shrink: 0;
+  transition: width 0.2s ease, transform 0.2s ease;
+}
+
+.extensions-sidebar.collapsed {
+  width: 0;
+  transform: translateX(-100%);
+  overflow: hidden;
+  border-right: none;
+}
+
+.extensions-sidebar__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 12px;
+}
+
+.extensions-sidebar__item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
+  border-radius: 20px;
+  border: none;
+  background: transparent;
+  color: var(--chrome-fg, #202124);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.15s ease;
+}
+
+.extensions-sidebar__item:hover {
+  background-color: var(--chrome-tab-hover-bg, rgba(0, 0, 0, 0.05));
+}
+
+.extensions-sidebar__item.active {
+  background-color: color-mix(in srgb, var(--chrome-accent, #1a73e8) 14%, transparent);
+  color: var(--chrome-accent, #1a73e8);
+  font-weight: 600;
+}
+
+.extensions-sidebar__footer {
+  padding: 12px 16px 0;
+  border-top: 1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.08));
+}
+
+.extensions-sidebar__store-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  color: var(--chrome-accent, #1a73e8);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  border-radius: 8px;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.extensions-sidebar__store-link:hover {
+  background-color: var(--chrome-tab-hover-bg, rgba(26, 115, 232, 0.08));
+}
+
+/* Main Container */
+.extensions-main {
+  flex: 1;
+  padding: 24px 32px 48px;
+  max-width: 1200px;
+  margin: 0 auto;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.extensions-section-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--chrome-fg, #202124);
+  margin: 0 0 16px 4px;
+}
+
+/* Cards Grid */
+.extensions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: 16px;
+}
+
+/* Extension Card */
+.extension-card {
+  background-color: var(--chrome-nav-bg, #ffffff);
+  border: 1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.12));
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.extension-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-color: var(--chrome-accent, rgba(26, 115, 232, 0.4));
+}
+
+.extension-card__top {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.extension-card__icon-box {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background-color: color-mix(in srgb, var(--chrome-nav-bg, #ffffff) 90%, var(--chrome-fg, #000000) 10%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.extension-card__icon-img {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+
+.extension-card__content {
+  flex: 1;
+  min-width: 0;
+}
+
+.extension-card__header-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.extension-card__name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--chrome-fg, #202124);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+
+.extension-card__version {
+  font-size: 12px;
+  color: var(--chrome-secondary-fg, #5f6368);
+  margin-top: 2px;
+}
+
+.extension-card__description {
+  font-size: 13px;
+  color: var(--chrome-secondary-fg, #5f6368);
+  line-height: 1.4;
+  margin: 8px 0 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Card Bottom Actions */
+.extension-card__bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.08));
+}
+
+.extension-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.extension-btn-secondary {
+  background: transparent;
+  border: 1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.2));
+  border-radius: 6px;
+  color: var(--chrome-accent, #1a73e8);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.extension-btn-secondary:hover {
+  background-color: var(--chrome-tab-hover-bg, rgba(26, 115, 232, 0.08));
+  border-color: var(--chrome-accent, #1a73e8);
+}
+
+.extension-btn-danger {
+  background: transparent;
+  border: 1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.2));
+  border-radius: 6px;
+  color: var(--chrome-secondary-fg, #5f6368);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.extension-btn-danger:hover {
+  color: #d93025;
+  border-color: rgba(217, 48, 37, 0.4);
+  background-color: rgba(217, 48, 37, 0.06);
+}
+
+/* Switch Component */
+.chrome-switch {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.chrome-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.chrome-switch__slider {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--chrome-tab-separator, rgba(0, 0, 0, 0.25));
+  border-radius: 20px;
+  transition: 0.2s ease;
+}
+
+.chrome-switch__slider::before {
+  position: absolute;
+  content: "";
+  height: 14px;
+  width: 14px;
+  left: 3px;
+  bottom: 3px;
+  background-color: #ffffff;
+  border-radius: 50%;
+  transition: 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.chrome-switch input:checked + .chrome-switch__slider {
+  background-color: var(--chrome-accent, #1a73e8);
+}
+
+.chrome-switch input:checked + .chrome-switch__slider::before {
+  transform: translateX(16px);
+}
+
+/* ── Details Modal ─────────────────────────────────────── */
+.extension-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  backdrop-filter: blur(4px);
+}
+
+.extension-modal {
+  background-color: var(--chrome-nav-bg, #ffffff);
+  color: var(--chrome-fg, #202124);
+  border: 1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.12));
+  border-radius: 12px;
+  width: 540px;
+  max-width: 90vw;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
+  overflow: hidden;
+}
+
+.extension-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.08));
+}
+
+.extension-modal__body {
+  padding: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.extension-modal__row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.extension-modal__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--chrome-secondary-fg, #5f6368);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.extension-modal__value {
+  font-size: 13px;
+  color: var(--chrome-fg, #202124);
+  line-height: 1.4;
+}
+
+.extension-modal__footer {
+  padding: 14px 20px;
+  border-top: 1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.08));
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  background-color: color-mix(in srgb, var(--chrome-nav-bg, #ffffff) 96%, var(--chrome-fg, #000000) 4%);
+}
+
+/* Empty State */
+.extensions-empty {
+  text-align: center;
+  padding: 64px 24px;
+  background-color: color-mix(in srgb, var(--chrome-nav-bg, #ffffff) 50%, transparent);
+  border: 1px dashed var(--chrome-tab-separator, rgba(0, 0, 0, 0.15));
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}

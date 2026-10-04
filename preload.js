@@ -62,6 +62,26 @@ try {
                         RUNNING: 'running'
                     }
                 };
+                window.chrome.webstorePrivate = window.chrome.webstorePrivate || {
+                    install: function(id, callback) {
+                        if (window.__invisurf_webstore?.prepareInstall) {
+                            window.__invisurf_webstore.prepareInstall(id);
+                        }
+                        if (typeof callback === 'function') callback();
+                    },
+                    completeInstall: function(id, callback) {
+                        if (typeof callback === 'function') callback();
+                    },
+                    enable: function(id, callback) {
+                        if (typeof callback === 'function') callback();
+                    },
+                    getBrowserLogin: function(callback) {
+                        if (typeof callback === 'function') callback({ login: '' });
+                    },
+                    getStoreLogin: function(callback) {
+                        if (typeof callback === 'function') callback('');
+                    }
+                };
                 window.chrome.runtime = window.chrome.runtime || {
                     OnInstalledReason: {
                         CHROME_UPDATE: 'chrome_update',
@@ -550,6 +570,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onUrlChanged: (callback) => ipcRenderer.on(C.IPC_EVENT.URL_CHANGED, (event, data) => callback(data)),
     onTabUpdate: (callback) => ipcRenderer.on(C.IPC_EVENT.TAB_UPDATE, (event, data) => callback(data)),
     onTabCreated: (callback) => ipcRenderer.on(C.IPC_EVENT.TAB_CREATED, (event, data) => callback(data)),
+    onTabClosedExternal: (callback) => ipcRenderer.on('tab-closed-external', (event, data) => callback(data)),
     onTabSwitched: (callback) => ipcRenderer.on(C.IPC_EVENT.TAB_SWITCHED, (event, data) => callback(data)),
     onOmniboxFocus: (callback) => ipcRenderer.on(C.IPC_EVENT.OMNIBOX_FOCUS, (event, data) => callback(data)),
     onShortcutNewTab: (callback) => ipcRenderer.on(C.IPC_EVENT.SHORTCUT_NEW_TAB, () => callback()),
@@ -686,6 +707,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.on(C.IPC_EVENT.CHROME_SHELL_MENU_OVERLAY_SUPERSEDED, handler);
         return () => ipcRenderer.removeListener(C.IPC_EVENT.CHROME_SHELL_MENU_OVERLAY_SUPERSEDED, handler);
     },
+    onAppNavigateUrl: (callback) => {
+        const handler = (_event, data) => callback(data);
+        ipcRenderer.on('app:navigate-url', handler);
+        return () => ipcRenderer.removeListener('app:navigate-url', handler);
+    },
     chromeOverlayNotifyHost: (data) => ipcRenderer.send(C.IPC_SEND.CHROME_OVERLAY_FROM_OVERLAY, data),
     onChromeOverlayV1Patch: (callback) => {
         const handler = (_event, payload) => callback(payload);
@@ -808,6 +834,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.on(C.IPC_EVENT.SHORTCUT_DOWNLOADS, handler);
         return () => ipcRenderer.removeListener(C.IPC_EVENT.SHORTCUT_DOWNLOADS, handler);
     },
+
+    // Omnibox Extension suggestions
+    omniboxExtensionQuery: (payload) => ipcRenderer.invoke('omnibox:query-extension', payload),
+    omniboxExtensionEntered: (payload) => ipcRenderer.invoke('omnibox:extension-input-entered', payload),
+    omniboxExtensionCancelled: (payload) => ipcRenderer.invoke('omnibox:extension-input-cancelled', payload),
 
     // Platform identifier
     platform: process.platform,
@@ -1396,4 +1427,51 @@ function setupOverscrollEngine() {
 
 setupOverscrollEngine();
 
+contextBridge.exposeInMainWorld('extensionAPI', {
+    list: (profileId = null) => ipcRenderer.invoke('extensions:list', { profileId }),
+    toggle: (extensionId, profileId = null) => ipcRenderer.invoke('extensions:toggle', { extensionId, profileId }),
+    uninstall: (extensionId, profileId = null) => ipcRenderer.invoke('extensions:uninstall', { extensionId, profileId }),
+    confirmInstall: (installToken) => ipcRenderer.invoke('extensions:confirm-install', { installToken }),
+    cancelInstall: (installToken) => ipcRenderer.invoke('extensions:cancel-install', { installToken }),
+    togglePin: (extensionId, profileId = null) => ipcRenderer.invoke('extensions:toggle-pin', { extensionId, profileId }),
+    activateAction: (extensionId, anchorRect = null) => ipcRenderer.invoke('extensions:activate-action', { extensionId, anchorRect }),
+    loadUnpacked: (profileId = null) => ipcRenderer.invoke('extensions:load-unpacked', { profileId }),
+    reload: (extensionId, profileId = null) => ipcRenderer.invoke('extensions:reload', { extensionId, profileId }),
+    onInstallPrompt: (callback) => {
+        const handler = (_event, data) => callback(data);
+        ipcRenderer.on('extensions:prompt-install', handler);
+        return () => ipcRenderer.removeListener('extensions:prompt-install', handler);
+    },
+    onExtensionsUpdated: (callback) => {
+        const handler = (_event, data) => callback(data);
+        ipcRenderer.on('extensions:updated', handler);
+        return () => ipcRenderer.removeListener('extensions:updated', handler);
+    },
+    onActionStateUpdated: (callback) => {
+        const handler = (_event, data) => callback(data);
+        ipcRenderer.on('extensions:action-state-updated', handler);
+        return () => ipcRenderer.removeListener('extensions:action-state-updated', handler);
+    },
+});
 
+try {
+    contextBridge.exposeInMainWorld('__invisurf_webstore', {
+        isInstalled: (extensionId) => ipcRenderer.invoke('extensions:is-installed', { extensionId }),
+        prepareInstall: (extensionId) => ipcRenderer.invoke('extensions:webstore-prepare-install', { extensionId }),
+    });
+
+    const triggerWebstore = () => {
+        if (typeof window !== 'undefined' && window.location && String(window.location.href).includes('chromewebstore.google.com')) {
+            const { initWebstoreBridge } = require('./runtime/webstoreScript');
+            initWebstoreBridge(ipcRenderer);
+        }
+    };
+
+    if (typeof window !== 'undefined') {
+        triggerWebstore();
+        window.addEventListener('DOMContentLoaded', triggerWebstore);
+        window.addEventListener('load', triggerWebstore);
+    }
+} catch (err) {
+    console.warn('Failed to initialize webstore bridge:', err);
+}

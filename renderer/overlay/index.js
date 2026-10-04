@@ -12,6 +12,8 @@ import { renderDownloadPanel } from './components/downloadPanel.js';
 import { renderOmniboxSuggestions } from './components/omnibox.js';
 import { renderLensSelection } from './components/lensSelection.js';
 import { renderPermissionPrompt } from './components/permissionPrompt.js';
+import { renderExtensionInstallPrompt } from './components/extensionInstallPrompt.js';
+import { renderExtensionMenu } from './components/extensionMenu.js';
 import { renderTransparencyMenu } from './components/transparencyMenu.js';
 import { renderClickThroughOSD } from './components/clickThroughOSD.js';
 
@@ -70,6 +72,8 @@ if (window.electronAPI && window.electronAPI.onChromeOverlayV1Patch) {
                 case 'bookmarkFolderMenu': return renderBookmarkFolderMenu(patch);
                 case 'bookmarkEditor': return renderBookmarkEditor(patch);
                 case 'permissionPrompt': return renderPermissionPrompt(patch);
+                case 'extensionInstallPrompt': return renderExtensionInstallPrompt(patch);
+                case 'extensionMenu': return renderExtensionMenu(patch);
                 case 'transparencyMenu': return renderTransparencyMenu(patch);
                 case 'clickThroughOSD': return renderClickThroughOSD(patch);
             }

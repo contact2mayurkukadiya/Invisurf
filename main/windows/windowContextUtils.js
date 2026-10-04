@@ -105,6 +105,10 @@ function getWindowContextByChromeOverlaySender(sender) {
         if (isViewWebContentsAlive(tooltipOv) && tooltipOv.webContents === sender) {
             return ctx;
         }
+        const popupView = ctx.activeExtensionPopup?.view;
+        if (isViewWebContentsAlive(popupView) && popupView.webContents === sender) {
+            return ctx;
+        }
     }
     return null;
 }

@@ -59,6 +59,8 @@ function createWindow({
     const permController = getPermissionController();
     permController.registerSession(mappedSession, { profileId: resolvedProfileId, isIncognito: false });
     downloadService.registerSession(mappedSession, { profileId: resolvedProfileId, isStealth: false });
+    const { getExtensionController } = require('../extensions/ExtensionController');
+    void getExtensionController().registerSession(resolvedProfileId, mappedSession);
 
     // This is deliberately best-effort and is shared safely across all
     // partitions: these are packaged, profile-independent renderer assets.
@@ -156,6 +158,7 @@ function createWindow({
         stealthTabsPartition,
         tabs: {},
         sleepingTabs: {},
+        tabOrder: [],
         // Detached, fully loaded spare used only for the next foreground NTP.
         prewarmedNtp: null,
         activeTabId: null,

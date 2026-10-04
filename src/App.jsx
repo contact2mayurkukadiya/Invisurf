@@ -175,6 +175,31 @@ function AppShell() {
     }
   }, [dispatch]);
 
+  const handleTabClosedExternal = useCallback((id) => {
+    if (!id) return;
+    const { tabOrder, currentTabId } = stateRef.current;
+    if (!tabOrder.includes(id)) return;
+    const isActive = currentTabId === id;
+    const remaining = tabOrder.filter((tid) => tid !== id);
+    const closeWindowIfLast = remaining.length === 0;
+
+    dispatch(removeTab(id));
+
+    if (isActive && !closeWindowIfLast) {
+      const idx = tabOrder.indexOf(id);
+      const nextId = remaining[idx] ?? remaining[idx - 1];
+
+      if (nextId) {
+        setTimeout(() => {
+          dispatch(setCurrentTab(nextId));
+          window.electronAPI.switchTab(nextId);
+        }, 0);
+      }
+    } else if (closeWindowIfLast) {
+      closeCurrentShellWindow();
+    }
+  }, [dispatch, closeCurrentShellWindow]);
+
   const handleDragEnd = useCallback((newTabOrder) => {
     dispatch(reorderTabs(newTabOrder));
     requestSessionSave();
@@ -414,6 +439,10 @@ function AppShell() {
     openSingletonTab(URL_C.DOWNLOADS_NAVIGATE, URL_C.DOWNLOADS_DISPLAY);
   }, [openSingletonTab]);
 
+  const handleOpenExtensions = useCallback(() => {
+    openSingletonTab(URL_C.EXTENSIONS_NAVIGATE, URL_C.EXTENSIONS_DISPLAY);
+  }, [openSingletonTab]);
+
   const handleDeleteBrowsingData = useCallback(() => {
     const { tabs, tabOrder } = stateRef.current;
     const existingId = tabOrder.find(id => tabs[id]?.url === URL_C.HISTORY_DISPLAY);
@@ -522,6 +551,7 @@ function AppShell() {
   useElectronIPC({
     onNewTab: createTab,
     onTabCreated: handleTabCreated,
+    onTabClosedExternal: handleTabClosedExternal,
     onTabSwitched: handleTabSwitched,
     onTabAwoken: handleTabAwoken,
     onCloseTab: () => {
@@ -733,6 +763,7 @@ function AppShell() {
         onOpenHistory={handleOpenHistory}
         onOpenBookmark={handleOpenBookmark}
         onOpenDownloads={handleOpenDownloads}
+        onOpenExtensions={handleOpenExtensions}
         onDeleteBrowsingData={handleDeleteBrowsingData}
         onOpenSettings={handleOpenSettings}
         searchEngine={searchEngine}

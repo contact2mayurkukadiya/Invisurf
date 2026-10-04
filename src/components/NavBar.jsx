@@ -13,6 +13,7 @@ import ProfileMenuButton from './ProfileMenuButton';
 import ProfileEditorModal from './ProfileEditorModal';
 import WindowOpacityControl from './WindowOpacityControl';
 import DownloadToolbarButton from './DownloadToolbarButton';
+import ExtensionToolbar from './ExtensionToolbar';
 import { BOOKMARK, OVERLAY, PROFILE, URL as URL_C } from '../constants/conditionStrings.js';
 import {
   bookmarkStarFilledSvg,
@@ -150,6 +151,7 @@ export default function NavBar({
   onOpenHistory,
   onOpenBookmark,
   onOpenDownloads,
+  onOpenExtensions,
   onDeleteBrowsingData,
   onOpenSettings,
   searchEngine = 'google',
@@ -753,6 +755,16 @@ export default function NavBar({
       >
         {isBookmarked ? STAR_FILLED : STAR_EMPTY}
       </button>
+
+      <ExtensionToolbar
+        onNavigate={(url) => {
+          if (url === 'invisurf://extensions' && typeof onOpenExtensions === 'function') {
+            onOpenExtensions();
+          } else if (window.electronAPI?.createTab) {
+            window.electronAPI.createTab({ url });
+          }
+        }}
+      />
 
       <WindowOpacityControl />
 

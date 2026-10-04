@@ -137,7 +137,7 @@ function renderOmniboxSuggestionRows(scroll, items, query, sel) {
             var it = items[index];
             if (!it || typeof it !== 'object') return;
             var typRaw0 = String(it.type || 'url').toLowerCase().replace(/[^a-z]/g, '') || 'url';
-            var typ = ['history', 'search', 'bookmark', 'keyword', 'url'].indexOf(typRaw0) >= 0 ? typRaw0 : 'url';
+            var typ = ['history', 'search', 'bookmark', 'keyword', 'extension', 'url'].indexOf(typRaw0) >= 0 ? typRaw0 : 'url';
             var row = document.createElement('button');
             row.type = 'button';
             row.className = 'co-ob-row' + (index === sel ? ' co-ob-row--selected' : '');
