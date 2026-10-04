@@ -288,6 +288,14 @@ function createWindow({
             layoutOmniboxOverlayBounds(context, context.lastOmniboxOverlayPatch);
         }
         layoutStatusBubble(context);
+        if (context.activeExtensionPopup) {
+            const { layoutExtensionPopupBounds } = require('./overlayManager');
+            layoutExtensionPopupBounds(context);
+        }
+        if (context.activeExtensionInstallPrompt) {
+            const { showExtensionInstallPromptOverlay } = require('./overlayManager');
+            showExtensionInstallPromptOverlay(context, context.activeExtensionInstallPrompt);
+        }
         ensureChromeOverlayOnTop(context);
     });
 

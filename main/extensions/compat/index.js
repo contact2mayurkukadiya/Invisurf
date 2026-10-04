@@ -14,6 +14,7 @@ const { getHistoryManager } = require('./HistoryManager');
 const { getIdentityManager } = require('./IdentityManager');
 const { getOffscreenManager } = require('./OffscreenManager');
 const { getOmniboxManager } = require('./OmniboxManager');
+const { getMediaCaptureManager } = require('./MediaCaptureManager');
 const { generateWorkerPolyfill } = require('./workerPolyfill');
 
 /**
@@ -43,5 +44,6 @@ module.exports = {
     getIdentityManager,
     getOffscreenManager,
     getOmniboxManager,
+    getMediaCaptureManager,
     generateWorkerPolyfill,
 };

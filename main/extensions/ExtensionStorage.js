@@ -58,20 +58,28 @@ function getStateFilePath(profileId) {
     return path.join(getProfileExtensionsDir(profileId), 'state.json');
 }
 
+const memoryStateCache = new Map();
+
 /**
  * Reads the persistent state for a profile.
  * Returns an object keyed by extensionId.
  */
-function readState(profileId) {
+function readState(profileId, forceReload = false) {
+    const cleanProfileId = safeProfileId(profileId);
+    if (!forceReload && memoryStateCache.has(cleanProfileId)) {
+        return memoryStateCache.get(cleanProfileId);
+    }
     try {
-        const filePath = getStateFilePath(profileId);
+        const filePath = getStateFilePath(cleanProfileId);
         let state = {};
         if (fs.existsSync(filePath)) {
             const raw = fs.readFileSync(filePath, 'utf-8');
             const parsed = JSON.parse(raw);
             state = typeof parsed === 'object' && parsed !== null ? parsed : {};
         }
-        return recoverAndMigrateExtensions(profileId, state);
+        const finalState = recoverAndMigrateExtensions(cleanProfileId, state);
+        memoryStateCache.set(cleanProfileId, finalState);
+        return finalState;
     } catch (err) {
         console.warn(`[ExtensionStorage] Failed to read state for profile ${profileId}:`, err?.message || err);
         return {};
@@ -98,6 +106,11 @@ function recoverAndMigrateExtensions(profileId, state) {
                         const inspection = ExtensionInstaller.inspectExtractedExtension(subPath);
                         const parts = folder.split('_');
                         const extId = sanitizeExtensionId(parts[0]);
+                        const timestamp = parseInt(parts[1], 10);
+                        // Do not touch active installation staging directories (less than 10 minutes old)
+                        if (Number.isFinite(timestamp) && (Date.now() - timestamp) < 10 * 60 * 1000) {
+                            continue;
+                        }
                         if (extId && !state[extId]) {
                             console.log(`[ExtensionStorage] Recovering unpromoted staging extension: ${inspection.name} (${extId})`);
                             const finalPath = promoteStaging(cleanProfileId, extId, inspection.version, subPath);
@@ -203,8 +216,10 @@ function recoverAndMigrateExtensions(profileId, state) {
  * Writes persistent state atomically for a profile.
  */
 function writeState(profileId, state) {
+    const cleanProfileId = safeProfileId(profileId);
+    memoryStateCache.set(cleanProfileId, state);
     try {
-        const filePath = getStateFilePath(profileId);
+        const filePath = getStateFilePath(cleanProfileId);
         const tempPath = `${filePath}.tmp.${Date.now()}`;
         fs.writeFileSync(tempPath, JSON.stringify(state, null, 2), 'utf-8');
         fs.renameSync(tempPath, filePath);
@@ -244,6 +259,13 @@ function promoteStaging(profileId, extensionId, version, stagingDir) {
     const parentDir = path.dirname(targetDir);
     if (!fs.existsSync(parentDir)) {
         fs.mkdirSync(parentDir, { recursive: true });
+    }
+
+    if (!fs.existsSync(stagingDir)) {
+        if (fs.existsSync(targetDir)) {
+            return targetDir;
+        }
+        throw new Error(`Staging directory does not exist: ${stagingDir}`);
     }
 
     if (fs.existsSync(targetDir)) {

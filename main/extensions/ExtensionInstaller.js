@@ -481,12 +481,15 @@ function ensureExtensionPolyfills(extractDir, explicitExtId = null) {
             const scriptPath = path.join(extractDir, relScript);
             if (fs.existsSync(scriptPath)) {
                 let content = fs.readFileSync(scriptPath, 'utf-8');
-                // Strip existing polyfill block if present to ensure clean update
-                if (content.includes('/* [InviSurf Extension Runtime Polyfill] */')) {
-                    content = content.replace(/\/\* \[InviSurf Extension Runtime Polyfill\] \*\/[\s\S]*?\/\* \[End InviSurf Extension Runtime Polyfill\] \*\/\n?/, '');
+                // Strip existing polyfill block if present to compare
+                const strippedContent = content.includes('/* [InviSurf Extension Runtime Polyfill] */')
+                    ? content.replace(/\/\* \[InviSurf Extension Runtime Polyfill\] \*\/[\s\S]*?\/\* \[End InviSurf Extension Runtime Polyfill\] \*\/\n?/, '')
+                    : content;
+                const newContent = polyfillCode.trim() + '\n' + strippedContent.trimStart();
+                if (newContent.trim() !== content.trim()) {
+                    fs.writeFileSync(scriptPath, newContent, 'utf-8');
+                    console.log(`[ExtensionInstaller] Applied runtime polyfill (${extId}) to ${scriptPath}`);
                 }
-                fs.writeFileSync(scriptPath, polyfillCode + '\n' + content, 'utf-8');
-                console.log(`[ExtensionInstaller] Applied runtime polyfill (${extId}) to ${scriptPath}`);
             }
         }
     } catch (err) {

@@ -868,8 +868,10 @@ function registerIpcHandlers() {
             lensManager.copyLensSelectionText(context).catch((err) => { console.error('lensCopyText', err?.message || err); });
             return;
         }
-
         if (data?.type === 'dismiss') {
+            if (context?.activeExtensionPopup) {
+                overlayManager.hideExtensionPopup(context);
+            }
             overlayManager.dismissChromeShellMenuOverlay(context, data.reason || 'overlay-request');
             return;
         }
@@ -882,7 +884,6 @@ function registerIpcHandlers() {
                 downloadService.showInFolder(data.savePath);
             }
         }
-
         try {
             context.window.webContents.send(C.IPC_EVENT.CHROME_OVERLAY_HOST, data ?? {});
         } catch (err) {

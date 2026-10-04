@@ -1243,4 +1243,274 @@ const { ipcRenderer } = require('electron');
         onInputEntered: _createEventTarget('chrome.omnibox.onInputEntered'),
         onInputCancelled: _createEventTarget('chrome.omnibox.onInputCancelled'),
     };
+
+    // 26. chrome.desktopCapture
+    let _desktopCaptureRequestId = 1000;
+    const _cancelledDesktopCaptureRequests = new Set();
+    window.chrome.desktopCapture = {
+        chooseDesktopMedia: (sources, targetTab, callback) => {
+            let cb = callback;
+            let tab = targetTab;
+            if (typeof targetTab === 'function') {
+                cb = targetTab;
+                tab = null;
+            }
+            _desktopCaptureRequestId += 1;
+            const reqId = _desktopCaptureRequestId;
+
+            _call('desktopCapture.chooseDesktopMedia', { sources, targetTab: tab })
+                .then(res => {
+                    if (_cancelledDesktopCaptureRequests.has(reqId)) {
+                        _cancelledDesktopCaptureRequests.delete(reqId);
+                        if (typeof cb === 'function') cb('', {});
+                        return;
+                    }
+                    if (typeof cb === 'function') {
+                        cb(res?.streamId || '', res?.options || {});
+                    }
+                })
+                .catch(err => {
+                    console.warn('[ExtensionPreload chooseDesktopMedia Error]:', err);
+                    if (typeof cb === 'function') cb('', {});
+                });
+
+            return reqId;
+        },
+        cancelChooseDesktopMedia: (requestId) => {
+            _cancelledDesktopCaptureRequests.add(Number(requestId));
+            _call('desktopCapture.cancelChooseDesktopMedia', { requestId: Number(requestId) }).catch(() => {});
+        },
+    };
+
+    // 27. chrome.tabCapture
+    window.chrome.tabCapture = {
+        getMediaStreamId: (options, callback) => {
+            let cb = callback;
+            let opt = options;
+            if (typeof options === 'function') {
+                cb = options;
+                opt = {};
+            }
+            const p = _call('tabCapture.getMediaStreamId', { options: opt || {} });
+            if (typeof cb === 'function') {
+                p.then(id => cb(id)).catch(() => cb(''));
+            }
+            return p;
+        },
+        capture: (options, callback) => {
+            let cb = callback;
+            let opt = options;
+            if (typeof options === 'function') {
+                cb = options;
+                opt = {};
+            }
+            const promise = (async () => {
+                try {
+                    const streamId = await _call('tabCapture.getMediaStreamId', { options: opt || {} });
+                    if (!streamId) {
+                        _setLastError('Failed to obtain tab media stream ID');
+                        if (typeof cb === 'function') cb(null);
+                        return null;
+                    }
+
+                    let stream = null;
+                    if (navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function') {
+                        if (streamId.startsWith('window:') || streamId.startsWith('screen:')) {
+                            try {
+                                const constraints = {
+                                    audio: opt.audio ? {
+                                        mandatory: {
+                                            chromeMediaSource: 'desktop',
+                                            chromeMediaSourceId: streamId,
+                                        }
+                                    } : false,
+                                    video: opt.video !== false ? {
+                                        mandatory: {
+                                            chromeMediaSource: 'desktop',
+                                            chromeMediaSourceId: streamId,
+                                        }
+                                    } : false,
+                                };
+                                stream = await navigator.mediaDevices.getUserMedia(constraints);
+                            } catch (err) {
+                                console.warn('[tabCapture.capture] Desktop getUserMedia not available or denied by system, using direct tab compositor stream:', err?.message || err);
+                            }
+                        }
+                    }
+
+                    // Fallback to internal compositor frame stream
+                    if (!stream) {
+                        stream = await _createCompositorTabMediaStream();
+                    }
+
+                    if (stream) {
+                        stream.getTracks().forEach(track => {
+                            track.addEventListener('ended', () => {
+                                _call('tabCapture.stopCapture', { streamId }).catch(() => {});
+                            });
+                        });
+                        _setLastError(null);
+                        if (typeof cb === 'function') cb(stream);
+                        return stream;
+                    } else {
+                        throw new Error('Unable to create tab media stream');
+                    }
+                } catch (err) {
+                    _setLastError(err?.message || 'Capture failed');
+                    if (typeof cb === 'function') cb(null);
+                    return null;
+                }
+            })();
+            return promise;
+        },
+        getCapturedTabs: (callback) => {
+            const p = _call('tabCapture.getCapturedTabs');
+            if (typeof callback === 'function') {
+                p.then(tabs => callback(tabs || [])).catch(() => callback([]));
+            }
+            return p;
+        },
+        onStatusChanged: _createEventTarget('chrome.tabCapture.onStatusChanged'),
+    };
+
+    function _createCompositorTabMediaStream() {
+        return new Promise((resolve) => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1280;
+            canvas.height = 720;
+            const ctx = canvas.getContext('2d', { alpha: false });
+            if (ctx) {
+                ctx.fillStyle = '#0f172a';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+            const stream = canvas.captureStream ? canvas.captureStream(30) : null;
+            if (!stream) {
+                resolve(null);
+                return;
+            }
+
+            let active = true;
+            const img = new Image();
+
+            const poll = async () => {
+                if (!active) return;
+                try {
+                    const dataUrl = await _call('tabs.captureVisibleTab', { options: { format: 'jpeg', quality: 80 } });
+                    if (dataUrl && active) {
+                        img.onload = () => {
+                            if (!active) return;
+                            if (img.width && img.height && (canvas.width !== img.width || canvas.height !== img.height)) {
+                                canvas.width = img.width;
+                                canvas.height = img.height;
+                            }
+                            ctx.drawImage(img, 0, 0);
+                        };
+                        img.src = dataUrl;
+                    }
+                } catch (_) {}
+                if (active) {
+                    setTimeout(poll, 33);
+                }
+            };
+
+            poll();
+
+            stream.getTracks().forEach(t => {
+                const orig = t.stop.bind(t);
+                t.stop = () => {
+                    active = false;
+                    orig();
+                };
+            });
+
+            resolve(stream);
+        });
+    }
+
+    if (typeof navigator !== 'undefined' && navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function') {
+        const origGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+        navigator.mediaDevices.getUserMedia = async function (constraints) {
+            const videoMandatory = constraints?.video?.mandatory || {};
+            const audioMandatory = constraints?.audio?.mandatory || {};
+            const isTabSource = videoMandatory.chromeMediaSource === 'tab' || audioMandatory.chromeMediaSource === 'tab';
+            const isDesktopSource = videoMandatory.chromeMediaSource === 'desktop' || audioMandatory.chromeMediaSource === 'desktop';
+
+            if (isTabSource) {
+                const streamId = videoMandatory.chromeMediaSourceId || audioMandatory.chromeMediaSourceId;
+                if (streamId && (streamId.startsWith('window:') || streamId.startsWith('screen:'))) {
+                    try {
+                        const modifiedConstraints = JSON.parse(JSON.stringify(constraints));
+                        if (modifiedConstraints.video?.mandatory) {
+                            modifiedConstraints.video.mandatory.chromeMediaSource = 'desktop';
+                        }
+                        if (modifiedConstraints.audio?.mandatory) {
+                            modifiedConstraints.audio.mandatory.chromeMediaSource = 'desktop';
+                        }
+                        return await origGetUserMedia(modifiedConstraints);
+                    } catch (nativeErr) {
+                        console.warn('[getUserMedia polyfill] Native desktop capture unavailable, using tab compositor stream:', nativeErr?.message || nativeErr);
+                    }
+                }
+                return await _createCompositorTabMediaStream();
+            }
+
+            try {
+                return await origGetUserMedia(constraints);
+            } catch (err) {
+                if (isDesktopSource && (err?.name === 'AbortError' || err?.message?.includes('Permission denied') || err?.name === 'NotAllowedError')) {
+                    const streamId = videoMandatory.chromeMediaSourceId || audioMandatory.chromeMediaSourceId || '';
+                    if (streamId.startsWith('tab:') || streamId.startsWith('window:')) {
+                        console.warn('[getUserMedia polyfill] System permission denied or invalid state, falling back to tab compositor stream:', err?.message || err);
+                        return await _createCompositorTabMediaStream();
+                    }
+                }
+                throw err;
+            }
+        };
+    }
+
+    if (typeof window !== 'undefined') {
+        window.invisurf = {
+            openScreenCaptureSettings: () => _call('system.openScreenCaptureSettings', {}),
+            getMediaAccessStatus: () => _call('system.getMediaAccessStatus', {}),
+        };
+    }
+
+    // Dynamic extension popup resizing
+    if (typeof window !== 'undefined' && window.location?.protocol === 'chrome-extension:') {
+        let lastReportedW = 0;
+        let lastReportedH = 0;
+        const reportPopupDimensions = () => {
+            try {
+                const doc = document.documentElement;
+                const body = document.body;
+                if (!doc || !body) return;
+                const rect = body.getBoundingClientRect();
+                const w = Math.ceil(Math.max(doc.scrollWidth || 0, body.scrollWidth || 0, rect.width || 0));
+                const h = Math.ceil(Math.max(doc.scrollHeight || 0, body.scrollHeight || 0, rect.height || 0));
+                if (w > 0 && h > 0 && (Math.abs(w - lastReportedW) > 2 || Math.abs(h - lastReportedH) > 2)) {
+                    lastReportedW = w;
+                    lastReportedH = h;
+                    ipcRenderer.send('invisurf:resize-extension-popup', { width: w, height: h });
+                }
+            } catch (_) {}
+        };
+
+        if (typeof ResizeObserver !== 'undefined') {
+            const ro = new ResizeObserver(() => {
+                reportPopupDimensions();
+            });
+            const startObserving = () => {
+                if (document.documentElement) ro.observe(document.documentElement);
+                if (document.body) ro.observe(document.body);
+                reportPopupDimensions();
+            };
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', startObserving);
+            } else {
+                startObserving();
+            }
+        }
+        window.addEventListener('load', reportPopupDimensions);
+    }
 })();

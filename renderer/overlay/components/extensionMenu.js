@@ -3,17 +3,20 @@ import { notifyHost } from '../api.js';
 import { getCompactMenuMetrics, toCompactMenuPoint } from '../utils/dom.js';
 
 // SVG Assets
-const PIN_ACTIVE_SVG = `
-<svg width="16" height="16" viewBox="0 0 24 24" fill="#1a73e8" stroke="#1a73e8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+const PIN_PINNED_SVG = `
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
   <line x1="12" y1="17" x2="12" y2="22"></line>
   <path d="M5 17h14v-2l-2-3V6a1 1 0 0 0-1-1h-1V3a1 1 0 0 0-1-1h-2a1 1 0 0 0-1 1v2H9a1 1 0 0 0-1 1v6l-2 3v2z"></path>
 </svg>
 `;
 
-const PIN_INACTIVE_SVG = `
-<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-  <line x1="12" y1="17" x2="12" y2="22"></line>
-  <path d="M5 17h14v-2l-2-3V6a1 1 0 0 0-1-1h-1V3a1 1 0 0 0-1-1h-2a1 1 0 0 0-1 1v2H9a1 1 0 0 0-1 1v6l-2 3v2z"></path>
+const PIN_SLASH_SVG = `
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1a73e8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+  <line x1="3" y1="3" x2="21" y2="21"></line>
+  <path d="M15.5 15.5v1.5h2v-2l-1.6-2.4"></path>
+  <path d="M12 17v5"></path>
+  <path d="M8 8L5 12.5v2.5h7.5"></path>
+  <path d="M10 4V3a1 1 0 0 1 2 0v1h2a1 1 0 0 1 1 1v4.5l-1.5 2.25"></path>
 </svg>
 `;
 
@@ -33,15 +36,168 @@ const CLOSE_SVG = `
 `;
 
 const GEAR_SVG = `
-<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
   <circle cx="12" cy="12" r="3"></circle>
   <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
 </svg>
 `;
 
 /**
+ * Creates a single extension item row matching Chrome's Extensions dropdown
+ */
+function createExtensionRow(ext) {
+    const row = document.createElement('div');
+    row.style.display = 'flex';
+    row.style.alignItems = 'center';
+    row.style.justifyContent = 'space-between';
+    row.style.padding = '7px 8px';
+    row.style.borderRadius = '8px';
+    row.style.transition = 'background-color 0.15s ease';
+    row.style.position = 'relative';
+
+    row.onmouseenter = () => row.style.backgroundColor = 'var(--chrome-tab-hover-bg, rgba(0, 0, 0, 0.05))';
+    row.onmouseleave = () => row.style.backgroundColor = 'transparent';
+
+    // Left: Icon + Name
+    const infoLeft = document.createElement('div');
+    infoLeft.style.display = 'flex';
+    infoLeft.style.alignItems = 'center';
+    infoLeft.style.gap = '10px';
+    infoLeft.style.flex = '1';
+    infoLeft.style.minWidth = '0';
+    infoLeft.style.cursor = 'pointer';
+    infoLeft.onclick = () => {
+        hideAll({ hideLens: false });
+        notifyHost({
+            type: 'extensionActivate',
+            extensionId: ext.id,
+        });
+    };
+
+    const iconBox = document.createElement('div');
+    iconBox.style.width = '24px';
+    iconBox.style.height = '24px';
+    iconBox.style.display = 'flex';
+    iconBox.style.alignItems = 'center';
+    iconBox.style.justifyContent = 'center';
+    iconBox.style.flexShrink = '0';
+
+    if (ext.iconDataUrl) {
+        const img = document.createElement('img');
+        img.src = ext.iconDataUrl;
+        img.alt = '';
+        img.style.width = '18px';
+        img.style.height = '18px';
+        img.style.objectFit = 'contain';
+        iconBox.appendChild(img);
+    } else {
+        const p = document.createElement('span');
+        p.textContent = '🧩';
+        p.style.fontSize = '14px';
+        iconBox.appendChild(p);
+    }
+
+    const extName = document.createElement('div');
+    extName.textContent = ext.name || 'Extension';
+    extName.style.fontSize = '13px';
+    extName.style.fontWeight = '400';
+    extName.style.color = 'var(--chrome-fg, #202124)';
+    extName.style.whiteSpace = 'nowrap';
+    extName.style.overflow = 'hidden';
+    extName.style.textOverflow = 'ellipsis';
+
+    infoLeft.appendChild(iconBox);
+    infoLeft.appendChild(extName);
+
+    // Right: Pin Button + 3-Dots Button
+    const actionsRight = document.createElement('div');
+    actionsRight.style.display = 'flex';
+    actionsRight.style.alignItems = 'center';
+    actionsRight.style.gap = '2px';
+    actionsRight.style.flexShrink = '0';
+
+    // 1. Pin icon button
+    const pinBtn = document.createElement('button');
+    pinBtn.type = 'button';
+    pinBtn.title = ext.pinned ? 'Unpin from toolbar' : 'Pin to toolbar';
+    pinBtn.innerHTML = ext.pinned ? PIN_PINNED_SVG : PIN_SLASH_SVG;
+    pinBtn.style.background = 'transparent';
+    pinBtn.style.border = 'none';
+    pinBtn.style.color = ext.pinned ? 'var(--chrome-fg, #202124)' : '#1a73e8';
+    pinBtn.style.padding = '4px 6px';
+    pinBtn.style.borderRadius = '6px';
+    pinBtn.style.cursor = 'pointer';
+    pinBtn.style.display = 'flex';
+    pinBtn.style.alignItems = 'center';
+    pinBtn.style.justifyContent = 'center';
+    pinBtn.style.transition = 'background-color 0.15s ease';
+    pinBtn.onmouseenter = () => pinBtn.style.backgroundColor = 'var(--chrome-tab-hover-bg, rgba(0,0,0,0.08))';
+    pinBtn.onmouseleave = () => pinBtn.style.backgroundColor = 'transparent';
+    pinBtn.onclick = (e) => {
+        e.stopPropagation();
+        notifyHost({
+            type: 'extensionTogglePin',
+            extensionId: ext.id,
+        });
+    };
+
+    // 2. 3-Dots More Options button
+    const moreBtn = document.createElement('button');
+    moreBtn.type = 'button';
+    moreBtn.title = 'More options';
+    moreBtn.innerHTML = DOTS_VERTICAL_SVG;
+    moreBtn.style.background = 'transparent';
+    moreBtn.style.border = 'none';
+    moreBtn.style.color = 'var(--chrome-secondary-fg, #5f6368)';
+    moreBtn.style.padding = '4px 6px';
+    moreBtn.style.borderRadius = '6px';
+    moreBtn.style.cursor = 'pointer';
+    moreBtn.style.display = 'flex';
+    moreBtn.style.alignItems = 'center';
+    moreBtn.style.justifyContent = 'center';
+    moreBtn.style.transition = 'background-color 0.15s ease';
+    moreBtn.onmouseenter = () => moreBtn.style.backgroundColor = 'var(--chrome-tab-hover-bg, rgba(0,0,0,0.08))';
+    moreBtn.onmouseleave = () => moreBtn.style.backgroundColor = 'transparent';
+    moreBtn.onclick = (e) => {
+        e.stopPropagation();
+        toggleMoreMenu(ext, row);
+    };
+
+    actionsRight.appendChild(pinBtn);
+    actionsRight.appendChild(moreBtn);
+
+    row.appendChild(infoLeft);
+    row.appendChild(actionsRight);
+    return row;
+}
+
+/**
+ * Creates a section header with title and explanatory description
+ */
+function createSectionHeader(titleText, descText) {
+    const sectionIntro = document.createElement('div');
+    sectionIntro.style.padding = '8px 14px 6px';
+
+    const titleEl = document.createElement('div');
+    titleEl.textContent = titleText;
+    titleEl.style.fontSize = '12px';
+    titleEl.style.fontWeight = '600';
+    titleEl.style.color = 'var(--chrome-fg, #202124)';
+
+    const descEl = document.createElement('div');
+    descEl.textContent = descText;
+    descEl.style.fontSize = '11px';
+    descEl.style.color = 'var(--chrome-secondary-fg, #5f6368)';
+    descEl.style.marginTop = '2px';
+    descEl.style.lineHeight = '1.35';
+
+    sectionIntro.appendChild(titleEl);
+    sectionIntro.appendChild(descEl);
+    return sectionIntro;
+}
+
+/**
  * Renders Chrome-styled Extensions dropdown menu inside top-level overlay WebContentsView.
- * Fully theme-consistent with the active user setting (Light, Dark, Presets).
  * 
  * @param {Object} payload
  * @param {Array} payload.extensions
@@ -52,7 +208,7 @@ export function renderExtensionMenu(payload) {
     if (!DOM.panel) return;
 
     const r = payload.anchorRect || {};
-    const width = 310;
+    const width = 320;
     const metrics = getCompactMenuMetrics(payload);
     const pad = 8;
 
@@ -69,7 +225,7 @@ export function renderExtensionMenu(payload) {
     DOM.panel.style.width = width + 'px';
     DOM.panel.style.minWidth = width + 'px';
     DOM.panel.style.maxWidth = width + 'px';
-    DOM.panel.style.maxHeight = Math.max(220, Math.min(500, metrics.viewportHeight - top - pad)) + 'px';
+    DOM.panel.style.maxHeight = Math.max(260, Math.min(560, metrics.viewportHeight - top - pad)) + 'px';
     DOM.panel.style.display = 'flex';
     DOM.panel.style.flexDirection = 'column';
     DOM.panel.style.overflow = 'visible';
@@ -89,12 +245,12 @@ export function renderExtensionMenu(payload) {
     header.style.display = 'flex';
     header.style.alignItems = 'center';
     header.style.justifyContent = 'space-between';
-    header.style.padding = '12px 14px 10px';
+    header.style.padding = '12px 14px 6px';
 
     const title = document.createElement('span');
     title.textContent = 'Extensions';
     title.style.fontWeight = '600';
-    title.style.fontSize = '14px';
+    title.style.fontSize = '15px';
     title.style.color = 'var(--chrome-fg, #202124)';
 
     const closeBtn = document.createElement('button');
@@ -121,178 +277,53 @@ export function renderExtensionMenu(payload) {
     header.appendChild(closeBtn);
     DOM.panel.appendChild(header);
 
-    // --- 2. Section: Full access ---
-    const sectionIntro = document.createElement('div');
-    sectionIntro.style.padding = '2px 14px 10px';
-
-    const sectionTitle = document.createElement('div');
-    sectionTitle.textContent = 'Full access';
-    sectionTitle.style.fontSize = '12px';
-    sectionTitle.style.fontWeight = '600';
-    sectionTitle.style.color = 'var(--chrome-fg, #202124)';
-
-    const sectionDesc = document.createElement('div');
-    sectionDesc.textContent = 'These extensions can see and change information on this site.';
-    sectionDesc.style.fontSize = '11px';
-    sectionDesc.style.color = 'var(--chrome-secondary-fg, #5f6368)';
-    sectionDesc.style.marginTop = '2px';
-    sectionDesc.style.lineHeight = '1.35';
-
-    sectionIntro.appendChild(sectionTitle);
-    sectionIntro.appendChild(sectionDesc);
-    DOM.panel.appendChild(sectionIntro);
-
-    // --- 3. Extension List ---
-    const listContainer = document.createElement('div');
-    listContainer.style.flex = '1';
-    listContainer.style.overflowY = 'auto';
-    listContainer.style.padding = '0 6px 8px';
-    listContainer.style.display = 'flex';
-    listContainer.style.flexDirection = 'column';
-    listContainer.style.gap = '2px';
+    // --- 2. Scrollable Body ---
+    const bodyContainer = document.createElement('div');
+    bodyContainer.style.flex = '1';
+    bodyContainer.style.overflowY = 'auto';
+    bodyContainer.style.padding = '0 6px 6px';
 
     if (extensions.length === 0) {
         const emptyBox = document.createElement('div');
-        emptyBox.style.padding = '18px 14px';
+        emptyBox.style.padding = '24px 14px';
         emptyBox.style.textAlign = 'center';
         emptyBox.style.color = 'var(--chrome-secondary-fg, #5f6368)';
-        emptyBox.style.fontSize = '12px';
+        emptyBox.style.fontSize = '13px';
         emptyBox.textContent = 'No extensions installed yet';
-        listContainer.appendChild(emptyBox);
+        bodyContainer.appendChild(emptyBox);
     } else {
-        extensions.forEach(ext => {
-            const row = document.createElement('div');
-            row.style.display = 'flex';
-            row.style.alignItems = 'center';
-            row.style.justifyContent = 'space-between';
-            row.style.padding = '6px 8px';
-            row.style.borderRadius = '8px';
-            row.style.transition = 'background-color 0.15s ease';
-            row.style.position = 'relative';
+        const fullAccessExts = extensions.filter(e => e.hasHostAccess !== false);
+        const noAccessExts = extensions.filter(e => e.hasHostAccess === false);
 
-            row.onmouseenter = () => row.style.backgroundColor = 'var(--chrome-tab-hover-bg, rgba(0, 0, 0, 0.05))';
-            row.onmouseleave = () => row.style.backgroundColor = 'transparent';
+        // Section: Full access
+        if (fullAccessExts.length > 0) {
+            bodyContainer.appendChild(createSectionHeader(
+                'Full access',
+                'These extensions can see and change information on this site.'
+            ));
+            fullAccessExts.forEach(ext => {
+                bodyContainer.appendChild(createExtensionRow(ext));
+            });
+        }
 
-            // Left: Icon + Name
-            const infoLeft = document.createElement('div');
-            infoLeft.style.display = 'flex';
-            infoLeft.style.alignItems = 'center';
-            infoLeft.style.gap = '10px';
-            infoLeft.style.flex = '1';
-            infoLeft.style.minWidth = '0';
-            infoLeft.style.cursor = 'pointer';
-            infoLeft.onclick = () => {
-                hideAll({ hideLens: false });
-                notifyHost({
-                    type: 'extensionActivate',
-                    extensionId: ext.id,
-                });
-            };
-
-            const iconBox = document.createElement('div');
-            iconBox.style.width = '24px';
-            iconBox.style.height = '24px';
-            iconBox.style.display = 'flex';
-            iconBox.style.alignItems = 'center';
-            iconBox.style.justifyContent = 'center';
-            iconBox.style.flexShrink = '0';
-
-            if (ext.iconDataUrl) {
-                const img = document.createElement('img');
-                img.src = ext.iconDataUrl;
-                img.style.width = '18px';
-                img.style.height = '18px';
-                img.style.objectFit = 'contain';
-                iconBox.appendChild(img);
-            } else {
-                const p = document.createElement('span');
-                p.textContent = '🧩';
-                p.style.fontSize = '14px';
-                iconBox.appendChild(p);
-            }
-
-            const extName = document.createElement('div');
-            extName.textContent = ext.name || 'Extension';
-            extName.style.fontSize = '13px';
-            extName.style.fontWeight = '400';
-            extName.style.color = 'var(--chrome-fg, #202124)';
-            extName.style.whiteSpace = 'nowrap';
-            extName.style.overflow = 'hidden';
-            extName.style.textOverflow = 'ellipsis';
-
-            infoLeft.appendChild(iconBox);
-            infoLeft.appendChild(extName);
-
-            // Right: Pin Button + 3-Dots Button
-            const actionsRight = document.createElement('div');
-            actionsRight.style.display = 'flex';
-            actionsRight.style.alignItems = 'center';
-            actionsRight.style.gap = '2px';
-            actionsRight.style.flexShrink = '0';
-
-            // 1. Pin icon button
-            const pinBtn = document.createElement('button');
-            pinBtn.type = 'button';
-            pinBtn.title = ext.pinned ? 'Unpin from toolbar' : 'Pin to toolbar';
-            pinBtn.innerHTML = ext.pinned ? PIN_ACTIVE_SVG : PIN_INACTIVE_SVG;
-            pinBtn.style.background = 'transparent';
-            pinBtn.style.border = 'none';
-            pinBtn.style.color = ext.pinned ? 'var(--chrome-accent, #1a73e8)' : 'var(--chrome-secondary-fg, #5f6368)';
-            pinBtn.style.padding = '4px 6px';
-            pinBtn.style.borderRadius = '6px';
-            pinBtn.style.cursor = 'pointer';
-            pinBtn.style.display = 'flex';
-            pinBtn.style.alignItems = 'center';
-            pinBtn.style.justifyContent = 'center';
-            pinBtn.style.transition = 'background-color 0.15s ease';
-            pinBtn.onmouseenter = () => pinBtn.style.backgroundColor = 'var(--chrome-tab-hover-bg, rgba(0,0,0,0.08))';
-            pinBtn.onmouseleave = () => pinBtn.style.backgroundColor = 'transparent';
-            pinBtn.onclick = (e) => {
-                e.stopPropagation();
-                notifyHost({
-                    type: 'extensionTogglePin',
-                    extensionId: ext.id,
-                });
-            };
-
-            // 2. 3-Dots More Options button
-            const moreBtn = document.createElement('button');
-            moreBtn.type = 'button';
-            moreBtn.title = 'More options';
-            moreBtn.innerHTML = DOTS_VERTICAL_SVG;
-            moreBtn.style.background = 'transparent';
-            moreBtn.style.border = 'none';
-            moreBtn.style.color = 'var(--chrome-secondary-fg, #5f6368)';
-            moreBtn.style.padding = '4px 6px';
-            moreBtn.style.borderRadius = '6px';
-            moreBtn.style.cursor = 'pointer';
-            moreBtn.style.display = 'flex';
-            moreBtn.style.alignItems = 'center';
-            moreBtn.style.justifyContent = 'center';
-            moreBtn.style.transition = 'background-color 0.15s ease';
-            moreBtn.onmouseenter = () => moreBtn.style.backgroundColor = 'var(--chrome-tab-hover-bg, rgba(0,0,0,0.08))';
-            moreBtn.onmouseleave = () => moreBtn.style.backgroundColor = 'transparent';
-
-            moreBtn.onclick = (e) => {
-                e.stopPropagation();
-                toggleMoreMenu(ext, row);
-            };
-
-            actionsRight.appendChild(pinBtn);
-            actionsRight.appendChild(moreBtn);
-
-            row.appendChild(infoLeft);
-            row.appendChild(actionsRight);
-            listContainer.appendChild(row);
-        });
+        // Section: No access needed
+        if (noAccessExts.length > 0) {
+            bodyContainer.appendChild(createSectionHeader(
+                'No access needed',
+                "These extensions don't need to see and change information on this site."
+            ));
+            noAccessExts.forEach(ext => {
+                bodyContainer.appendChild(createExtensionRow(ext));
+            });
+        }
     }
 
-    DOM.panel.appendChild(listContainer);
+    DOM.panel.appendChild(bodyContainer);
 
-    // --- 4. Footer: Divider + Manage Extensions ---
+    // --- 3. Footer: Divider + Manage Extensions ---
     const footer = document.createElement('div');
     footer.style.borderTop = '1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.08))';
-    footer.style.padding = '6px';
+    footer.style.padding = '4px 6px';
 
     const manageBtn = document.createElement('button');
     manageBtn.type = 'button';
@@ -337,7 +368,7 @@ export function renderExtensionMenu(payload) {
 }
 
 /**
- * Displays the 3-dots submenu for an extension matching Screenshot 1
+ * Displays the 3-dots submenu for an extension
  */
 function toggleMoreMenu(ext, parentRow) {
     if (!DOM.submenu) return;
@@ -431,7 +462,6 @@ function toggleMoreMenu(ext, parentRow) {
 
     // 2. This Can Read and Change Site Data
     DOM.submenu.appendChild(createMenuItem('This Can Read and Change Site Data', false, () => {
-        // Site data permissions view or switch
         notifyHost({
             type: 'extensionSiteAccess',
             extensionId: ext.id,

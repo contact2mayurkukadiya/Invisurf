@@ -1,5 +1,5 @@
 import { DOM, hideAll } from '../state.js';
-import { notifyHost } from '../api.js';
+import { applyChromeThemeTokens, notifyHost } from '../api.js';
 import { getCompactMenuMetrics, toCompactMenuPoint } from '../utils/dom.js';
 
 /**
@@ -14,9 +14,14 @@ import { getCompactMenuMetrics, toCompactMenuPoint } from '../utils/dom.js';
  * @param {string} payload.version
  * @param {string} [payload.iconDataUrl]
  * @param {Array} [payload.warnings]
+ * @param {Object} [payload.theme]
  */
 export function renderExtensionInstallPrompt(payload) {
     hideAll({ hideLens: false });
+
+    if (payload.theme) {
+        applyChromeThemeTokens(payload.theme);
+    }
 
     const installToken = payload.installToken;
     const name = payload.name || 'Extension';
@@ -37,7 +42,7 @@ export function renderExtensionInstallPrompt(payload) {
     DOM.panel.style.width = width + 'px';
     DOM.panel.style.minWidth = width + 'px';
     DOM.panel.style.maxWidth = width + 'px';
-    DOM.panel.style.maxHeight = '480px';
+    DOM.panel.style.maxHeight = Math.min(520, metrics.viewportHeight - top0 - 24) + 'px';
     DOM.panel.style.display = 'flex';
     DOM.panel.style.flexDirection = 'column';
     DOM.panel.style.overflow = 'hidden';
@@ -45,7 +50,7 @@ export function renderExtensionInstallPrompt(payload) {
     DOM.panel.style.backgroundColor = 'var(--chrome-nav-bg, #ffffff)';
     DOM.panel.style.color = 'var(--chrome-fg, #202124)';
     DOM.panel.style.border = '1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.12))';
-    DOM.panel.style.boxShadow = '0 20px 48px rgba(0, 0, 0, 0.35), 0 0 0 1px var(--chrome-tab-separator, rgba(0, 0, 0, 0.08))';
+    DOM.panel.style.boxShadow = '0 16px 36px rgba(0, 0, 0, 0.28), 0 2px 8px rgba(0, 0, 0, 0.16), 0 0 0 1px var(--chrome-tab-separator, rgba(0, 0, 0, 0.08))';
     DOM.panel.classList.remove('co-panel--app-menu');
     DOM.panel.classList.add('co-visible');
     DOM.backdrop.classList.add('co-visible');
@@ -56,12 +61,14 @@ export function renderExtensionInstallPrompt(payload) {
     header.style.alignItems = 'center';
     header.style.gap = '14px';
     header.style.padding = '20px 20px 14px';
+    header.style.flexShrink = '0';
 
     const iconBox = document.createElement('div');
     iconBox.style.width = '48px';
     iconBox.style.height = '48px';
     iconBox.style.borderRadius = '12px';
     iconBox.style.backgroundColor = 'color-mix(in srgb, var(--chrome-nav-bg, #ffffff) 85%, var(--chrome-fg, #000000) 15%)';
+    iconBox.style.border = '1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.08))';
     iconBox.style.display = 'flex';
     iconBox.style.alignItems = 'center';
     iconBox.style.justifyContent = 'center';
@@ -107,23 +114,31 @@ export function renderExtensionInstallPrompt(payload) {
 
     // 2. Permissions / Capabilities Section
     const content = document.createElement('div');
-    content.style.flex = '1';
-    content.style.overflowY = 'auto';
+    content.style.flex = '1 1 auto';
+    content.style.minHeight = '0';
+    content.style.display = 'flex';
+    content.style.flexDirection = 'column';
     content.style.padding = '0 20px 16px';
+    content.style.overflow = 'hidden';
 
     const promptText = document.createElement('div');
     promptText.style.fontSize = '13px';
     promptText.style.fontWeight = '500';
     promptText.style.color = 'var(--chrome-fg, #202124)';
     promptText.style.marginBottom = '10px';
+    promptText.style.flexShrink = '0';
     promptText.textContent = 'It can:';
     content.appendChild(promptText);
 
     const warnBox = document.createElement('div');
+    warnBox.className = 'co-extension-install-warnbox';
+    warnBox.style.maxHeight = '180px';
+    warnBox.style.overflowY = 'auto';
+    warnBox.style.overscrollBehavior = 'contain';
     warnBox.style.backgroundColor = 'color-mix(in srgb, var(--chrome-nav-bg, #ffffff) 92%, var(--chrome-fg, #000000) 8%)';
-    warnBox.style.border = '1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.08))';
+    warnBox.style.border = '1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.12))';
     warnBox.style.borderRadius = '10px';
-    warnBox.style.padding = '12px 14px';
+    warnBox.style.padding = '10px 14px';
     warnBox.style.display = 'flex';
     warnBox.style.flexDirection = 'column';
     warnBox.style.gap = '8px';
@@ -149,9 +164,10 @@ export function renderExtensionInstallPrompt(payload) {
 
             const bullet = document.createElement('span');
             bullet.textContent = '•';
-            bullet.style.color = 'var(--chrome-accent, #6366f1)';
+            bullet.style.color = 'var(--chrome-accent, #1a73e8)';
             bullet.style.fontWeight = 'bold';
             bullet.style.marginTop = '-1px';
+            bullet.style.flexShrink = '0';
 
             const text = document.createElement('span');
             let message = '';
@@ -180,6 +196,7 @@ export function renderExtensionInstallPrompt(payload) {
     footer.style.padding = '14px 20px';
     footer.style.borderTop = '1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.08))';
     footer.style.backgroundColor = 'color-mix(in srgb, var(--chrome-nav-bg, #ffffff) 96%, var(--chrome-fg, #000000) 4%)';
+    footer.style.flexShrink = '0';
 
     const cancelBtn = document.createElement('button');
     cancelBtn.textContent = 'Cancel';
@@ -192,7 +209,7 @@ export function renderExtensionInstallPrompt(payload) {
     cancelBtn.style.fontWeight = '500';
     cancelBtn.style.cursor = 'pointer';
     cancelBtn.style.transition = 'background-color 0.15s ease';
-    cancelBtn.onmouseenter = () => cancelBtn.style.backgroundColor = 'var(--chrome-tab-hover-bg, rgba(0, 0, 0, 0.05))';
+    cancelBtn.onmouseenter = () => cancelBtn.style.backgroundColor = 'var(--chrome-tab-hover-bg, rgba(128, 128, 128, 0.08))';
     cancelBtn.onmouseleave = () => cancelBtn.style.backgroundColor = 'transparent';
     cancelBtn.onclick = () => {
         hideAll({ hideLens: false });
@@ -208,15 +225,15 @@ export function renderExtensionInstallPrompt(payload) {
     confirmBtn.style.padding = '8px 18px';
     confirmBtn.style.borderRadius = '8px';
     confirmBtn.style.border = 'none';
-    confirmBtn.style.backgroundColor = 'var(--chrome-accent, #6366f1)';
-    confirmBtn.style.color = '#ffffff';
+    confirmBtn.style.backgroundColor = 'var(--chrome-accent, #1a73e8)';
+    confirmBtn.style.color = 'var(--chrome-omnibox-selection-fg, #ffffff)';
     confirmBtn.style.fontSize = '13px';
     confirmBtn.style.fontWeight = '600';
     confirmBtn.style.cursor = 'pointer';
-    confirmBtn.style.boxShadow = '0 2px 8px rgba(99, 102, 241, 0.4)';
+    confirmBtn.style.boxShadow = '0 2px 8px color-mix(in srgb, var(--chrome-accent, #1a73e8) 35%, transparent)';
     confirmBtn.style.transition = 'all 0.15s ease';
-    confirmBtn.onmouseenter = () => confirmBtn.style.opacity = '0.9';
-    confirmBtn.onmouseleave = () => confirmBtn.style.opacity = '1';
+    confirmBtn.onmouseenter = () => confirmBtn.style.filter = 'brightness(1.08)';
+    confirmBtn.onmouseleave = () => confirmBtn.style.filter = 'none';
     confirmBtn.onclick = () => {
         confirmBtn.disabled = true;
         confirmBtn.textContent = 'Adding...';
