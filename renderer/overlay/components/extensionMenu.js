@@ -42,10 +42,23 @@ const GEAR_SVG = `
 </svg>
 `;
 
+const RADIO_CHECKED_SVG = `
+<svg width="18" height="18" viewBox="0 0 20 20" fill="none" style="flex-shrink:0;">
+  <circle cx="10" cy="10" r="7.5" stroke="#1a73e8" stroke-width="1.8" fill="none"/>
+  <circle cx="10" cy="10" r="4" fill="#1a73e8"/>
+</svg>
+`;
+
+const RADIO_UNCHECKED_SVG = `
+<svg width="18" height="18" viewBox="0 0 20 20" fill="none" style="flex-shrink:0;">
+  <circle cx="10" cy="10" r="7.5" stroke="var(--chrome-secondary-fg, #5f6368)" stroke-width="1.8" fill="none"/>
+</svg>
+`;
+
 /**
  * Creates a single extension item row matching Chrome's Extensions dropdown
  */
-function createExtensionRow(ext) {
+function createExtensionRow(ext, payload) {
     const row = document.createElement('div');
     row.style.display = 'flex';
     row.style.alignItems = 'center';
@@ -54,9 +67,18 @@ function createExtensionRow(ext) {
     row.style.borderRadius = '8px';
     row.style.transition = 'background-color 0.15s ease';
     row.style.position = 'relative';
+    row.style.userSelect = 'none';
+    row.style.webkitUserSelect = 'none';
 
     row.onmouseenter = () => row.style.backgroundColor = 'var(--chrome-tab-hover-bg, rgba(0, 0, 0, 0.05))';
     row.onmouseleave = () => row.style.backgroundColor = 'transparent';
+
+    // Right click anywhere on the row opens context menu for this extension
+    row.oncontextmenu = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleMoreMenu(ext, row, payload);
+    };
 
     // Left: Icon + Name
     const infoLeft = document.createElement('div');
@@ -89,11 +111,20 @@ function createExtensionRow(ext) {
         img.style.width = '18px';
         img.style.height = '18px';
         img.style.objectFit = 'contain';
+        img.draggable = false;
+        if (ext.actionDisabled) {
+            img.style.filter = 'grayscale(100%)';
+            img.style.opacity = '0.5';
+        }
         iconBox.appendChild(img);
     } else {
         const p = document.createElement('span');
         p.textContent = '🧩';
         p.style.fontSize = '14px';
+        if (ext.actionDisabled) {
+            p.style.filter = 'grayscale(100%)';
+            p.style.opacity = '0.5';
+        }
         iconBox.appendChild(p);
     }
 
@@ -160,7 +191,7 @@ function createExtensionRow(ext) {
     moreBtn.onmouseleave = () => moreBtn.style.backgroundColor = 'transparent';
     moreBtn.onclick = (e) => {
         e.stopPropagation();
-        toggleMoreMenu(ext, row);
+        toggleMoreMenu(ext, row, payload);
     };
 
     actionsRight.appendChild(pinBtn);
@@ -177,6 +208,8 @@ function createExtensionRow(ext) {
 function createSectionHeader(titleText, descText) {
     const sectionIntro = document.createElement('div');
     sectionIntro.style.padding = '8px 14px 6px';
+    sectionIntro.style.userSelect = 'none';
+    sectionIntro.style.webkitUserSelect = 'none';
 
     const titleEl = document.createElement('div');
     titleEl.textContent = titleText;
@@ -197,10 +230,444 @@ function createSectionHeader(titleText, descText) {
 }
 
 /**
- * Renders Chrome-styled Extensions dropdown menu inside top-level overlay WebContentsView.
+ * Renders the Chrome-like "This Can Read and Change Site Data" submenu flyout
+ */
+function renderSiteAccessFlyout(flyoutContainer, ext, payload, anchorItem) {
+    if (!flyoutContainer) return;
+
+    flyoutContainer.innerHTML = '';
+    flyoutContainer.style.position = 'fixed';
+    flyoutContainer.style.zIndex = '35';
+    flyoutContainer.style.width = '260px';
+    flyoutContainer.style.backgroundColor = 'var(--chrome-nav-bg, #ffffff)';
+    flyoutContainer.style.color = 'var(--chrome-fg, #202124)';
+    flyoutContainer.style.border = '1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.12))';
+    flyoutContainer.style.borderRadius = '12px';
+    flyoutContainer.style.boxShadow = '0 12px 32px rgba(0, 0, 0, 0.28), 0 0 0 1px var(--chrome-tab-separator, rgba(0,0,0,0.08))';
+    flyoutContainer.style.padding = '6px 0';
+    flyoutContainer.style.display = 'flex';
+    flyoutContainer.style.flexDirection = 'column';
+    flyoutContainer.style.userSelect = 'none';
+    flyoutContainer.style.webkitUserSelect = 'none';
+
+    // Position adjacent to the anchor item
+    const itemRect = anchorItem.getBoundingClientRect();
+    const parentMenu = anchorItem.closest('#panel, #submenu') || anchorItem.parentElement;
+    const parentRect = parentMenu ? parentMenu.getBoundingClientRect() : itemRect;
+
+    const flyoutWidth = 260;
+    // Prefer opening to the left if space allows (matching Chrome extension context menu)
+    let flyoutLeft = parentRect.left - flyoutWidth - 6;
+    if (flyoutLeft < 10) {
+        flyoutLeft = parentRect.right + 6;
+    }
+    let flyoutTop = itemRect.top - 6;
+    if (flyoutTop + 220 > window.innerHeight) {
+        flyoutTop = Math.max(10, window.innerHeight - 230);
+    }
+
+    flyoutContainer.style.left = flyoutLeft + 'px';
+    flyoutContainer.style.top = flyoutTop + 'px';
+
+    const currentTabHost = payload?.currentTabHost || '';
+    const currentMode = ext.siteAccess || (
+        (currentTabHost && Array.isArray(ext.allowedHosts) && ext.allowedHosts.includes(currentTabHost))
+            ? 'onHost'
+            : 'all'
+    );
+
+    const radioItems = [
+        {
+            mode: 'onClick',
+            label: 'When You Click the Extension',
+            disabled: false,
+        },
+        {
+            mode: 'onHost',
+            label: currentTabHost ? `On ${currentTabHost}` : 'On this site',
+            disabled: !currentTabHost,
+        },
+        {
+            mode: 'all',
+            label: 'On All Sites',
+            disabled: false,
+        },
+    ];
+
+    const radioElements = new Map();
+
+    const selectMode = (targetMode) => {
+        radioElements.forEach((iconEl, m) => {
+            iconEl.innerHTML = m === targetMode ? RADIO_CHECKED_SVG : RADIO_UNCHECKED_SVG;
+        });
+        ext.siteAccess = targetMode;
+        notifyHost({
+            type: 'extensionSetSiteAccess',
+            extensionId: ext.id,
+            mode: targetMode,
+            host: currentTabHost,
+        });
+        setTimeout(() => {
+            hideAll({ hideLens: false });
+        }, 160);
+    };
+
+    radioItems.forEach(item => {
+        const row = document.createElement('button');
+        row.type = 'button';
+        row.style.display = 'flex';
+        row.style.alignItems = 'center';
+        row.style.gap = '12px';
+        row.style.width = '100%';
+        row.style.padding = '8px 16px';
+        row.style.border = 'none';
+        row.style.backgroundColor = 'transparent';
+        row.style.fontSize = '13px';
+        row.style.textAlign = 'left';
+        row.style.color = item.disabled ? 'var(--chrome-secondary-fg, #80868b)' : 'var(--chrome-fg, #202124)';
+        row.style.cursor = item.disabled ? 'default' : 'pointer';
+        row.style.transition = 'background-color 0.12s ease';
+
+        if (!item.disabled) {
+            row.onmouseenter = () => row.style.backgroundColor = 'var(--chrome-tab-hover-bg, rgba(0, 0, 0, 0.06))';
+            row.onmouseleave = () => row.style.backgroundColor = 'transparent';
+        }
+
+        const iconSpan = document.createElement('span');
+        iconSpan.style.display = 'flex';
+        iconSpan.style.alignItems = 'center';
+        iconSpan.style.justifyContent = 'center';
+        iconSpan.innerHTML = (currentMode === item.mode) ? RADIO_CHECKED_SVG : RADIO_UNCHECKED_SVG;
+        radioElements.set(item.mode, iconSpan);
+
+        const textSpan = document.createElement('span');
+        textSpan.textContent = item.label;
+        textSpan.style.whiteSpace = 'nowrap';
+        textSpan.style.overflow = 'hidden';
+        textSpan.style.textOverflow = 'ellipsis';
+        textSpan.style.lineHeight = '1.3';
+
+        row.appendChild(iconSpan);
+        row.appendChild(textSpan);
+
+        if (!item.disabled) {
+            row.onclick = (e) => {
+                e.stopPropagation();
+                selectMode(item.mode);
+            };
+        }
+
+        flyoutContainer.appendChild(row);
+    });
+
+    // Separator line
+    const sep = document.createElement('div');
+    sep.style.height = '1px';
+    sep.style.margin = '4px 0';
+    sep.style.backgroundColor = 'var(--chrome-tab-separator, rgba(0,0,0,0.08))';
+    flyoutContainer.appendChild(sep);
+
+    // Learn More About Site Access (aligned with the text of radio options)
+    const learnRow = document.createElement('button');
+    learnRow.type = 'button';
+    learnRow.style.display = 'flex';
+    learnRow.style.alignItems = 'center';
+    learnRow.style.width = '100%';
+    learnRow.style.padding = '8px 16px 8px 46px';
+    learnRow.style.border = 'none';
+    learnRow.style.backgroundColor = 'transparent';
+    learnRow.style.fontSize = '13px';
+    learnRow.style.textAlign = 'left';
+    learnRow.style.color = 'var(--chrome-fg, #202124)';
+    learnRow.style.cursor = 'pointer';
+    learnRow.style.transition = 'background-color 0.12s ease';
+    learnRow.onmouseenter = () => learnRow.style.backgroundColor = 'var(--chrome-tab-hover-bg, rgba(0, 0, 0, 0.06))';
+    learnRow.onmouseleave = () => learnRow.style.backgroundColor = 'transparent';
+    learnRow.onclick = (e) => {
+        e.stopPropagation();
+        hideAll({ hideLens: false });
+        notifyHost({
+            type: 'extensionNavigate',
+            url: 'https://support.google.com/chrome_webstore/answer/2664769',
+        });
+    };
+
+    const learnSpan = document.createElement('span');
+    learnSpan.textContent = 'Learn More About Site Access';
+    learnRow.appendChild(learnSpan);
+
+    flyoutContainer.appendChild(learnRow);
+    flyoutContainer.classList.add('co-visible');
+}
+
+/**
+ * Builds standard 3-dots extension context menu items
+ */
+function buildContextMenu(container, ext, payload, flyoutTarget) {
+    container.innerHTML = '';
+    container.style.userSelect = 'none';
+    container.style.webkitUserSelect = 'none';
+
+    let flyoutHideTimer = null;
+
+    const closeFlyout = () => {
+        if (flyoutTarget) {
+            flyoutTarget.classList.remove('co-visible');
+            flyoutTarget.style.display = 'none';
+            flyoutTarget.innerHTML = '';
+        }
+    };
+
+    const scheduleFlyoutClose = () => {
+        if (flyoutHideTimer) clearTimeout(flyoutHideTimer);
+        flyoutHideTimer = setTimeout(() => {
+            closeFlyout();
+        }, 220);
+    };
+
+    const cancelFlyoutClose = () => {
+        if (flyoutHideTimer) {
+            clearTimeout(flyoutHideTimer);
+            flyoutHideTimer = null;
+        }
+    };
+
+    const createMenuItem = (label, isHeader = false, onClick = null, hasArrow = false) => {
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.style.display = 'flex';
+        item.style.alignItems = 'center';
+        item.style.justifyContent = 'space-between';
+        item.style.width = '100%';
+        item.style.padding = '8px 16px';
+        item.style.border = 'none';
+        item.style.backgroundColor = 'transparent';
+        item.style.fontSize = '13px';
+        item.style.textAlign = 'left';
+        item.style.cursor = isHeader ? 'default' : 'pointer';
+
+        if (isHeader) {
+            item.style.color = 'var(--chrome-secondary-fg, #80868b)';
+            item.style.fontWeight = '500';
+            item.style.padding = '8px 16px 4px';
+        } else {
+            item.style.color = 'var(--chrome-fg, #202124)';
+            item.onmouseenter = () => item.style.backgroundColor = 'var(--chrome-tab-hover-bg, rgba(0, 0, 0, 0.06))';
+            item.onmouseleave = () => item.style.backgroundColor = 'transparent';
+        }
+
+        const labelSpan = document.createElement('span');
+        labelSpan.textContent = label;
+        labelSpan.style.whiteSpace = 'nowrap';
+        labelSpan.style.overflow = 'hidden';
+        labelSpan.style.textOverflow = 'ellipsis';
+        item.appendChild(labelSpan);
+
+        if (hasArrow) {
+            const arrow = document.createElement('span');
+            arrow.textContent = '›';
+            arrow.style.fontSize = '17px';
+            arrow.style.lineHeight = '1';
+            arrow.style.color = 'var(--chrome-secondary-fg, #80868b)';
+            arrow.style.marginLeft = '8px';
+            item.appendChild(arrow);
+        }
+
+        if (onClick) {
+            item.onclick = (e) => {
+                e.stopPropagation();
+                onClick();
+            };
+        }
+
+        return item;
+    };
+
+    // 1. Header (Extension name)
+    container.appendChild(createMenuItem(ext.name || 'Extension', true));
+
+    // Divider
+    const sep = document.createElement('div');
+    sep.style.height = '1px';
+    sep.style.margin = '4px 0';
+    sep.style.backgroundColor = 'var(--chrome-tab-separator, rgba(0,0,0,0.08))';
+    container.appendChild(sep);
+
+    // Options item (if extension has an options page)
+    if (ext.hasOptionsPage || ext.optionsPage) {
+        const optionsItem = createMenuItem('Options', false, () => {
+            hideAll({ hideLens: false });
+            notifyHost({
+                type: 'extensionOpenOptions',
+                extensionId: ext.id,
+            });
+        });
+        optionsItem.onmouseenter = () => {
+            closeFlyout();
+            optionsItem.style.backgroundColor = 'var(--chrome-tab-hover-bg, rgba(0, 0, 0, 0.06))';
+        };
+        container.appendChild(optionsItem);
+    }
+
+    // 2. This Can Read and Change Site Data (with dynamic submenu)
+    const siteDataItem = createMenuItem('This Can Read and Change Site Data', false, () => {
+        renderSiteAccessFlyout(flyoutTarget, ext, payload, siteDataItem);
+    }, true);
+
+    siteDataItem.onmouseenter = () => {
+        cancelFlyoutClose();
+        siteDataItem.style.backgroundColor = 'var(--chrome-tab-hover-bg, rgba(0, 0, 0, 0.06))';
+        renderSiteAccessFlyout(flyoutTarget, ext, payload, siteDataItem);
+    };
+
+    siteDataItem.onmouseleave = () => {
+        siteDataItem.style.backgroundColor = 'transparent';
+        scheduleFlyoutClose();
+    };
+
+    if (flyoutTarget) {
+        flyoutTarget.onmouseenter = () => {
+            cancelFlyoutClose();
+            siteDataItem.style.backgroundColor = 'var(--chrome-tab-hover-bg, rgba(0, 0, 0, 0.06))';
+        };
+        flyoutTarget.onmouseleave = () => {
+            siteDataItem.style.backgroundColor = 'transparent';
+            scheduleFlyoutClose();
+        };
+    }
+
+    container.appendChild(siteDataItem);
+
+    // 3. Remove from InviSurf
+    const removeItem = createMenuItem('Remove from InviSurf', false, () => {
+        hideAll({ hideLens: false });
+        notifyHost({
+            type: 'extensionUninstall',
+            extensionId: ext.id,
+        });
+    });
+    removeItem.onmouseenter = () => {
+        closeFlyout();
+        removeItem.style.backgroundColor = 'var(--chrome-tab-hover-bg, rgba(0, 0, 0, 0.06))';
+    };
+    container.appendChild(removeItem);
+
+    // Pin / Unpin (for toolbar action context menu)
+    if (payload && payload.contextMenuOnly) {
+        const pinLabel = ext.pinned ? 'Unpin' : 'Pin to Toolbar';
+        const pinItem = createMenuItem(pinLabel, false, () => {
+            hideAll({ hideLens: false });
+            notifyHost({
+                type: 'extensionTogglePin',
+                extensionId: ext.id,
+            });
+        });
+        pinItem.onmouseenter = () => {
+            closeFlyout();
+            pinItem.style.backgroundColor = 'var(--chrome-tab-hover-bg, rgba(0, 0, 0, 0.06))';
+        };
+        container.appendChild(pinItem);
+    }
+
+    // 4. Manage Extension
+    const manageItem = createMenuItem('Manage Extension', false, () => {
+        hideAll({ hideLens: false });
+        notifyHost({
+            type: 'extensionNavigate',
+            url: `invisurf://extensions?id=${ext.id}`,
+        });
+    });
+    manageItem.onmouseenter = () => {
+        closeFlyout();
+        manageItem.style.backgroundColor = 'var(--chrome-tab-hover-bg, rgba(0, 0, 0, 0.06))';
+    };
+    container.appendChild(manageItem);
+
+    // 5. View Web Permissions
+    const permissionsItem = createMenuItem('View Web Permissions', false, () => {
+        hideAll({ hideLens: false });
+        notifyHost({
+            type: 'extensionNavigate',
+            url: `invisurf://settings/content`,
+        });
+    });
+    permissionsItem.onmouseenter = () => {
+        closeFlyout();
+        permissionsItem.style.backgroundColor = 'var(--chrome-tab-hover-bg, rgba(0, 0, 0, 0.06))';
+    };
+    container.appendChild(permissionsItem);
+
+    // 6. Inspect Popup (if extension has popup)
+    if (ext.hasPopup) {
+        const inspectItem = createMenuItem('Inspect Popup', false, () => {
+            hideAll({ hideLens: false });
+            notifyHost({
+                type: 'extensionInspectPopup',
+                extensionId: ext.id,
+            });
+        });
+        inspectItem.onmouseenter = () => {
+            closeFlyout();
+            inspectItem.style.backgroundColor = 'var(--chrome-tab-hover-bg, rgba(0, 0, 0, 0.06))';
+        };
+        container.appendChild(inspectItem);
+    }
+}
+
+/**
+ * Displays the 3-dots submenu for an extension inside the puzzle menu
+ */
+function toggleMoreMenu(ext, parentRow, payload) {
+    if (!DOM.submenu) return;
+
+    if (DOM.submenu.classList.contains('co-visible') && DOM.submenu.__activeExtId === ext.id) {
+        DOM.submenu.classList.remove('co-visible');
+        DOM.submenu.style.display = 'none';
+        if (DOM.flyout) {
+            DOM.flyout.classList.remove('co-visible');
+            DOM.flyout.style.display = 'none';
+        }
+        return;
+    }
+
+    DOM.submenu.__activeExtId = ext.id;
+    DOM.submenu.innerHTML = '';
+    DOM.submenu.style.position = 'fixed';
+    DOM.submenu.style.zIndex = '30';
+    DOM.submenu.style.width = '240px';
+    DOM.submenu.style.backgroundColor = 'var(--chrome-nav-bg, #ffffff)';
+    DOM.submenu.style.color = 'var(--chrome-fg, #202124)';
+    DOM.submenu.style.border = '1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.12))';
+    DOM.submenu.style.borderRadius = '12px';
+    DOM.submenu.style.boxShadow = '0 12px 32px rgba(0, 0, 0, 0.28), 0 0 0 1px var(--chrome-tab-separator, rgba(0,0,0,0.08))';
+    DOM.submenu.style.padding = '6px 0';
+    DOM.submenu.style.display = 'flex';
+    DOM.submenu.style.flexDirection = 'column';
+
+    // Position adjacent to the row
+    const rect = parentRow.getBoundingClientRect();
+    let subLeft = rect.left - 246;
+    if (subLeft < 10) subLeft = rect.right + 6;
+    let subTop = rect.top;
+    if (subTop + 240 > window.innerHeight) {
+        subTop = Math.max(10, window.innerHeight - 250);
+    }
+    DOM.submenu.style.left = subLeft + 'px';
+    DOM.submenu.style.top = subTop + 'px';
+
+    buildContextMenu(DOM.submenu, ext, payload, DOM.flyout);
+    DOM.submenu.classList.add('co-visible');
+}
+
+/**
+ * Renders Chrome-styled Extensions dropdown or direct right-click Context Menu
  * 
  * @param {Object} payload
- * @param {Array} payload.extensions
+ * @param {Array} [payload.extensions]
+ * @param {Object} [payload.selectedExtension]
+ * @param {boolean} [payload.contextMenuOnly]
+ * @param {string} [payload.currentTabHost]
+ * @param {string} [payload.currentTabUrl]
  * @param {Object} [payload.anchorRect]
  */
 export function renderExtensionMenu(payload) {
@@ -208,10 +675,47 @@ export function renderExtensionMenu(payload) {
     if (!DOM.panel) return;
 
     const r = payload.anchorRect || {};
-    const width = 320;
     const metrics = getCompactMenuMetrics(payload);
     const pad = 8;
 
+    // --- Mode A: Direct Right-Click Context Menu on Toolbar Pinned Extension ---
+    if (payload.contextMenuOnly && payload.selectedExtension) {
+        const ext = payload.selectedExtension;
+        const width = 240;
+
+        const left0 = Math.round(r.right != null ? r.right - width : (r.left || 0));
+        const top0 = Math.round(r.bottom != null ? r.bottom + 6 : ((r.top || 0) + (r.height || 32) + 6));
+
+        const left = Math.max(pad, Math.min(left0, metrics.viewportWidth - width - pad));
+        const top = Math.max(pad, Math.min(top0, metrics.viewportHeight - 220 - pad));
+        const panelPoint = toCompactMenuPoint(payload, left, top);
+
+        DOM.panel.innerHTML = '';
+        DOM.panel.style.left = panelPoint.left + 'px';
+        DOM.panel.style.top = panelPoint.top + 'px';
+        DOM.panel.style.width = width + 'px';
+        DOM.panel.style.minWidth = width + 'px';
+        DOM.panel.style.maxWidth = width + 'px';
+        DOM.panel.style.display = 'flex';
+        DOM.panel.style.flexDirection = 'column';
+        DOM.panel.style.overflow = 'visible';
+        DOM.panel.style.borderRadius = '12px';
+        DOM.panel.style.padding = '6px 0';
+        DOM.panel.style.backgroundColor = 'var(--chrome-nav-bg, #ffffff)';
+        DOM.panel.style.color = 'var(--chrome-fg, #202124)';
+        DOM.panel.style.border = '1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.12))';
+        DOM.panel.style.boxShadow = '0 12px 32px rgba(0, 0, 0, 0.28), 0 0 0 1px var(--chrome-tab-separator, rgba(0, 0, 0, 0.08))';
+        DOM.panel.classList.remove('co-panel--app-menu');
+        DOM.panel.classList.add('co-visible');
+        DOM.backdrop.classList.add('co-visible');
+
+        // Here DOM.submenu acts as the secondary flyout for Site Access
+        buildContextMenu(DOM.panel, ext, payload, DOM.submenu);
+        return;
+    }
+
+    // --- Mode B: Full Puzzle Icon Extensions Menu ---
+    const width = 320;
     const left0 = Math.round(r.right != null ? r.right - width : (r.left || 0));
     const top0 = Math.round(r.bottom != null ? r.bottom + 6 : ((r.top || 0) + (r.height || 32) + 6));
 
@@ -246,6 +750,8 @@ export function renderExtensionMenu(payload) {
     header.style.alignItems = 'center';
     header.style.justifyContent = 'space-between';
     header.style.padding = '12px 14px 6px';
+    header.style.userSelect = 'none';
+    header.style.webkitUserSelect = 'none';
 
     const title = document.createElement('span');
     title.textContent = 'Extensions';
@@ -302,7 +808,7 @@ export function renderExtensionMenu(payload) {
                 'These extensions can see and change information on this site.'
             ));
             fullAccessExts.forEach(ext => {
-                bodyContainer.appendChild(createExtensionRow(ext));
+                bodyContainer.appendChild(createExtensionRow(ext, payload));
             });
         }
 
@@ -313,7 +819,7 @@ export function renderExtensionMenu(payload) {
                 "These extensions don't need to see and change information on this site."
             ));
             noAccessExts.forEach(ext => {
-                bodyContainer.appendChild(createExtensionRow(ext));
+                bodyContainer.appendChild(createExtensionRow(ext, payload));
             });
         }
     }
@@ -324,6 +830,8 @@ export function renderExtensionMenu(payload) {
     const footer = document.createElement('div');
     footer.style.borderTop = '1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.08))';
     footer.style.padding = '4px 6px';
+    footer.style.userSelect = 'none';
+    footer.style.webkitUserSelect = 'none';
 
     const manageBtn = document.createElement('button');
     manageBtn.type = 'button';
@@ -365,135 +873,4 @@ export function renderExtensionMenu(payload) {
 
     footer.appendChild(manageBtn);
     DOM.panel.appendChild(footer);
-}
-
-/**
- * Displays the 3-dots submenu for an extension
- */
-function toggleMoreMenu(ext, parentRow) {
-    if (!DOM.submenu) return;
-
-    if (DOM.submenu.classList.contains('co-visible') && DOM.submenu.__activeExtId === ext.id) {
-        DOM.submenu.classList.remove('co-visible');
-        DOM.submenu.style.display = 'none';
-        return;
-    }
-
-    DOM.submenu.__activeExtId = ext.id;
-    DOM.submenu.innerHTML = '';
-    DOM.submenu.style.position = 'fixed';
-    DOM.submenu.style.zIndex = '30';
-    DOM.submenu.style.width = '240px';
-    DOM.submenu.style.backgroundColor = 'var(--chrome-nav-bg, #ffffff)';
-    DOM.submenu.style.color = 'var(--chrome-fg, #202124)';
-    DOM.submenu.style.border = '1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.12))';
-    DOM.submenu.style.borderRadius = '12px';
-    DOM.submenu.style.boxShadow = '0 12px 32px rgba(0, 0, 0, 0.28), 0 0 0 1px var(--chrome-tab-separator, rgba(0,0,0,0.08))';
-    DOM.submenu.style.padding = '6px 0';
-    DOM.submenu.style.display = 'flex';
-    DOM.submenu.style.flexDirection = 'column';
-
-    // Position adjacent to the row
-    const rect = parentRow.getBoundingClientRect();
-    let subLeft = rect.left - 246;
-    if (subLeft < 10) subLeft = rect.right + 6;
-    let subTop = rect.top;
-    if (subTop + 240 > window.innerHeight) {
-        subTop = Math.max(10, window.innerHeight - 250);
-    }
-    DOM.submenu.style.left = subLeft + 'px';
-    DOM.submenu.style.top = subTop + 'px';
-
-    const createMenuItem = (label, isHeader = false, onClick = null, hasArrow = false) => {
-        const item = document.createElement('button');
-        item.type = 'button';
-        item.style.display = 'flex';
-        item.style.alignItems = 'center';
-        item.style.justifyContent = 'space-between';
-        item.style.width = '100%';
-        item.style.padding = '8px 16px';
-        item.style.border = 'none';
-        item.style.backgroundColor = 'transparent';
-        item.style.fontSize = '13px';
-        item.style.textAlign = 'left';
-        item.style.cursor = isHeader ? 'default' : 'pointer';
-
-        if (isHeader) {
-            item.style.color = 'var(--chrome-secondary-fg, #80868b)';
-            item.style.fontWeight = '500';
-            item.style.padding = '8px 16px 4px';
-        } else {
-            item.style.color = 'var(--chrome-fg, #202124)';
-            item.onmouseenter = () => item.style.backgroundColor = 'var(--chrome-tab-hover-bg, rgba(0, 0, 0, 0.06))';
-            item.onmouseleave = () => item.style.backgroundColor = 'transparent';
-        }
-
-        const labelSpan = document.createElement('span');
-        labelSpan.textContent = label;
-        item.appendChild(labelSpan);
-
-        if (hasArrow) {
-            const arrow = document.createElement('span');
-            arrow.textContent = '›';
-            arrow.style.fontSize = '16px';
-            arrow.style.color = 'var(--chrome-secondary-fg, #80868b)';
-            item.appendChild(arrow);
-        }
-
-        if (onClick) {
-            item.onclick = (e) => {
-                e.stopPropagation();
-                onClick();
-            };
-        }
-
-        return item;
-    };
-
-    // 1. Header (Extension name)
-    DOM.submenu.appendChild(createMenuItem(ext.name, true));
-
-    // Divider
-    const sep = document.createElement('div');
-    sep.style.height = '1px';
-    sep.style.margin = '4px 0';
-    sep.style.backgroundColor = 'var(--chrome-tab-separator, rgba(0,0,0,0.08))';
-    DOM.submenu.appendChild(sep);
-
-    // 2. This Can Read and Change Site Data
-    DOM.submenu.appendChild(createMenuItem('This Can Read and Change Site Data', false, () => {
-        notifyHost({
-            type: 'extensionSiteAccess',
-            extensionId: ext.id,
-        });
-    }, true));
-
-    // 3. Remove from InviSurf
-    DOM.submenu.appendChild(createMenuItem('Remove from InviSurf', false, () => {
-        hideAll({ hideLens: false });
-        notifyHost({
-            type: 'extensionUninstall',
-            extensionId: ext.id,
-        });
-    }));
-
-    // 4. Manage Extension
-    DOM.submenu.appendChild(createMenuItem('Manage Extension', false, () => {
-        hideAll({ hideLens: false });
-        notifyHost({
-            type: 'extensionNavigate',
-            url: `invisurf://extensions?id=${ext.id}`,
-        });
-    }));
-
-    // 5. View Web Permissions
-    DOM.submenu.appendChild(createMenuItem('View Web Permissions', false, () => {
-        hideAll({ hideLens: false });
-        notifyHost({
-            type: 'extensionNavigate',
-            url: `invisurf://settings/content`,
-        });
-    }));
-
-    DOM.submenu.classList.add('co-visible');
 }

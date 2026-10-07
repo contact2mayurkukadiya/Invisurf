@@ -1,6 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 const { getTabRegistry } = require('./TabRegistry');
+const State = require('../../state');
+const ExtensionStorage = require('../ExtensionStorage');
 
 /**
  * ScriptingManager
@@ -23,7 +25,7 @@ class ScriptingManager {
     _getTargetWebContents(target) {
         const tabRegistry = getTabRegistry();
         let tabId = target?.tabId;
-        if (!tabId) {
+        if (!tabId || Number(tabId) <= 0) {
             const active = tabRegistry.getActiveTab();
             tabId = active?.id;
         }
@@ -46,10 +48,17 @@ class ScriptingManager {
 
         // 1. If files specified
         if (Array.isArray(files) && files.length > 0) {
+            let resolvedExtPath = extensionPath;
+            if (!resolvedExtPath) {
+                const extState = ExtensionStorage.readState(State.defaultProfileId);
+                resolvedExtPath = extState[extensionId]?.path || Object.values(extState).find(e => e?.id === extensionId || e?.runtimeId === extensionId)?.path;
+            }
+
             for (const file of files) {
                 let code = '';
-                if (extensionPath) {
-                    const fullPath = path.join(extensionPath, file);
+                if (resolvedExtPath) {
+                    const cleanFile = String(file || '').replace(/^\/+/, '');
+                    const fullPath = path.join(resolvedExtPath, cleanFile);
                     if (fs.existsSync(fullPath)) {
                         code = fs.readFileSync(fullPath, 'utf-8');
                     }
@@ -181,6 +190,55 @@ class ScriptingManager {
         }
     }
 
+    _getRegisteredScriptsPath(profileId = null) {
+        try {
+            const pId = ExtensionStorage.safeProfileId(profileId || State.defaultProfileId);
+            const dir = ExtensionStorage.getProfileExtensionsDir(pId);
+            return path.join(dir, 'registered_content_scripts.json');
+        } catch (_) {
+            return null;
+        }
+    }
+
+    _loadRegisteredScripts(profileId = null) {
+        if (!this.registeredScripts) this.registeredScripts = new Map();
+        try {
+            const filePath = this._getRegisteredScriptsPath(profileId);
+            if (filePath && fs.existsSync(filePath)) {
+                const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+                if (data && typeof data === 'object') {
+                    for (const [extId, scriptsArray] of Object.entries(data)) {
+                        if (!this.registeredScripts.has(extId)) {
+                            this.registeredScripts.set(extId, new Map());
+                        }
+                        const extMap = this.registeredScripts.get(extId);
+                        if (Array.isArray(scriptsArray)) {
+                            for (const s of scriptsArray) {
+                                if (s && s.id && !extMap.has(s.id)) {
+                                    extMap.set(s.id, s);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (_) {}
+    }
+
+    _saveRegisteredScripts(profileId = null) {
+        try {
+            const filePath = this._getRegisteredScriptsPath(profileId);
+            if (!filePath) return;
+            const obj = {};
+            if (this.registeredScripts) {
+                for (const [extId, extMap] of this.registeredScripts.entries()) {
+                    obj[extId] = Array.from(extMap.values());
+                }
+            }
+            fs.writeFileSync(filePath, JSON.stringify(obj, null, 2), 'utf-8');
+        } catch (_) {}
+    }
+
     /**
      * chrome.scripting.registerContentScripts(scripts)
      */
@@ -192,19 +250,27 @@ class ScriptingManager {
         }
         const extScripts = this.registeredScripts.get(extensionId);
 
+        let resolvedExtPath = extensionPath;
+        if (!resolvedExtPath) {
+            const extState = ExtensionStorage.readState(State.defaultProfileId);
+            resolvedExtPath = extState[extensionId]?.path || Object.values(extState).find(e => e?.id === extensionId || e?.runtimeId === extensionId)?.path;
+        }
+
         for (const s of scripts) {
             if (!s || !s.id) continue;
             extScripts.set(s.id, {
                 ...s,
-                extensionPath,
+                extensionPath: resolvedExtPath,
             });
         }
+        this._saveRegisteredScripts();
     }
 
     /**
      * chrome.scripting.getRegisteredContentScripts(filter)
      */
     getRegisteredContentScripts(extensionId, filter = {}) {
+        this._loadRegisteredScripts();
         if (!this.registeredScripts || !this.registeredScripts.has(extensionId)) return [];
         const extScripts = this.registeredScripts.get(extensionId);
         let list = Array.from(extScripts.values());
@@ -228,6 +294,7 @@ class ScriptingManager {
         } else {
             extScripts.clear();
         }
+        this._saveRegisteredScripts();
     }
 
     /**
@@ -235,6 +302,398 @@ class ScriptingManager {
      */
     updateContentScripts(extensionId, extensionPath, scripts = []) {
         this.registerContentScripts(extensionId, extensionPath, scripts);
+    }
+
+    /**
+     * Retrieves scripts that must be executed at document_start in the MAIN or ISOLATED world (e.g. React DevTools hook).
+     * @param {string} url The page URL being navigated to
+     * @param {string} [profileId] Profile ID
+     * @returns {Array<{ id: string, world: string, code: string, extensionId: string }>}
+     */
+    /**
+     * Builds a robust compatibility wrapper around an isolated/content script.
+     * Implements bidirectional chrome.runtime messaging, port lifecycle, and event delivery.
+     */
+    buildContentScriptWrapper(extId, tabId, codeContent, scriptKey = '') {
+        const cleanExtId = String(extId || '').trim().toLowerCase();
+        const numericTabId = Number(tabId) || 0;
+        const safeKey = String(scriptKey || 'script').replace(/[^a-zA-Z0-9_]/g, '_');
+
+        return `
+            (() => {
+                try {
+                    const EXT_ID = ${JSON.stringify(cleanExtId)};
+                    const TAB_ID = ${JSON.stringify(numericTabId)};
+                    const guardKey = '__invisurf_injected_' + EXT_ID.replace(/[^a-zA-Z0-9_]/g, '_') + '_' + ${JSON.stringify(safeKey)};
+                    if (window[guardKey]) return;
+                    window[guardKey] = true;
+
+                    if (!window.chrome) window.chrome = {};
+                    if (!window.chrome.runtime) window.chrome.runtime = {};
+                    window.chrome.runtime.id = EXT_ID;
+                    window.chrome.runtime.getURL = (p) => 'chrome-extension://' + EXT_ID + '/' + (p ? String(p).replace(/^\\//, '') : '');
+
+                    if (!window.chrome.runtime.sendMessage) {
+                        window.chrome.runtime.sendMessage = (extIdOrMsg, msgOrOpts, optsOrCallback, maybeCb) => {
+                            let targetId = EXT_ID;
+                            let message = extIdOrMsg;
+                            let cb = null;
+                            if (typeof extIdOrMsg === 'string' && msgOrOpts !== undefined) {
+                                targetId = extIdOrMsg;
+                                message = msgOrOpts;
+                                if (typeof optsOrCallback === 'function') cb = optsOrCallback;
+                                else if (typeof maybeCb === 'function') cb = maybeCb;
+                            } else {
+                                if (typeof msgOrOpts === 'function') cb = msgOrOpts;
+                                else if (typeof optsOrCallback === 'function') cb = optsOrCallback;
+                            }
+
+                            const p = fetch('invisurf-ext://api/call', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    method: 'runtime.sendMessage',
+                                    args: { targetExtId: targetId, message, tabId: TAB_ID },
+                                    extensionId: EXT_ID,
+                                    tabId: TAB_ID
+                                })
+                            }).then(r => r.json()).then(d => d && d.ok ? d.result : null).catch(() => null);
+
+                            if (typeof cb === 'function') {
+                                p.then(res => { try { cb(res); } catch (_) {} });
+                            }
+                            return p;
+                        };
+                    }
+
+                    if (!window.chrome.runtime.onMessage) {
+                        const _listeners = [];
+                        window.chrome.runtime.onMessage = {
+                            addListener: (fn) => { if (typeof fn === 'function' && !_listeners.includes(fn)) _listeners.push(fn); },
+                            removeListener: (fn) => { const idx = _listeners.indexOf(fn); if (idx !== -1) _listeners.splice(idx, 1); },
+                            hasListener: (fn) => _listeners.includes(fn),
+                            _listeners,
+                        };
+
+                        window.addEventListener('message', (ev) => {
+                            if (ev.source === window && ev.data && ev.data.source === 'invisurf-ext-event') {
+                                const payload = ev.data.payload;
+                                if (payload && payload.eventName === 'chrome.runtime.onMessage') {
+                                    for (const fn of _listeners.slice()) {
+                                        try { fn(...(payload.args || [])); } catch (e) { console.error(e); }
+                                    }
+                                }
+                            }
+                        });
+                    }
+
+                    if (!window.chrome.runtime.connect) {
+                        window.chrome.runtime.connect = (connectOpts = {}) => {
+                            const portName = typeof connectOpts === 'string' ? connectOpts : (connectOpts?.name || '');
+                            const portId = 'port_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+                            const _msgListeners = [];
+                            const _discListeners = [];
+                            let _disconnected = false;
+
+                            fetch('invisurf-ext://api/call', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    method: 'runtime.connect',
+                                    args: { portId, name: portName, targetExtId: EXT_ID, tabId: TAB_ID },
+                                    extensionId: EXT_ID,
+                                    tabId: TAB_ID
+                                })
+                            }).catch(() => {});
+
+                            const _handlePortEvent = (ev) => {
+                                if (ev.source === window && ev.data && ev.data.source === 'invisurf-ext-event') {
+                                    const payload = ev.data.payload;
+                                    if (!payload) return;
+                                    if (payload.eventName === ('chrome.runtime.portOnMessage_' + portId)) {
+                                        const msgArg = payload.args && payload.args.length > 0 ? payload.args[0] : undefined;
+                                        for (const fn of _msgListeners.slice()) {
+                                            try { fn(msgArg); } catch (e) { console.error(e); }
+                                        }
+                                    } else if (payload.eventName === ('chrome.runtime.portOnDisconnect_' + portId)) {
+                                        _disconnected = true;
+                                        window.removeEventListener('message', _handlePortEvent);
+                                        for (const fn of _discListeners.slice()) {
+                                            try { fn(); } catch (e) { console.error(e); }
+                                        }
+                                    }
+                                }
+                            };
+                            window.addEventListener('message', _handlePortEvent);
+
+                            return {
+                                name: portName,
+                                postMessage: (message) => {
+                                    if (_disconnected) return;
+                                    fetch('invisurf-ext://api/call', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                            method: 'runtime.portPostMessage',
+                                            args: { portId, message, targetExtId: EXT_ID, tabId: TAB_ID },
+                                            extensionId: EXT_ID,
+                                            tabId: TAB_ID
+                                        })
+                                    }).catch(() => {});
+                                },
+                                disconnect: () => {
+                                    if (_disconnected) return;
+                                    _disconnected = true;
+                                    window.removeEventListener('message', _handlePortEvent);
+                                    fetch('invisurf-ext://api/call', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                            method: 'runtime.portDisconnect',
+                                            args: { portId, targetExtId: EXT_ID, tabId: TAB_ID },
+                                            extensionId: EXT_ID,
+                                            tabId: TAB_ID
+                                        })
+                                    }).catch(() => {});
+                                    for (const fn of _discListeners.slice()) {
+                                        try { fn(); } catch (_) {}
+                                    }
+                                },
+                                onMessage: {
+                                    addListener: (fn) => { if (typeof fn === 'function' && !_msgListeners.includes(fn)) _msgListeners.push(fn); },
+                                    removeListener: (fn) => { const i = _msgListeners.indexOf(fn); if (i !== -1) _msgListeners.splice(i, 1); },
+                                    hasListener: (fn) => _msgListeners.includes(fn),
+                                },
+                                onDisconnect: {
+                                    addListener: (fn) => { if (typeof fn === 'function' && !_discListeners.includes(fn)) _discListeners.push(fn); },
+                                    removeListener: (fn) => { const i = _discListeners.indexOf(fn); if (i !== -1) _discListeners.splice(i, 1); },
+                                    hasListener: (fn) => _discListeners.includes(fn),
+                                },
+                            };
+                        };
+                    }
+
+                    if (!window.chrome.storage) {
+                        window.chrome.storage = {
+                            local: {
+                                get: (keys, cb) => {
+                                    let callback = cb;
+                                    let queryKeys = keys;
+                                    if (typeof keys === 'function') {
+                                        callback = keys;
+                                        queryKeys = null;
+                                    }
+                                    const p = fetch('invisurf-ext://api/call', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                            method: 'storage.local.get',
+                                            args: { keys: queryKeys },
+                                            extensionId: EXT_ID,
+                                            tabId: TAB_ID
+                                        })
+                                    }).then(r => r.json()).then(d => d && d.ok ? (d.result || {}) : {}).catch(() => ({}));
+                                    if (typeof callback === 'function') {
+                                        p.then(res => { try { callback(res); } catch (_) {} });
+                                    }
+                                    return p;
+                                },
+                                set: (items, cb) => {
+                                    const p = fetch('invisurf-ext://api/call', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                            method: 'storage.local.set',
+                                            args: { items },
+                                            extensionId: EXT_ID,
+                                            tabId: TAB_ID
+                                        })
+                                    }).then(r => r.json()).then(d => d && d.ok ? d.result : null).catch(() => null);
+                                    if (typeof cb === 'function') {
+                                        p.then(res => { try { cb(res); } catch (_) {} });
+                                    }
+                                    return p;
+                                },
+                            },
+                        };
+                    }
+
+                    ${codeContent}
+                } catch (err) {
+                    console.warn('[ScriptingManager ContentScript Error]:', err);
+                }
+            })();
+        `;
+    }
+
+    /**
+     * Retrieves scripts that must be executed at document_start in the MAIN or ISOLATED world (e.g. React DevTools hook).
+     * @param {string} url The page URL being navigated to
+     * @param {string} [profileId] Profile ID
+     * @param {number|string} [tabId] WebContents/Tab ID
+     * @returns {Array<{ id: string, world: string, code: string, extensionId: string }>}
+     */
+    getDocumentStartScripts(url, profileId = null, tabId = 0) {
+        // Only ignore internal browser UI pages (invisurf://, app://, devtools), but allow web URLs and initial/about:blank navigation
+        if (url && (url.startsWith('invisurf://') || url.startsWith('chrome://') || url.startsWith('app://') || url.startsWith('chrome-devtools://')) && !url.includes('chromewebstore')) {
+            return [];
+        }
+        const results = [];
+        const seenScriptKeys = new Set();
+
+        const pId = ExtensionStorage.safeProfileId(profileId || State.defaultProfileId);
+        const state = ExtensionStorage.readState(pId);
+        this._loadRegisteredScripts(pId);
+
+        if (!this._scriptCodeCache) {
+            this._scriptCodeCache = new Map();
+        }
+
+        const readCachedCode = (filePath) => {
+            if (!this._scriptCodeCache.has(filePath)) {
+                try {
+                    this._scriptCodeCache.set(filePath, fs.readFileSync(filePath, 'utf-8'));
+                } catch (_) {
+                    return null;
+                }
+            }
+            return this._scriptCodeCache.get(filePath);
+        };
+
+        // 1. Proactive auto-detection of React DevTools in all enabled extensions
+        for (const [extId, extData] of Object.entries(state)) {
+            if (!extData.enabled || !extData.path || !fs.existsSync(extData.path)) continue;
+
+            const hookPath = path.join(extData.path, 'build', 'installHook.js');
+            if (fs.existsSync(hookPath)) {
+                const reactScripts = [
+                    { id: '@react-devtools/hook', file: 'build/installHook.js', world: 'MAIN', wrap: false },
+                    { id: '@react-devtools/fallback-eval-context', file: 'build/fallbackEvalContext.js', world: 'MAIN', wrap: false },
+                    { id: '@react-devtools/hook-settings-injector', file: 'build/hookSettingsInjector.js', world: 'ISOLATED', wrap: true },
+                    { id: '@react-devtools/proxy', file: 'build/proxy.js', world: 'ISOLATED', wrap: true },
+                    { id: 'manifest:build/prepareInjection.js', file: 'build/prepareInjection.js', world: 'ISOLATED', wrap: true },
+                ];
+
+                for (const item of reactScripts) {
+                    const fullPath = path.join(extData.path, item.file);
+                    const scriptKey = `${extId}:${item.file}`;
+                    if (!seenScriptKeys.has(scriptKey) && fs.existsSync(fullPath)) {
+                        seenScriptKeys.add(scriptKey);
+                        const rawCode = readCachedCode(fullPath);
+                        if (rawCode) {
+                            const code = item.wrap
+                                ? this.buildContentScriptWrapper(extId, tabId, rawCode, item.file)
+                                : rawCode;
+                            results.push({
+                                id: item.id,
+                                world: item.world,
+                                code,
+                                extensionId: extId,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Check dynamically registered content scripts for runAt: 'document_start'
+        if (this.registeredScripts) {
+            for (const [extId, scriptsMap] of this.registeredScripts.entries()) {
+                const extData = state[extId];
+                if (extData && !extData.enabled) continue;
+
+                for (const script of scriptsMap.values()) {
+                    const scriptRunAt = script.runAt || 'document_idle';
+                    if (scriptRunAt !== 'document_start') continue;
+
+                    const matches = Array.isArray(script.matches) ? script.matches : [];
+                    const isMatch = matches.some(m => {
+                        if (m === '<all_urls>') return true;
+                        if (!url || url === 'about:blank') return true;
+                        const rx = new RegExp('^' + m.replace(/\*/g, '.*') + '$');
+                        return rx.test(url);
+                    });
+
+                    if (isMatch && Array.isArray(script.js) && script.extensionPath) {
+                        for (const relJs of script.js) {
+                            const cleanJs = String(relJs || '').replace(/^\/+/, '');
+                            const key = `${extId}:${cleanJs}`;
+                            if (seenScriptKeys.has(key)) continue;
+                            seenScriptKeys.add(key);
+
+                            const fullJs = path.join(script.extensionPath, cleanJs);
+                            if (fs.existsSync(fullJs)) {
+                                const rawCode = readCachedCode(fullJs);
+                                if (rawCode) {
+                                    const isMainWorld = script.world === 'MAIN';
+                                    const code = isMainWorld
+                                        ? rawCode
+                                        : this.buildContentScriptWrapper(extId, tabId, rawCode, cleanJs);
+                                    results.push({
+                                        id: script.id,
+                                        world: isMainWorld ? 'MAIN' : 'ISOLATED',
+                                        code,
+                                        extensionId: extId,
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Check manifest content_scripts for run_at: 'document_start' (e.g. prepareInjection.js)
+        for (const [extId, extData] of Object.entries(state)) {
+            if (!extData.enabled || !extData.path || !fs.existsSync(extData.path)) continue;
+            const manifestPath = path.join(extData.path, 'manifest.json');
+            if (!fs.existsSync(manifestPath)) continue;
+            try {
+                const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+                if (Array.isArray(manifest.content_scripts)) {
+                    for (const cs of manifest.content_scripts) {
+                        const scriptRunAt = cs.run_at || 'document_idle';
+                        if (scriptRunAt !== 'document_start') continue;
+
+                        const matches = Array.isArray(cs.matches) ? cs.matches : [];
+                        const isMatch = matches.some(m => {
+                            if (m === '<all_urls>') return true;
+                            if (!url || url === 'about:blank') return true;
+                            const rx = new RegExp('^' + m.replace(/\*/g, '.*') + '$');
+                            return rx.test(url);
+                        });
+
+                        if (isMatch && Array.isArray(cs.js)) {
+                            for (const relJs of cs.js) {
+                                const cleanJs = String(relJs || '').replace(/^\/+/, '');
+                                const key = `${extId}:${cleanJs}`;
+                                if (seenScriptKeys.has(key)) continue;
+                                seenScriptKeys.add(key);
+
+                                const fullJs = path.join(extData.path, cleanJs);
+                                if (fs.existsSync(fullJs)) {
+                                    const rawCode = readCachedCode(fullJs);
+                                    if (rawCode) {
+                                        const isMainWorld = cs.world === 'MAIN';
+                                        const code = isMainWorld
+                                            ? rawCode
+                                            : this.buildContentScriptWrapper(extId, tabId, rawCode, cleanJs);
+                                        results.push({
+                                            id: `manifest:${cleanJs}`,
+                                            world: isMainWorld ? 'MAIN' : 'ISOLATED',
+                                            code,
+                                            extensionId: extId,
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (_) {}
+        }
+
+        return results;
     }
 
     /**
@@ -272,7 +731,8 @@ class ScriptingManager {
                     // Inject JS
                     if (Array.isArray(script.js)) {
                         for (const relJs of script.js) {
-                            const fullJs = path.join(script.extensionPath, relJs);
+                            const cleanJs = String(relJs || '').replace(/^\/+/, '');
+                            const fullJs = path.join(script.extensionPath, cleanJs);
                             if (fs.existsSync(fullJs)) {
                                 try {
                                     const codeContent = fs.readFileSync(fullJs, 'utf-8');
@@ -280,96 +740,7 @@ class ScriptingManager {
                                     if (script.world === 'MAIN') {
                                         await webContents.executeJavaScript(codeContent);
                                     } else {
-                                        // ISOLATED or default: wrap with chrome compatibility API shim
-                                        const cleanExtId = String(extId || '').trim().toLowerCase();
-                                        const wrapper = `
-                                            (() => {
-                                                try {
-                                                    const EXT_ID = ${JSON.stringify(cleanExtId)};
-                                                    if (!window.chrome) window.chrome = {};
-                                                    if (!window.chrome.runtime) window.chrome.runtime = {};
-                                                    window.chrome.runtime.id = EXT_ID;
-                                                    window.chrome.runtime.getURL = (p) => 'chrome-extension://' + EXT_ID + '/' + (p ? String(p).replace(/^\\//, '') : '');
-                                                    if (!window.chrome.runtime.sendMessage) {
-                                                        window.chrome.runtime.sendMessage = (extIdOrMsg, msgOrOpts) => {
-                                                            let targetId = EXT_ID;
-                                                            let message = extIdOrMsg;
-                                                            if (typeof extIdOrMsg === 'string' && msgOrOpts !== undefined) {
-                                                                targetId = extIdOrMsg;
-                                                                message = msgOrOpts;
-                                                            }
-                                                            return fetch('invisurf-ext://api/call', {
-                                                                method: 'POST',
-                                                                headers: { 'Content-Type': 'application/json' },
-                                                                body: JSON.stringify({ method: 'runtime.sendMessage', args: { targetExtId: targetId, message }, extensionId: EXT_ID })
-                                                            }).then(r => r.json()).then(d => d && d.ok ? d.result : null).catch(() => null);
-                                                        };
-                                                    }
-                                                    if (!window.chrome.runtime.onMessage) {
-                                                        const _listeners = [];
-                                                        window.chrome.runtime.onMessage = {
-                                                            addListener: (fn) => { if (typeof fn === 'function' && !_listeners.includes(fn)) _listeners.push(fn); },
-                                                            removeListener: (fn) => { const idx = _listeners.indexOf(fn); if (idx !== -1) _listeners.splice(idx, 1); },
-                                                            hasListener: (fn) => _listeners.includes(fn),
-                                                            _listeners,
-                                                        };
-                                                    }
-                                                    if (!window.chrome.runtime.connect) {
-                                                        window.chrome.runtime.connect = (connectOpts = {}) => {
-                                                            const portName = typeof connectOpts === 'string' ? connectOpts : (connectOpts?.name || '');
-                                                            const portId = 'port_' + Date.now() + '_' + Math.random().toString(36).slice(2);
-                                                            const _msgListeners = [];
-                                                            const _discListeners = [];
-                                                            let _disconnected = false;
-
-                                                            fetch('invisurf-ext://api/call', {
-                                                                method: 'POST',
-                                                                headers: { 'Content-Type': 'application/json' },
-                                                                body: JSON.stringify({ method: 'runtime.connect', args: { portId, name: portName, targetExtId: EXT_ID }, extensionId: EXT_ID })
-                                                            }).catch(() => {});
-
-                                                            return {
-                                                                name: portName,
-                                                                postMessage: (message) => {
-                                                                    if (_disconnected) return;
-                                                                    fetch('invisurf-ext://api/call', {
-                                                                        method: 'POST',
-                                                                        headers: { 'Content-Type': 'application/json' },
-                                                                        body: JSON.stringify({ method: 'runtime.portPostMessage', args: { portId, message, targetExtId: EXT_ID }, extensionId: EXT_ID })
-                                                                    }).catch(() => {});
-                                                                },
-                                                                disconnect: () => {
-                                                                    if (_disconnected) return;
-                                                                    _disconnected = true;
-                                                                    fetch('invisurf-ext://api/call', {
-                                                                        method: 'POST',
-                                                                        headers: { 'Content-Type': 'application/json' },
-                                                                        body: JSON.stringify({ method: 'runtime.portDisconnect', args: { portId, targetExtId: EXT_ID }, extensionId: EXT_ID })
-                                                                    }).catch(() => {});
-                                                                    for (const fn of _discListeners) {
-                                                                        try { fn(); } catch (_) {}
-                                                                    }
-                                                                },
-                                                                onMessage: {
-                                                                    addListener: (fn) => { if (typeof fn === 'function' && !_msgListeners.includes(fn)) _msgListeners.push(fn); },
-                                                                    removeListener: (fn) => { const i = _msgListeners.indexOf(fn); if (i !== -1) _msgListeners.splice(i, 1); },
-                                                                    hasListener: (fn) => _msgListeners.includes(fn),
-                                                                },
-                                                                onDisconnect: {
-                                                                    addListener: (fn) => { if (typeof fn === 'function' && !_discListeners.includes(fn)) _discListeners.push(fn); },
-                                                                    removeListener: (fn) => { const i = _discListeners.indexOf(fn); if (i !== -1) _discListeners.splice(i, 1); },
-                                                                    hasListener: (fn) => _discListeners.includes(fn),
-                                                                },
-                                                            };
-                                                        };
-                                                    }
-
-                                                    ${codeContent}
-                                                } catch (err) {
-                                                    console.warn('[ScriptingManager ContentScript Error]:', err);
-                                                }
-                                            })();
-                                        `;
+                                        const wrapper = this.buildContentScriptWrapper(extId, tabId, codeContent, cleanJs);
                                         await webContents.executeJavaScript(wrapper);
                                     }
                                 } catch (_) {}

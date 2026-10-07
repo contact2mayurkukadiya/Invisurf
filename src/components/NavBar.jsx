@@ -757,6 +757,7 @@ export default function NavBar({
       </button>
 
       <ExtensionToolbar
+        currentTabUrl={currentUrl}
         onNavigate={(url) => {
           if (url === 'invisurf://extensions' && typeof onOpenExtensions === 'function') {
             onOpenExtensions();

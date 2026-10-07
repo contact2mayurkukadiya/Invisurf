@@ -539,8 +539,11 @@ const { ipcRenderer } = require('electron');
             return p;
         },
         setIcon: (details, cb) => {
-            if (typeof cb === 'function') cb();
-            return Promise.resolve();
+            const p = _call('action.setIcon', details || {});
+            if (typeof cb === 'function') {
+                p.then(() => cb()).catch(() => cb());
+            }
+            return p;
         },
         onClicked: _createEventTarget('chrome.action.onClicked'),
     };
@@ -550,6 +553,10 @@ const { ipcRenderer } = require('electron');
 
     // 5. chrome.scripting
     window.chrome.scripting = {
+        ExecutionWorld: {
+            ISOLATED: 'ISOLATED',
+            MAIN: 'MAIN',
+        },
         executeScript: (injection, cb) => {
             const p = _call('scripting.executeScript', injection || {});
             if (typeof cb === 'function') {
@@ -1013,8 +1020,9 @@ const { ipcRenderer } = require('electron');
                 eval: (expression, options, cb) => {
                     let callback = cb;
                     if (typeof options === 'function') callback = options;
-                    if (typeof callback === 'function') callback(null, null);
-                    return Promise.resolve(null);
+                    const err = { isError: true, isException: false, description: 'Evaluation in inspected window requires fallback' };
+                    if (typeof callback === 'function') callback(null, err);
+                    return Promise.reject(err);
                 },
                 reload: () => {},
             },
@@ -1371,6 +1379,121 @@ const { ipcRenderer } = require('electron');
             return p;
         },
         onStatusChanged: _createEventTarget('chrome.tabCapture.onStatusChanged'),
+    };
+
+    // 28. chrome.sessions
+    window.chrome.sessions = {
+        MAX_SESSION_RESULTS: 25,
+        getRecentlyClosed: (filter, callback) => {
+            let cb = callback;
+            let f = filter;
+            if (typeof filter === 'function') {
+                cb = filter;
+                f = {};
+            }
+            const p = _call('sessions.getRecentlyClosed', { filter: f || {} });
+            if (typeof cb === 'function') {
+                p.then(res => {
+                    _setLastError(null);
+                    cb(res || []);
+                }).catch(err => {
+                    _setLastError(err?.message || 'Failed to get recently closed sessions');
+                    cb([]);
+                });
+            }
+            return p;
+        },
+        restore: (sessionId, callback) => {
+            let cb = callback;
+            let sId = sessionId;
+            if (typeof sessionId === 'function') {
+                cb = sessionId;
+                sId = null;
+            }
+            const p = _call('sessions.restore', { sessionId: sId });
+            if (typeof cb === 'function') {
+                p.then(res => {
+                    _setLastError(null);
+                    cb(res);
+                }).catch(err => {
+                    _setLastError(err?.message || 'Failed to restore session');
+                    cb(null);
+                });
+            }
+            return p;
+        },
+        getDevices: (filter, callback) => {
+            let cb = callback;
+            let f = filter;
+            if (typeof filter === 'function') {
+                cb = filter;
+                f = {};
+            }
+            const p = _call('sessions.getDevices', { filter: f || {} });
+            if (typeof cb === 'function') {
+                p.then(res => {
+                    _setLastError(null);
+                    cb(res || []);
+                }).catch(err => {
+                    _setLastError(err?.message || 'Failed to get devices');
+                    cb([]);
+                });
+            }
+            return p;
+        },
+        setTabValue: (tabId, key, value, callback) => {
+            const p = _call('sessions.setTabValue', { tabId: Number(tabId), key: String(key), value });
+            if (typeof callback === 'function') {
+                p.then(() => {
+                    _setLastError(null);
+                    callback();
+                }).catch(err => {
+                    _setLastError(err?.message || 'Failed to set tab value');
+                    callback();
+                });
+            }
+            return p;
+        },
+        getTabValue: (tabId, key, callback) => {
+            const p = _call('sessions.getTabValue', { tabId: Number(tabId), key: String(key) });
+            if (typeof callback === 'function') {
+                p.then(val => {
+                    _setLastError(null);
+                    callback(val);
+                }).catch(err => {
+                    _setLastError(err?.message || 'Failed to get tab value');
+                    callback(undefined);
+                });
+            }
+            return p;
+        },
+        setWindowValue: (windowId, key, value, callback) => {
+            const p = _call('sessions.setWindowValue', { windowId: Number(windowId), key: String(key), value });
+            if (typeof callback === 'function') {
+                p.then(() => {
+                    _setLastError(null);
+                    callback();
+                }).catch(err => {
+                    _setLastError(err?.message || 'Failed to set window value');
+                    callback();
+                });
+            }
+            return p;
+        },
+        getWindowValue: (windowId, key, callback) => {
+            const p = _call('sessions.getWindowValue', { windowId: Number(windowId), key: String(key) });
+            if (typeof callback === 'function') {
+                p.then(val => {
+                    _setLastError(null);
+                    callback(val);
+                }).catch(err => {
+                    _setLastError(err?.message || 'Failed to get window value');
+                    callback(undefined);
+                });
+            }
+            return p;
+        },
+        onChanged: _createEventTarget('chrome.sessions.onChanged'),
     };
 
     function _createCompositorTabMediaStream() {

@@ -141,8 +141,13 @@ function recoverAndMigrateExtensions(profileId, state) {
                                 iconDataUrl,
                                 hasPopup: inspection.hasPopup,
                                 popupFile: inspection.popupFile,
+                                hasOptionsPage: !!inspection.hasOptionsPage,
+                                optionsPage: inspection.optionsPage || null,
                                 installedAt: Date.now(),
                                 permissions: inspection.permissionsAudit,
+                                urlPatterns: inspection.urlPatterns || [],
+                                hasAllUrls: inspection.hasAllUrls !== undefined ? inspection.hasAllUrls : true,
+                                isPageAction: !!inspection.isPageAction,
                                 allowedOrigins: [],
                             };
                             dirty = true;

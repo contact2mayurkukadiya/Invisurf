@@ -96,7 +96,8 @@ function isAllowedTabNavigationUrl(targetUrl) {
     return targetUrl.startsWith(C.URL.SCHEME_HTTPS) ||
         targetUrl.startsWith(C.URL.SCHEME_HTTP) ||
         targetUrl.startsWith(C.URL.SCHEME_APP) ||
-        targetUrl.startsWith(C.URL.SCHEME_VIEW_SOURCE);
+        targetUrl.startsWith(C.URL.SCHEME_VIEW_SOURCE) ||
+        targetUrl.startsWith('chrome-extension://');
 }
 
 /**

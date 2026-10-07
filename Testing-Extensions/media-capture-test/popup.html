@@ -3,17 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Media Capture Tester</title>
+  <title>Media Capture Test Suite</title>
   <style>
     :root {
-      --bg: #0f172a;
-      --card-bg: rgba(30, 41, 59, 0.7);
+      --bg: #0b0f19;
+      --card-bg: rgba(22, 30, 46, 0.75);
       --border: rgba(148, 163, 184, 0.15);
       --primary: #3b82f6;
       --primary-hover: #2563eb;
       --accent-green: #10b981;
       --accent-red: #ef4444;
       --accent-purple: #8b5cf6;
+      --accent-amber: #f59e0b;
       --text: #f8fafc;
       --text-muted: #94a3b8;
       --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -26,13 +27,13 @@
     }
 
     body {
-      width: 440px;
+      width: 480px;
       font-family: var(--font-sans);
       background-color: var(--bg);
       color: var(--text);
       padding: 16px;
       font-size: 13px;
-      line-height: 1.5;
+      line-height: 1.45;
       user-select: none;
     }
 
@@ -42,75 +43,83 @@
       justify-content: space-between;
       padding-bottom: 12px;
       border-bottom: 1px solid var(--border);
-      margin-bottom: 14px;
+      margin-bottom: 12px;
     }
 
     .title-group {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
     }
 
     .logo-icon {
-      width: 24px;
-      height: 24px;
-      border-radius: 6px;
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
       background: linear-gradient(135deg, #3b82f6, #8b5cf6);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-weight: bold;
-      font-size: 14px;
+      font-weight: 700;
+      font-size: 13px;
       color: white;
+      box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
     }
 
     h1 {
       font-size: 15px;
       font-weight: 600;
-      letter-spacing: -0.02em;
+      letter-spacing: -0.01em;
     }
 
     .status-badge {
       font-size: 11px;
-      padding: 3px 8px;
+      padding: 4px 10px;
       border-radius: 12px;
-      font-weight: 500;
+      font-weight: 600;
       display: inline-flex;
       align-items: center;
-      gap: 5px;
+      gap: 6px;
       background: rgba(148, 163, 184, 0.1);
       color: var(--text-muted);
       border: 1px solid var(--border);
+      letter-spacing: 0.04em;
     }
 
     .status-badge.live {
       background: rgba(16, 185, 129, 0.15);
       color: var(--accent-green);
-      border-color: rgba(16, 185, 129, 0.3);
+      border-color: rgba(16, 185, 129, 0.35);
+    }
+
+    .status-badge.pending {
+      background: rgba(245, 158, 11, 0.15);
+      color: var(--accent-amber);
+      border-color: rgba(245, 158, 11, 0.35);
     }
 
     .status-dot {
-      width: 6px;
-      height: 6px;
+      width: 7px;
+      height: 7px;
       border-radius: 50%;
       background-color: currentColor;
     }
 
     .status-badge.live .status-dot {
-      box-shadow: 0 0 6px var(--accent-green);
+      box-shadow: 0 0 8px var(--accent-green);
       animation: pulse 1.5s infinite;
     }
 
     @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.4; }
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
     }
 
     .tab-info-card {
       background: var(--card-bg);
       border: 1px solid var(--border);
       border-radius: 8px;
-      padding: 10px 12px;
+      padding: 8px 12px;
       margin-bottom: 12px;
       display: flex;
       align-items: center;
@@ -121,7 +130,7 @@
     .tab-title-text {
       font-weight: 500;
       color: var(--text);
-      max-width: 280px;
+      max-width: 320px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -130,7 +139,7 @@
     .tab-id-tag {
       background: rgba(59, 130, 246, 0.15);
       color: #60a5fa;
-      padding: 2px 6px;
+      padding: 2px 7px;
       border-radius: 4px;
       font-family: monospace;
       font-size: 11px;
@@ -139,12 +148,12 @@
     .preview-container {
       position: relative;
       width: 100%;
-      height: 220px;
+      height: 210px;
       background: #020617;
       border-radius: 8px;
       border: 1px solid var(--border);
       overflow: hidden;
-      margin-bottom: 14px;
+      margin-bottom: 12px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -168,18 +177,57 @@
     }
 
     .preview-placeholder svg {
-      opacity: 0.5;
+      opacity: 0.4;
+    }
+
+    .options-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      padding: 0 4px;
+    }
+
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+
+    .checkbox-label input {
+      accent-color: var(--primary);
+      cursor: pointer;
+    }
+
+    .section-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      margin-top: 4px;
     }
 
     .controls-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .sub-controls-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 6px;
       margin-bottom: 12px;
     }
 
     button {
-      padding: 8px 12px;
+      padding: 8px 10px;
       border-radius: 6px;
       font-size: 12px;
       font-weight: 500;
@@ -212,15 +260,6 @@
       border-color: rgba(148, 163, 184, 0.3);
     }
 
-    .btn-danger {
-      background: rgba(239, 68, 68, 0.15);
-      color: #f87171;
-      border-color: rgba(239, 68, 68, 0.3);
-    }
-    .btn-danger:hover {
-      background: rgba(239, 68, 68, 0.25);
-    }
-
     .btn-purple {
       background: rgba(139, 92, 246, 0.15);
       color: #c084fc;
@@ -230,26 +269,27 @@
       background: rgba(139, 92, 246, 0.25);
     }
 
-    .options-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 12px;
-      padding: 0 4px;
+    .btn-amber {
+      background: rgba(245, 158, 11, 0.15);
+      color: #fbbf24;
+      border-color: rgba(245, 158, 11, 0.3);
+    }
+    .btn-amber:hover {
+      background: rgba(245, 158, 11, 0.25);
     }
 
-    .checkbox-label {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 12px;
-      color: var(--text-muted);
-      cursor: pointer;
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      border-color: rgba(239, 68, 68, 0.3);
+    }
+    .btn-danger:hover {
+      background: rgba(239, 68, 68, 0.25);
     }
 
-    .checkbox-label input {
-      accent-color: var(--primary);
-      cursor: pointer;
+    button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed !important;
     }
 
     .metrics-panel {
@@ -261,18 +301,10 @@
       font-size: 11px;
     }
 
-    .metrics-header {
-      font-weight: 600;
-      color: var(--text-muted);
-      margin-bottom: 6px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-
     .metric-row {
       display: flex;
       justify-content: space-between;
-      padding: 2px 0;
+      padding: 3px 0;
       border-bottom: 1px solid rgba(148, 163, 184, 0.08);
     }
     .metric-row:last-child {
@@ -290,27 +322,35 @@
 
     .snapshot-view {
       display: none;
-      margin-top: 10px;
+      margin-bottom: 12px;
       border-radius: 6px;
       overflow: hidden;
       border: 1px solid var(--border);
     }
 
-    .snapshot-view canvas {
+    .snapshot-view canvas,
+    .snapshot-view img {
       width: 100%;
       height: auto;
       display: block;
     }
 
+    .logs-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+
     .logs-console {
-      background: #090d16;
+      background: #060911;
       border: 1px solid var(--border);
       border-radius: 6px;
       padding: 8px;
       font-family: monospace;
       font-size: 11px;
       color: #94a3b8;
-      max-height: 80px;
+      max-height: 90px;
       overflow-y: auto;
       white-space: pre-wrap;
     }
@@ -321,13 +361,15 @@
     .log-success { color: #34d399; }
     .log-error { color: #f87171; }
     .log-info { color: #60a5fa; }
+    .log-warn { color: #fbbf24; }
   </style>
 </head>
 <body>
+  <!-- Header -->
   <div class="header">
     <div class="title-group">
       <div class="logo-icon">MC</div>
-      <h1>Media Capture Tester</h1>
+      <h1>Media Capture Test Suite</h1>
     </div>
     <div id="statusBadge" class="status-badge">
       <span class="status-dot"></span>
@@ -335,25 +377,17 @@
     </div>
   </div>
 
+  <!-- Active Tab Info -->
   <div class="tab-info-card">
     <span id="tabTitle" class="tab-title-text">Detecting active tab...</span>
     <span id="tabIdBadge" class="tab-id-tag">Tab: -</span>
   </div>
 
-  <div id="macPermissionWarning" style="display: none; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; font-size: 11px;">
-    <div style="font-weight: 600; color: #f87171; margin-bottom: 4px;">⚠️ macOS Screen Recording Permission Required</div>
-    <div style="color: #cbd5e1; margin-bottom: 8px; line-height: 1.4;">
-      macOS requires permission explicitly for <strong>Electron</strong> (not just Antigravity IDE) to record Desktop/Screens. Tab capture works internally.
-    </div>
-    <button id="btnOpenSystemSettings" class="btn-secondary" style="font-size: 11px; padding: 5px 10px; width: 100%; border-color: rgba(239, 68, 68, 0.4); color: #fca5a5;">
-      ⚙️ Open macOS Screen Recording Settings
-    </button>
-  </div>
-
+  <!-- Video Stream Preview -->
   <div class="preview-container">
     <video id="previewVideo" autoplay playsinline muted></video>
     <div id="previewPlaceholder" class="preview-placeholder">
-      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
         <polygon points="23 7 16 12 23 17 23 7"></polygon>
         <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
       </svg>
@@ -361,6 +395,7 @@
     </div>
   </div>
 
+  <!-- Stream Options -->
   <div class="options-row">
     <label class="checkbox-label">
       <input type="checkbox" id="chkAudio" checked> Audio Track
@@ -369,36 +404,49 @@
       <input type="checkbox" id="chkVideo" checked> Video Track
     </label>
     <label class="checkbox-label">
-      <input type="checkbox" id="chkHighRes"> 1080p Full HD
+      <input type="checkbox" id="chkHighRes"> 1080p HD
     </label>
   </div>
 
+  <!-- Core Capture Controls -->
+  <div class="section-title">Core Stream APIs</div>
   <div class="controls-grid">
-    <button id="btnCaptureStreamId" class="btn-primary" title="Modern tab capture using getMediaStreamId and getUserMedia">
+    <button id="btnCaptureDesktop" class="btn-purple" title="Interactive Source Picker (screens, windows, tabs)">
+      <span>🖥️ Choose Media (Picker)</span>
+    </button>
+    <button id="btnCaptureStreamId" class="btn-primary" title="Tab capture via getMediaStreamId + getUserMedia">
       <span>🎯 Tab (Stream ID)</span>
     </button>
-    <button id="btnCaptureDirect" class="btn-secondary" title="Classic tab capture via chrome.tabCapture.capture">
+    <button id="btnCaptureDirect" class="btn-secondary" title="Direct tab capture via chrome.tabCapture.capture">
       <span>📑 Tab (Direct API)</span>
     </button>
-    <button id="btnCaptureDesktop" class="btn-purple" title="Screen and Window capture via chrome.desktopCapture">
-      <span>🖥️ Screen / Desktop</span>
-    </button>
-    <button id="btnStop" class="btn-danger" disabled>
-      <span>⏹️ Stop Capture</span>
+    <button id="btnGetDisplayMedia" class="btn-secondary" title="Standard navigator.mediaDevices.getDisplayMedia">
+      <span>🌐 Web getDisplayMedia</span>
     </button>
   </div>
 
-  <div style="margin-bottom: 12px; display: flex; gap: 8px;">
-    <button id="btnSnapshot" class="btn-secondary" style="flex: 1;" disabled>
-      <span>📸 Take Video Snapshot</span>
+  <!-- Extended API Tests -->
+  <div class="section-title">Extended API Tests & Utilities</div>
+  <div class="sub-controls-grid">
+    <button id="btnTestCancelPicker" class="btn-amber" title="Open picker and auto-cancel programmatically via cancelChooseDesktopMedia after 2s">
+      <span>⚡ Auto-Cancel Test</span>
     </button>
-    <button id="btnClearLogs" class="btn-secondary" style="width: 70px;">
-      <span>Clear</span>
+    <button id="btnGetCapturedTabs" class="btn-secondary" title="Query chrome.tabCapture.getCapturedTabs()">
+      <span>📋 Captured Tabs</span>
+    </button>
+    <button id="btnCaptureVisibleTab" class="btn-secondary" title="Instant tab screenshot via chrome.tabs.captureVisibleTab">
+      <span>📸 Tab Screenshot</span>
+    </button>
+    <button id="btnSnapshot" class="btn-secondary" disabled title="Capture current frame from live video">
+      <span>🖼️ Frame Snapshot</span>
+    </button>
+    <button id="btnStop" class="btn-danger" disabled style="grid-column: span 2;" title="Stop active capture and release DRM">
+      <span>⏹️ Stop Capture Stream</span>
     </button>
   </div>
 
+  <!-- Live Diagnostics Panel -->
   <div class="metrics-panel">
-    <div class="metrics-header">Stream Diagnostics & DRM Mode</div>
     <div class="metric-row">
       <span class="metric-key">API Invoked:</span>
       <span id="metricApi" class="metric-val">None</span>
@@ -416,15 +464,26 @@
       <span id="metricAudioTrack" class="metric-val">Inactive</span>
     </div>
     <div class="metric-row">
-      <span class="metric-key">InviSurf DRM State:</span>
-      <span id="metricDrm" class="metric-val" style="color: #34d399;">Protected (Auto-coordinated)</span>
+      <span class="metric-key">Captured Tabs Count:</span>
+      <span id="metricCapturedCount" class="metric-val">0</span>
+    </div>
+    <div class="metric-row">
+      <span class="metric-key">DRM Coordination:</span>
+      <span id="metricDrm" class="metric-val" style="color: #34d399;">Protected (Auto-managed)</span>
     </div>
   </div>
 
+  <!-- Snapshot View -->
   <div id="snapshotContainer" class="snapshot-view">
     <canvas id="snapshotCanvas"></canvas>
+    <img id="snapshotImg" style="display: none;" alt="Tab Screenshot">
   </div>
 
+  <!-- Logs Console -->
+  <div class="logs-header">
+    <span class="section-title" style="margin: 0;">Event & API Activity Log</span>
+    <button id="btnClearLogs" style="background: none; border: none; color: var(--text-muted); font-size: 11px; cursor: pointer; padding: 2px 6px;">Clear</button>
+  </div>
   <div class="logs-console" id="logConsole"></div>
 
   <script src="popup.js"></script>

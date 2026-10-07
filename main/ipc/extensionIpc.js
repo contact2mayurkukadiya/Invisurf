@@ -261,6 +261,34 @@ function registerExtensionIpcHandlers() {
         }
     });
 
+    // 13. Set site access mode for an extension ('onClick' | 'onHost' | 'all')
+    ipcMain.handle('extensions:set-site-access', async (event, { extensionId, mode, host, profileId } = {}) => {
+        if (!isTrustedShellSender(event)) throw new Error('Unauthorized');
+        const context = resolveContext(event);
+        const targetProfile = profileId || context?.profileId || State.defaultProfileId;
+        const updated = controller.setSiteAccess(targetProfile, extensionId, mode, host);
+        if (context?.window?.webContents && !context.window.webContents.isDestroyed()) {
+            context.window.webContents.send('extensions:updated', { profileId: targetProfile });
+        }
+        return updated;
+    });
+
+    // 14. Inspect extension popup
+    ipcMain.handle('extensions:inspect-popup', async (event, { extensionId, profileId } = {}) => {
+        if (!isTrustedShellSender(event)) throw new Error('Unauthorized');
+        const context = resolveContext(event);
+        const targetProfile = profileId || context?.profileId || State.defaultProfileId;
+        return controller.inspectPopup(targetProfile, extensionId, context);
+    });
+
+    // 15. Open extension options page in a new tab
+    ipcMain.handle('extensions:open-options-page', async (event, { extensionId, profileId } = {}) => {
+        if (!isTrustedShellSender(event)) throw new Error('Unauthorized');
+        const context = resolveContext(event);
+        const targetProfile = profileId || context?.profileId || State.defaultProfileId;
+        return controller.openOptionsPage(targetProfile, extensionId, context);
+    });
+
     // Forward updates to renderer windows
     controller.on('extensions-updated', ({ profileId }) => {
         for (const ctx of State.windowContextsById.values()) {

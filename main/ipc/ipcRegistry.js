@@ -766,6 +766,21 @@ function registerIpcHandlers() {
             return;
         }
 
+        if (data?.type === 'desktopMediaPickerResponse') {
+            const { getMediaCaptureManager } = require('../extensions/compat/MediaCaptureManager');
+            overlayManager.hideDesktopMediaPickerOverlay(context);
+            getMediaCaptureManager().handlePickerResponse(data);
+            return;
+        }
+
+        if (data?.type === 'dismiss' && context.activeDesktopMediaPicker) {
+            const requestId = context.activeDesktopMediaPicker.requestId;
+            const { getMediaCaptureManager } = require('../extensions/compat/MediaCaptureManager');
+            overlayManager.hideDesktopMediaPickerOverlay(context);
+            getMediaCaptureManager().handlePickerCancel(requestId);
+            return;
+        }
+
         if (data?.type === 'dismiss' && context.activeExtensionInstallPrompt) {
             const installToken = context.activeExtensionInstallPrompt.installToken;
             const { getExtensionController } = require('../extensions/ExtensionController');
@@ -869,7 +884,7 @@ function registerIpcHandlers() {
             return;
         }
         if (data?.type === 'dismiss') {
-            if (context?.activeExtensionPopup) {
+            if (context?.activeExtensionPopup && !context.activeDesktopMediaPicker && !context.activeExtensionInstallPrompt) {
                 overlayManager.hideExtensionPopup(context);
             }
             overlayManager.dismissChromeShellMenuOverlay(context, data.reason || 'overlay-request');
@@ -1530,6 +1545,40 @@ function registerIpcHandlers() {
         }
         sender.openDevTools({ mode: 'undocked', activate: true });
         return true;
+    });
+
+    ipcMain.on('extensions:get-document-start-scripts', (e, { url } = {}) => {
+        try {
+            const context = getWindowContextByEventSender(e.sender);
+            if (context?.stealthWindow) {
+                e.returnValue = [];
+                return;
+            }
+            const profileId = context?.profileId || State.defaultProfileId;
+            let targetUrl = url && url !== 'about:blank' ? url : (e.sender?.getURL() || url || '');
+            if (!targetUrl || targetUrl === 'about:blank') {
+                if (context?.tabs) {
+                    for (const tabView of Object.values(context.tabs)) {
+                        if (tabView?.webContents?.id === e.sender?.id) {
+                            targetUrl = tabView._pendingUrl || tabView.webContents?.getURL() || targetUrl;
+                            break;
+                        }
+                    }
+                }
+            }
+            const tabId = e.sender?.id || 0;
+            const { getScriptingManager } = require('../extensions/compat/ScriptingManager');
+            const scripts = getScriptingManager().getDocumentStartScripts(targetUrl, profileId, tabId);
+            console.log(`[DEBUG-EXT] get-document-start-scripts called: url="${targetUrl}" tabId=${tabId} returned=${scripts?.length || 0}`);
+            e.returnValue = scripts || [];
+        } catch (err) {
+            console.warn('[DEBUG-EXT] get-document-start-scripts error:', err?.message || err);
+            e.returnValue = [];
+        }
+    });
+
+    ipcMain.on('extensions:debug-log', (e, ...args) => {
+        console.log('[DEBUG-EXT-RENDERER]', ...args);
     });
 
     // === MISC & SESSION ===

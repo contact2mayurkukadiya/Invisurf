@@ -2,13 +2,69 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useChromeShellMenuOverlay } from '../context/ChromeOverlayContext';
 import './ExtensionToolbar.css';
 
-export default function ExtensionToolbar({ onNavigate }) {
+function matchesPattern(pattern, rawUrl) {
+  if (!pattern || !rawUrl) return false;
+  const p = String(pattern).trim();
+  if (p === '<all_urls>') {
+    return rawUrl.startsWith('http://') || rawUrl.startsWith('https://');
+  }
+  try {
+    const regexStr = '^' + p
+      .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+      .replace(/\*/g, '.*') + '$';
+    return new RegExp(regexStr).test(rawUrl);
+  } catch {
+    return false;
+  }
+}
+
+function isActionEnabled(ext, currentTabUrl, actionBadge) {
+  if (!ext || ext.enabled === false) return false;
+  if (actionBadge?.enabled === false) return false;
+
+  const url = String(currentTabUrl || '').trim();
+  const isWebUrl = url.startsWith('http://') || url.startsWith('https://');
+
+  // Internal browser pages (invisurf://, about:blank, etc.) do not allow extension action execution
+  if (!isWebUrl) {
+    return false;
+  }
+
+  // Check user preference site access restriction
+  if (ext.siteAccess === 'onHost') {
+    let host = '';
+    try { host = new URL(url).host; } catch (_) {}
+    if (!host || !(Array.isArray(ext.allowedHosts) && ext.allowedHosts.includes(host))) {
+      return false;
+    }
+  }
+
+  // If extension is a page action or action.default_state === 'disabled'
+  if (ext.isPageAction && actionBadge?.enabled !== true) {
+    if (Array.isArray(ext.urlPatterns) && ext.urlPatterns.length > 0) {
+      return ext.urlPatterns.some(p => matchesPattern(p, url));
+    }
+    return false;
+  }
+
+  // If extension specifies specific URLs in manifest (and not all URLs)
+  if (ext.hasAllUrls === false && Array.isArray(ext.urlPatterns) && ext.urlPatterns.length > 0) {
+    return ext.urlPatterns.some(p => matchesPattern(p, url));
+  }
+
+  // Extension configured for all URLs or general web action
+  return true;
+}
+
+export default function ExtensionToolbar({ onNavigate, currentTabUrl }) {
   const [extensions, setExtensions] = useState([]);
   const [actionBadges, setActionBadges] = useState({});
   const [open, setOpen] = useState(false);
   const triggerRef = useRef(null);
   const openRef = useRef(false);
   openRef.current = open;
+  const currentTabUrlRef = useRef(currentTabUrl);
+  currentTabUrlRef.current = currentTabUrl;
 
   const { reset, acquire, release, post } = useChromeShellMenuOverlay();
   const pendingOwnResetRef = useRef(false);
@@ -39,24 +95,47 @@ export default function ExtensionToolbar({ onNavigate }) {
   extensionsRef.current = extensions;
   const postMenuPayloadRef = useRef(null);
 
+  const getTabHost = useCallback((url) => {
+    try {
+      const u = url || currentTabUrlRef.current;
+      if (u && (u.startsWith('http://') || u.startsWith('https://'))) {
+        return new URL(u).host;
+      }
+    } catch (_) {}
+    return '';
+  }, []);
+
   const postMenuPayload = useCallback(async (currentExtensions) => {
     if (!triggerRef.current) return;
     const br = triggerRef.current.getBoundingClientRect();
     const list = currentExtensions || extensionsRef.current;
+    const currentTabHost = getTabHost();
 
     const payload = {
       kind: 'extensionMenu',
-      extensions: list.map(e => ({
-        id: e.id,
-        name: e.name,
-        version: e.version,
-        enabled: e.enabled,
-        pinned: !!e.pinned,
-        pinnedAt: e.pinnedAt || 0,
-        iconDataUrl: e.iconDataUrl || null,
-        hasPopup: e.hasPopup,
-        hasHostAccess: !(e.id === 'omnibox' || e.name?.toLowerCase() === 'omnibox' || (e.permissions?.hostPermissions && e.permissions.hostPermissions.length === 0)),
-      })),
+      contextMenuOnly: false,
+      currentTabHost,
+      currentTabUrl: currentTabUrlRef.current || '',
+      extensions: list.map(e => {
+        const badge = actionBadges[e.id];
+        const isEnabled = isActionEnabled(e, currentTabUrlRef.current, badge);
+        return {
+          id: e.id,
+          name: e.name,
+          version: e.version,
+          enabled: e.enabled,
+          actionDisabled: !isEnabled,
+          pinned: !!e.pinned,
+          pinnedAt: e.pinnedAt || 0,
+          iconDataUrl: badge?.icon || e.iconDataUrl || null,
+          hasPopup: e.hasPopup,
+          hasOptionsPage: !!(e.hasOptionsPage || e.optionsPage),
+          optionsPage: e.optionsPage || null,
+          hasHostAccess: isEnabled && !(e.id === 'omnibox' || e.name?.toLowerCase() === 'omnibox' || (e.permissions?.hostPermissions && e.permissions.hostPermissions.length === 0)),
+          siteAccess: e.siteAccess || 'all',
+          allowedHosts: e.allowedHosts || [],
+        };
+      }),
       anchorRect: {
         left: Math.round(br.left),
         top: Math.round(br.top),
@@ -72,7 +151,7 @@ export default function ExtensionToolbar({ onNavigate }) {
     } catch (err) {
       console.error('ExtensionToolbar chromeShellMenuOverlayV1Post', err);
     }
-  }, [post]);
+  }, [actionBadges, getTabHost, post]);
   postMenuPayloadRef.current = postMenuPayload;
 
   const closeMenu = useCallback(async () => {
@@ -110,6 +189,64 @@ export default function ExtensionToolbar({ onNavigate }) {
       }, 300);
     }
   }, [acquire, closeMenu, loadExtensions, postMenuPayload, release, reset]);
+
+  const handleActionContextMenu = useCallback(async (e, ext) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const anchorRect = {
+      left: Math.round(rect.left),
+      top: Math.round(rect.top),
+      right: Math.round(rect.right),
+      bottom: Math.round(rect.bottom),
+      width: Math.round(rect.width),
+      height: Math.round(rect.height),
+    };
+
+    const currentTabHost = getTabHost();
+
+    const payload = {
+      kind: 'extensionMenu',
+      contextMenuOnly: true,
+      currentTabHost,
+      currentTabUrl: currentTabUrlRef.current || '',
+      selectedExtension: {
+        id: ext.id,
+        name: ext.name,
+        version: ext.version,
+        enabled: ext.enabled,
+        pinned: !!ext.pinned,
+        pinnedAt: ext.pinnedAt || 0,
+        iconDataUrl: actionBadges[ext.id]?.icon || ext.iconDataUrl || null,
+        hasPopup: ext.hasPopup,
+        hasOptionsPage: !!(ext.hasOptionsPage || ext.optionsPage),
+        optionsPage: ext.optionsPage || null,
+        hasHostAccess: !(ext.id === 'omnibox' || ext.name?.toLowerCase() === 'omnibox' || (ext.permissions?.hostPermissions && ext.permissions.hostPermissions.length === 0)),
+        siteAccess: ext.siteAccess || 'all',
+        allowedHosts: ext.allowedHosts || [],
+      },
+      anchorRect,
+    };
+
+    pendingOwnResetRef.current = true;
+    try {
+      await reset();
+      await acquire();
+      openRef.current = true;
+      setOpen(true);
+      await post(payload);
+    } catch (err) {
+      console.error('ExtensionToolbar handleActionContextMenu error:', err);
+      openRef.current = false;
+      setOpen(false);
+      try { await release(); } catch (_) {}
+    } finally {
+      setTimeout(() => {
+        pendingOwnResetRef.current = false;
+      }, 300);
+    }
+  }, [acquire, getTabHost, post, release, reset]);
 
   const handleToggleMenu = useCallback(() => {
     // Guard against backdrop dismiss click-through double-fire
@@ -201,6 +338,35 @@ export default function ExtensionToolbar({ onNavigate }) {
         } catch (e) {
           console.error('Failed to uninstall extension:', e);
         }
+      } else if (t === 'extensionSetSiteAccess') {
+        try {
+          if (window.extensionAPI?.setSiteAccess) {
+            await window.extensionAPI.setSiteAccess(data.extensionId, data.mode, data.host);
+            const list = await loadExtensions();
+            if (openRef.current) {
+              void postMenuPayload(list);
+            }
+          }
+        } catch (e) {
+          console.error('Failed to set extension site access:', e);
+        }
+      } else if (t === 'extensionInspectPopup') {
+        try {
+          if (window.extensionAPI?.inspectPopup) {
+            await window.extensionAPI.inspectPopup(data.extensionId);
+          }
+        } catch (e) {
+          console.error('Failed to inspect popup:', e);
+        }
+      } else if (t === 'extensionOpenOptions') {
+        void closeMenu();
+        try {
+          if (window.extensionAPI?.openOptionsPage) {
+            await window.extensionAPI.openOptionsPage(data.extensionId);
+          }
+        } catch (e) {
+          console.error('Failed to open extension options page:', e);
+        }
       } else if (t === 'extensionNavigate') {
         void closeMenu();
         if (typeof onNavigate === 'function') {
@@ -248,12 +414,25 @@ export default function ExtensionToolbar({ onNavigate }) {
     return typeof unsub === 'function' ? unsub : undefined;
   }, [onNavigate]);
 
+  useEffect(() => {
+    currentTabUrlRef.current = currentTabUrl;
+    if (openRef.current && postMenuPayloadRef.current) {
+      void postMenuPayloadRef.current();
+    }
+  }, [currentTabUrl]);
+
   // All pinned extensions visible on toolbar
   const pinnedExtensions = extensions
     .filter(e => e.enabled && e.pinned)
     .sort((a, b) => (b.pinnedAt || 0) - (a.pinnedAt || 0));
 
   const handleActionClick = (e, ext) => {
+    const badge = actionBadges[ext.id];
+    const isEnabled = isActionEnabled(ext, currentTabUrlRef.current, badge);
+    if (!isEnabled) {
+      // In Chrome, clicking a disabled action does not activate
+      return;
+    }
     const rect = e.currentTarget.getBoundingClientRect();
     if (window.extensionAPI?.activateAction) {
       window.extensionAPI.activateAction(ext.id, {
@@ -272,6 +451,10 @@ export default function ExtensionToolbar({ onNavigate }) {
   return (
     <div
       className={`extensions-toolbar-container${hasPinned ? ' extensions-toolbar-container--has-pinned' : ''}${open ? ' is-open' : ''}`}
+      onMouseDown={(e) => {
+        if (e.detail > 1) e.preventDefault();
+      }}
+      onSelectStart={(e) => e.preventDefault()}
     >
       {/* Pinned Extension Action Icons on Toolbar */}
       {pinnedExtensions.map((ext) => {
@@ -279,19 +462,27 @@ export default function ExtensionToolbar({ onNavigate }) {
         const badgeText = badge?.badgeText || '';
         const badgeBg = badge?.badgeBgColor || '#4688F1';
         const badgeColor = badge?.badgeTextColor || '#FFFFFF';
+        const isEnabled = isActionEnabled(ext, currentTabUrl, badge);
+        const iconSrc = badge?.icon || ext.iconDataUrl;
 
         return (
           <button
             key={ext.id}
-            className="btn extension-action-btn"
-            title={`${ext.name} (v${ext.version})`}
+            className={`btn extension-action-btn${!isEnabled ? ' extension-action-btn--disabled' : ''}`}
+            title={isEnabled ? `${ext.name} (v${ext.version})` : `${ext.name} (disabled on this site)`}
+            aria-disabled={!isEnabled}
             onClick={(e) => handleActionClick(e, ext)}
+            onContextMenu={(e) => handleActionContextMenu(e, ext)}
+            onMouseDown={(e) => {
+              if (e.detail > 1) e.preventDefault();
+            }}
           >
-            {ext.iconDataUrl ? (
+            {iconSrc ? (
               <img
-                src={ext.iconDataUrl}
+                src={iconSrc}
                 alt={ext.name}
                 className="extension-action-img"
+                draggable={false}
               />
             ) : (
               <span className="extension-action-fallback">🧩</span>
@@ -320,6 +511,9 @@ export default function ExtensionToolbar({ onNavigate }) {
         aria-label="Extensions"
         aria-expanded={open}
         onClick={handleToggleMenu}
+        onMouseDown={(e) => {
+          if (e.detail > 1) e.preventDefault();
+        }}
       >
         <svg
           width="18"

@@ -2,6 +2,7 @@ export const DOM = {
     backdrop: document.getElementById('backdrop'),
     panel: document.getElementById('panel'),
     submenu: document.getElementById('submenu'),
+    flyout: document.getElementById('flyout'),
 };
 
 const overlaySearch = window.location.search || '';
@@ -36,6 +37,12 @@ export function hideAll(options = { hideLens: true }) {
             DOM.submenu.classList.remove('co-visible');
             DOM.submenu.style.cssText = ''; // Completely wipes leftover inline styles!
             DOM.submenu.innerHTML = '';
+        }
+
+        if (DOM.flyout) {
+            DOM.flyout.classList.remove('co-visible');
+            DOM.flyout.style.cssText = ''; // Completely wipes leftover inline styles!
+            DOM.flyout.innerHTML = '';
         }
     } catch (err) {
         console.error('Error clearing DOM in hideAll:', err);
