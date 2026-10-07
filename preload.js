@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer, clipboard } = require('electron');
+const { contextBridge, ipcRenderer, clipboard, webFrame } = require('electron');
 
 const appMajor = process.versions.chrome.split('.')[0] || '146';
 const osPlatform = process.platform === 'darwin' ? 'macOS' : 'Windows';
@@ -34,8 +34,60 @@ const compliantUserAgentData = {
 
 try {
     // Inject the spoofed userAgentData and other browser signals into the main world so scripts can see it.
-    const { webFrame } = require('electron');
     if (webFrame && typeof webFrame.executeJavaScript === 'function') {
+        // Synchronously run registered document_start scripts (e.g. React DevTools installHook.js, proxy.js, prepareInjection.js)
+        try {
+            const startScripts = ipcRenderer.sendSync('extensions:get-document-start-scripts', {
+                url: window.location.href,
+            });
+            ipcRenderer.send('extensions:debug-log', `[Preload] received ${startScripts?.length || 0} start scripts for ${window.location.href}`);
+            if (Array.isArray(startScripts) && startScripts.length > 0) {
+                for (const s of startScripts) {
+                    if (s && s.code) {
+                        try {
+                            ipcRenderer.send('extensions:debug-log', `[Preload] injecting script "${s.id}" (world: ${s.world}, len: ${s.code.length})`);
+                            if (s.world === 'MAIN') {
+                                let injectedSync = false;
+                                try {
+                                    const root = document.head || document.documentElement || document;
+                                    if (root && typeof root.appendChild === 'function') {
+                                        const sc = document.createElement('script');
+                                        sc.textContent = s.code;
+                                        root.appendChild(sc);
+                                        sc.remove();
+                                        injectedSync = true;
+                                    }
+                                } catch (_) {}
+                                if (!injectedSync) {
+                                    try {
+                                        webFrame.executeJavaScript(s.code);
+                                    } catch (_) {
+                                        if (typeof webFrame.executeJavaScriptInIsolatedWorld === 'function') {
+                                            webFrame.executeJavaScriptInIsolatedWorld(0, [{ code: s.code }]);
+                                        }
+                                    }
+                                }
+                            } else {
+                                webFrame.executeJavaScript(s.code);
+                            }
+                        } catch (err) {
+                            ipcRenderer.send('extensions:debug-log', `[Preload StartScript Error] ${s.id || s}: ${err?.message || err}`);
+                        }
+                    }
+                }
+            }
+        } catch (err) {
+            ipcRenderer.send('extensions:debug-log', `[Preload startScripts outer error]: ${err?.message || err}`);
+        }
+
+        try {
+            ipcRenderer.on('invisurf-ext-event', (event, payload) => {
+                try {
+                    window.postMessage({ source: 'invisurf-ext-event', payload }, '*');
+                } catch (_) {}
+            });
+        } catch (_) {}
+
         webFrame.executeJavaScript(`
             try {
                 // 1. Spoof navigator.userAgentData
@@ -808,6 +860,9 @@ contextBridge.exposeInMainWorld('extensionAPI', {
     activateAction: (extensionId, anchorRect = null) => ipcRenderer.invoke('extensions:activate-action', { extensionId, anchorRect }),
     loadUnpacked: (profileId = null) => ipcRenderer.invoke('extensions:load-unpacked', { profileId }),
     reload: (extensionId, profileId = null) => ipcRenderer.invoke('extensions:reload', { extensionId, profileId }),
+    setSiteAccess: (extensionId, mode, host, profileId = null) => ipcRenderer.invoke('extensions:set-site-access', { extensionId, mode, host, profileId }),
+    inspectPopup: (extensionId, profileId = null) => ipcRenderer.invoke('extensions:inspect-popup', { extensionId, profileId }),
+    openOptionsPage: (extensionId, profileId = null) => ipcRenderer.invoke('extensions:open-options-page', { extensionId, profileId }),
     onInstallPrompt: (callback) => {
         const handler = (_event, data) => callback(data);
         ipcRenderer.on('extensions:prompt-install', handler);

@@ -21,6 +21,7 @@ const { getIdentityManager } = require('./IdentityManager');
 const { getOffscreenManager } = require('./OffscreenManager');
 const { getOmniboxManager } = require('./OmniboxManager');
 const { getMediaCaptureManager } = require('./MediaCaptureManager');
+const { getSessionManager } = require('./SessionManager');
 const ExtensionStorage = require('../ExtensionStorage');
 
 /**
@@ -33,7 +34,13 @@ const ExtensionStorage = require('../ExtensionStorage');
 class IpcBridge {
     constructor() {
         /**
-         * Long-poll pending event responders for Service Workers:
+         * Active event stream controllers for Service Workers:
+         * Map<extensionId, Set<ReadableStreamDefaultController>>
+         */
+        this.activeStreams = new Map();
+
+        /**
+         * Long-poll pending event responders for Service Workers (legacy fallback):
          * Map<extensionId, Array<(events) => void>>
          */
         this.pendingPolls = new Map();
@@ -50,6 +57,7 @@ class IpcBridge {
         this.activePorts = new Map();
 
         this.initialized = false;
+        this.keepAliveInterval = null;
     }
 
     initialize() {
@@ -157,6 +165,11 @@ class IpcBridge {
         getMediaCaptureManager().on('tab-capture-status-changed', ({ info }) => {
             this.broadcastToAllExtensions('chrome.tabCapture.onStatusChanged', [info]);
         });
+
+        // Forward sessions onChanged events
+        getSessionManager().on('sessions-changed', () => {
+            this.broadcastToAllExtensions('chrome.sessions.onChanged', []);
+        });
     }
 
     /**
@@ -182,7 +195,82 @@ class IpcBridge {
             const parsedUrl = new URL(request.url);
             const fullPath = `${parsedUrl.host || ''}${parsedUrl.pathname || ''}`.replace(/^\/+|\/+$/g, '');
 
-            // 1. Long-polling events endpoint: invisurf-ext://poll-events?extId=xxx
+            // 1. Persistent streaming events endpoint: invisurf-ext://events-stream?extId=xxx (Zero CPU push)
+            if (fullPath === 'events-stream' || parsedUrl.host === 'events-stream' || fullPath.startsWith('events-stream') || parsedUrl.pathname.includes('events-stream')) {
+                const extId = parsedUrl.searchParams.get('extId');
+                if (!extId) {
+                    return new Response(JSON.stringify({ error: 'Missing extId' }), { status: 400, headers: corsHeaders });
+                }
+
+                const cleanId = ExtensionStorage.sanitizeExtensionId(extId);
+                const streamHeaders = {
+                    'Content-Type': 'text/event-stream',
+                    'Cache-Control': 'no-cache, no-transform',
+                    'Connection': 'keep-alive',
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+                    'Access-Control-Allow-Headers': '*',
+                };
+
+                let streamController = null;
+                const encoder = new TextEncoder();
+                const stream = new ReadableStream({
+                    start: (controller) => {
+                        streamController = controller;
+                        if (!this.activeStreams.has(cleanId)) {
+                            this.activeStreams.set(cleanId, new Set());
+                        }
+                        this.activeStreams.get(cleanId).add(controller);
+
+                        // Initial connection handshake comment
+                        controller.enqueue(encoder.encode(': connected\n\n'));
+
+                        // Flush any queued events immediately
+                        const queue = this.queuedEvents.get(cleanId);
+                        if (queue && queue.length > 0) {
+                            for (const ev of queue) {
+                                controller.enqueue(encoder.encode(JSON.stringify(ev) + '\n'));
+                            }
+                            this.queuedEvents.delete(cleanId);
+                        }
+                    },
+                    cancel: () => {
+                        if (streamController && this.activeStreams.has(cleanId)) {
+                            const set = this.activeStreams.get(cleanId);
+                            set.delete(streamController);
+                            if (set.size === 0) {
+                                this.activeStreams.delete(cleanId);
+                            }
+                        }
+                    }
+                });
+
+                // Start keepalive heartbeat (every 25s) if not already active
+                if (!this.keepAliveInterval) {
+                    this.keepAliveInterval = setInterval(() => {
+                        const pingChunk = new TextEncoder().encode(': ping\n\n');
+                        for (const [id, set] of this.activeStreams.entries()) {
+                            for (const c of [...set]) {
+                                try {
+                                    c.enqueue(pingChunk);
+                                } catch (_) {
+                                    set.delete(c);
+                                }
+                            }
+                            if (set.size === 0) {
+                                this.activeStreams.delete(id);
+                            }
+                        }
+                    }, 25000);
+                    if (this.keepAliveInterval.unref) {
+                        this.keepAliveInterval.unref();
+                    }
+                }
+
+                return new Response(stream, { headers: streamHeaders });
+            }
+
+            // 1b. Legacy long-polling events endpoint: invisurf-ext://poll-events?extId=xxx (Fallback)
             if (fullPath === 'poll-events' || parsedUrl.host === 'poll-events' || fullPath.startsWith('poll-events') || parsedUrl.pathname.includes('poll-events')) {
                 const extId = parsedUrl.searchParams.get('extId');
                 if (!extId) {
@@ -235,7 +323,7 @@ class IpcBridge {
                 const result = await this.dispatch(method, args, {
                     extensionId,
                     profileId: profileId || State.defaultProfileId,
-                    senderTabId: tabId,
+                    senderTabId: tabId || (args && args.tabId) || null,
                 });
 
                 return new Response(JSON.stringify({ ok: true, result }), { headers: corsHeaders });
@@ -309,19 +397,40 @@ class IpcBridge {
         const cleanId = ExtensionStorage.sanitizeExtensionId(extensionId);
         const eventPayload = { eventName, args, timestamp: Date.now() };
 
-        // 1. Deliver to Service Worker via long-polling
-        const pollers = this.pendingPolls.get(cleanId);
-        if (pollers && pollers.length > 0) {
-            const resolver = pollers.shift();
-            resolver([eventPayload]);
-        } else {
-            if (!this.queuedEvents.has(cleanId)) {
-                this.queuedEvents.set(cleanId, []);
+        // 1. Deliver to Service Worker via active streaming response (0% CPU push)
+        const streams = this.activeStreams.get(cleanId);
+        let deliveredToStream = false;
+        if (streams && streams.size > 0) {
+            const encoder = new TextEncoder();
+            const chunk = encoder.encode(JSON.stringify(eventPayload) + '\n');
+            for (const controller of [...streams]) {
+                try {
+                    controller.enqueue(chunk);
+                    deliveredToStream = true;
+                } catch (err) {
+                    streams.delete(controller);
+                }
             }
-            const q = this.queuedEvents.get(cleanId);
-            q.push(eventPayload);
-            // Cap queued events at 100 to prevent unbounded memory growth
-            if (q.length > 100) q.shift();
+            if (streams.size === 0) {
+                this.activeStreams.delete(cleanId);
+            }
+        }
+
+        // 2. Deliver via legacy long-polling or buffer in queue
+        if (!deliveredToStream) {
+            const pollers = this.pendingPolls.get(cleanId);
+            if (pollers && pollers.length > 0) {
+                const resolver = pollers.shift();
+                resolver([eventPayload]);
+            } else {
+                if (!this.queuedEvents.has(cleanId)) {
+                    this.queuedEvents.set(cleanId, []);
+                }
+                const q = this.queuedEvents.get(cleanId);
+                q.push(eventPayload);
+                // Cap queued events at 100 to prevent unbounded memory growth
+                if (q.length > 100) q.shift();
+            }
         }
 
         // 2. Deliver to any active WebContents for this extension (popups, background page, options)
@@ -378,25 +487,41 @@ class IpcBridge {
         // Resolve extension path
         const extState = ExtensionStorage.readState(pId);
         const extMeta = extState[cleanExtId] || null;
-        const extensionPath = extMeta?.path || null;
+        let extensionPath = extMeta?.path || null;
+        if (!extensionPath) {
+            const ext = Object.values(extState).find(e => e && (e.id === cleanExtId || e.runtimeId === cleanExtId));
+            if (ext?.path) extensionPath = ext.path;
+        }
 
         const storageMgr = getStorageManager();
         const tabReg = getTabRegistry();
         const actionMgr = getActionManager();
         const scriptMgr = getScriptingManager();
 
+        if (method !== 'runtime.portPostMessage') {
+            console.log(`[DEBUG-EXT] IpcBridge dispatch: method="${method}" ext="${cleanExtId}" tabId=${senderTabId}`);
+        }
+
         switch (method) {
+            case 'debug.log':
+                console.log('[DEBUG-EXT content-script]:', args?.msg || args);
+                return { success: true };
+
             // ==================== STORAGE ====================
             case 'storage.get':
+            case 'storage.local.get':
                 return storageMgr.get(pId, cleanExtId, args.area || 'local', args.keys);
 
             case 'storage.set':
+            case 'storage.local.set':
                 return storageMgr.set(pId, cleanExtId, args.area || 'local', args.items);
 
             case 'storage.remove':
+            case 'storage.local.remove':
                 return storageMgr.remove(pId, cleanExtId, args.area || 'local', args.keys);
 
             case 'storage.clear':
+            case 'storage.local.clear':
                 return storageMgr.clear(pId, cleanExtId, args.area || 'local');
 
             case 'storage.getBytesInUse':
@@ -499,7 +624,9 @@ class IpcBridge {
             case 'tabs.move':
                 return tabReg.move(args.tabIds, args.moveProperties || {});
 
-            // ==================== ACTION ====================
+            // ==================== ACTION, BROWSER_ACTION & PAGE_ACTION ====================
+            case 'browserAction.closePopup':
+            case 'pageAction.closePopup':
             case 'action.closePopup': {
                 const { getWindowContextByEventSender } = require('../../windows/windowContextUtils');
                 const { hideExtensionPopup } = require('../../windows/overlayManager');
@@ -514,41 +641,70 @@ class IpcBridge {
                 return true;
             }
 
+            case 'browserAction.setTitle':
+            case 'pageAction.setTitle':
             case 'action.setTitle':
                 return actionMgr.setTitle(cleanExtId, args);
 
+            case 'browserAction.getTitle':
+            case 'pageAction.getTitle':
             case 'action.getTitle':
                 return actionMgr.getTitle(cleanExtId, args);
 
+            case 'browserAction.setBadgeText':
+            case 'pageAction.setBadgeText':
             case 'action.setBadgeText':
                 return actionMgr.setBadgeText(cleanExtId, args);
 
+            case 'browserAction.getBadgeText':
+            case 'pageAction.getBadgeText':
             case 'action.getBadgeText':
                 return actionMgr.getBadgeText(cleanExtId, args);
 
+            case 'browserAction.setBadgeBackgroundColor':
+            case 'pageAction.setBadgeBackgroundColor':
             case 'action.setBadgeBackgroundColor':
                 return actionMgr.setBadgeBackgroundColor(cleanExtId, args);
 
+            case 'browserAction.getBadgeBackgroundColor':
+            case 'pageAction.getBadgeBackgroundColor':
             case 'action.getBadgeBackgroundColor':
                 return actionMgr.getBadgeBackgroundColor(cleanExtId, args);
 
+            case 'browserAction.setBadgeTextColor':
+            case 'pageAction.setBadgeTextColor':
             case 'action.setBadgeTextColor':
                 return actionMgr.setBadgeTextColor(cleanExtId, args);
 
+            case 'browserAction.getBadgeTextColor':
+            case 'pageAction.getBadgeTextColor':
             case 'action.getBadgeTextColor':
                 return actionMgr.getBadgeTextColor(cleanExtId, args);
 
+            case 'browserAction.setPopup':
+            case 'pageAction.setPopup':
             case 'action.setPopup':
                 return actionMgr.setPopup(cleanExtId, args);
 
+            case 'browserAction.getPopup':
+            case 'pageAction.getPopup':
             case 'action.getPopup':
                 return actionMgr.getPopup(cleanExtId, args);
 
+            case 'pageAction.show':
+            case 'browserAction.enable':
             case 'action.enable':
                 return actionMgr.enable(cleanExtId, args.tabId);
 
+            case 'pageAction.hide':
+            case 'browserAction.disable':
             case 'action.disable':
                 return actionMgr.disable(cleanExtId, args.tabId);
+
+            case 'browserAction.setIcon':
+            case 'pageAction.setIcon':
+            case 'action.setIcon':
+                return actionMgr.setIcon(cleanExtId, args);
 
             // ==================== SCRIPTING ====================
             case 'scripting.executeScript':
@@ -561,7 +717,7 @@ class IpcBridge {
                 return scriptMgr.removeCSS(cleanExtId, extensionPath, args);
 
             case 'scripting.registerContentScripts':
-                return scriptMgr.registerContentScripts(cleanExtId, extensionPath, args.scripts);
+                return scriptMgr.registerContentScripts(cleanExtId, extensionPath, args.scripts || (Array.isArray(args) ? args : []));
 
             case 'scripting.getRegisteredContentScripts':
                 return scriptMgr.getRegisteredContentScripts(cleanExtId, args.filter);
@@ -570,7 +726,7 @@ class IpcBridge {
                 return scriptMgr.unregisterContentScripts(cleanExtId, args.filter);
 
             case 'scripting.updateContentScripts':
-                return scriptMgr.updateContentScripts(cleanExtId, extensionPath, args.scripts);
+                return scriptMgr.updateContentScripts(cleanExtId, extensionPath, args.scripts || (Array.isArray(args) ? args : []));
 
             // ==================== RUNTIME ====================
             case 'runtime.getManifest': {
@@ -600,11 +756,16 @@ class IpcBridge {
             case 'runtime.sendMessage': {
                 const targetId = args.targetExtId || cleanExtId;
                 const message = args.message;
+                const rawTabId = args.tabId || senderTabId;
+                const effectiveTabId = (rawTabId && Number(rawTabId) > 0) ? rawTabId : tabReg.getActiveTab()?.id;
+                const senderTab = effectiveTabId ? await tabReg.get(effectiveTabId).catch(() => null) : null;
                 const senderObj = {
                     id: cleanExtId,
-                    url: senderTabId ? (await tabReg.get(senderTabId).catch(() => null))?.url : `chrome-extension://${cleanExtId}/`,
-                    tab: senderTabId ? await tabReg.get(senderTabId).catch(() => null) : null,
+                    url: senderTab ? senderTab.url : (effectiveTabId ? (await tabReg.get(effectiveTabId).catch(() => null))?.url : `chrome-extension://${cleanExtId}/`),
+                    tab: senderTab || (effectiveTabId ? { id: Number(effectiveTabId), url: (effectiveTabId ? (await tabReg.get(effectiveTabId).catch(() => null))?.url : '') || '' } : null),
                 };
+
+                console.log(`[DEBUG-EXT] IpcBridge runtime.sendMessage: target=${targetId} fromTab=${effectiveTabId} msgSource=${message?.source} msgType=${message?.payload?.type} senderTabId=${senderObj?.tab?.id}`);
 
                 // Dispatch to the extension's worker and pages
                 this.broadcastEvent(targetId, 'chrome.runtime.onMessage', [message, senderObj]);
@@ -614,17 +775,21 @@ class IpcBridge {
             case 'runtime.connect': {
                 const targetId = args.targetExtId || cleanExtId;
                 const portId = args.portId || `port_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-                const senderTab = senderTabId ? await tabReg.get(senderTabId).catch(() => null) : null;
+                const rawTabId = args.tabId || senderTabId;
+                const effectiveTabId = (rawTabId && Number(rawTabId) > 0) ? rawTabId : tabReg.getActiveTab()?.id;
+                const senderTab = effectiveTabId ? await tabReg.get(effectiveTabId).catch(() => null) : null;
                 const senderObj = {
                     id: cleanExtId,
-                    url: senderTab ? senderTab.url : `chrome-extension://${cleanExtId}/`,
-                    tab: senderTab,
+                    url: senderTab ? senderTab.url : (effectiveTabId ? (await tabReg.get(effectiveTabId).catch(() => null))?.url : `chrome-extension://${cleanExtId}/`),
+                    tab: senderTab || (effectiveTabId ? { id: Number(effectiveTabId), url: (effectiveTabId ? (await tabReg.get(effectiveTabId).catch(() => null))?.url : '') || '' } : null),
                 };
                 this.activePorts.set(portId, {
                     portId,
                     name: args.name || '',
                     targetExtId: targetId,
                     sourceExtId: cleanExtId,
+                    sourceTabId: senderTab?.id || (effectiveTabId ? Number(effectiveTabId) : null),
+                    targetTabId: senderTab?.id || (effectiveTabId ? Number(effectiveTabId) : null),
                     sender: senderObj,
                 });
                 this.broadcastEvent(targetId, 'chrome.runtime.onConnect', [{
@@ -639,18 +804,27 @@ class IpcBridge {
                 const { portId, message } = args;
                 if (!portId) return false;
                 const portInfo = this.activePorts.get(portId);
-                const targetExt = portInfo ? portInfo.targetExtId : cleanExtId;
-                this.broadcastEvent(targetExt, `chrome.runtime.portOnMessage_${portId}`, [message]);
-                if (portInfo && portInfo.sourceExtId && portInfo.sourceExtId !== targetExt) {
-                    this.broadcastEvent(portInfo.sourceExtId, `chrome.runtime.portOnMessage_${portId}`, [message]);
-                }
-                if (portInfo?.targetTabId) {
-                    const resolved = tabReg.resolveTab(portInfo.targetTabId);
-                    if (resolved?.webContents && !resolved.webContents.isDestroyed()) {
-                        resolved.webContents.send('invisurf-ext-event', {
-                            eventName: `chrome.runtime.portOnMessage_${portId}`,
-                            args: [message],
-                        });
+                const callerTabId = (args.tabId != null && Number(args.tabId) > 0) ? Number(args.tabId) : (senderTabId ? Number(senderTabId) : null);
+                const sourceTabId = portInfo?.sourceTabId || portInfo?.targetTabId || null;
+
+                // Determine direction: Did the message originate from the Tab (Side A) or Extension Worker/Pages (Side B)?
+                const isFromTab = Boolean(callerTabId && sourceTabId && callerTabId === sourceTabId);
+
+                if (isFromTab) {
+                    // Forward ONLY to Extension Worker and Extension Pages (Side B). DO NOT echo back to the tab!
+                    const targetExt = portInfo ? portInfo.targetExtId : cleanExtId;
+                    this.broadcastEvent(targetExt, `chrome.runtime.portOnMessage_${portId}`, [message]);
+                } else {
+                    // Forward ONLY to the Tab (Side A). DO NOT echo back to Extension Worker/Pages!
+                    const tabIdToDeliver = sourceTabId || callerTabId;
+                    if (tabIdToDeliver) {
+                        const resolved = tabReg.resolveTab(tabIdToDeliver);
+                        if (resolved?.webContents && !resolved.webContents.isDestroyed()) {
+                            resolved.webContents.send('invisurf-ext-event', {
+                                eventName: `chrome.runtime.portOnMessage_${portId}`,
+                                args: [message],
+                            });
+                        }
                     }
                 }
                 return true;
@@ -660,18 +834,24 @@ class IpcBridge {
                 const { portId } = args;
                 if (!portId) return false;
                 const portInfo = this.activePorts.get(portId);
-                const targetExt = portInfo ? portInfo.targetExtId : cleanExtId;
-                this.broadcastEvent(targetExt, `chrome.runtime.portOnDisconnect_${portId}`, []);
-                if (portInfo && portInfo.sourceExtId && portInfo.sourceExtId !== targetExt) {
-                    this.broadcastEvent(portInfo.sourceExtId, `chrome.runtime.portOnDisconnect_${portId}`, []);
-                }
-                if (portInfo?.targetTabId) {
-                    const resolved = tabReg.resolveTab(portInfo.targetTabId);
-                    if (resolved?.webContents && !resolved.webContents.isDestroyed()) {
-                        resolved.webContents.send('invisurf-ext-event', {
-                            eventName: `chrome.runtime.portOnDisconnect_${portId}`,
-                            args: [],
-                        });
+                const callerTabId = (args.tabId != null && Number(args.tabId) > 0) ? Number(args.tabId) : (senderTabId ? Number(senderTabId) : null);
+                const sourceTabId = portInfo?.sourceTabId || portInfo?.targetTabId || null;
+
+                const isFromTab = Boolean(callerTabId && sourceTabId && callerTabId === sourceTabId);
+
+                if (isFromTab) {
+                    const targetExt = portInfo ? portInfo.targetExtId : cleanExtId;
+                    this.broadcastEvent(targetExt, `chrome.runtime.portOnDisconnect_${portId}`, []);
+                } else {
+                    const tabIdToDeliver = sourceTabId || callerTabId;
+                    if (tabIdToDeliver) {
+                        const resolved = tabReg.resolveTab(tabIdToDeliver);
+                        if (resolved?.webContents && !resolved.webContents.isDestroyed()) {
+                            resolved.webContents.send('invisurf-ext-event', {
+                                eventName: `chrome.runtime.portOnDisconnect_${portId}`,
+                                args: [],
+                            });
+                        }
                     }
                 }
                 this.activePorts.delete(portId);
@@ -937,6 +1117,22 @@ class IpcBridge {
                 return getMediaCaptureManager().getCapturedTabs();
             case 'tabCapture.stopCapture':
                 return getMediaCaptureManager().stopCapture(args.streamId);
+
+            // ==================== SESSIONS ====================
+            case 'sessions.getRecentlyClosed':
+                return getSessionManager().getRecentlyClosed(pId, args.filter);
+            case 'sessions.restore':
+                return getSessionManager().restore(pId, args.sessionId, sender);
+            case 'sessions.getDevices':
+                return getSessionManager().getDevices(pId, args.filter);
+            case 'sessions.setTabValue':
+                return getSessionManager().setTabValue(args.tabId, args.key, args.value);
+            case 'sessions.getTabValue':
+                return getSessionManager().getTabValue(args.tabId, args.key);
+            case 'sessions.setWindowValue':
+                return getSessionManager().setWindowValue(args.windowId, args.key, args.value);
+            case 'sessions.getWindowValue':
+                return getSessionManager().getWindowValue(args.windowId, args.key);
 
             // ==================== SYSTEM PERMISSIONS ====================
             case 'system.openScreenCaptureSettings': {

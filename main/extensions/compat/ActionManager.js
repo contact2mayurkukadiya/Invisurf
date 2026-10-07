@@ -132,6 +132,7 @@ class ActionManager extends EventEmitter {
     }
 
     setPopup(extensionId, { popup = '', tabId = null } = {}) {
+        console.log(`[DEBUG-EXT] ActionManager.setPopup ext="${extensionId}" tabId=${tabId} popup="${popup}"`);
         const ext = this._getExtState(extensionId);
         if (tabId != null) {
             const num = Number(tabId);
@@ -145,7 +146,9 @@ class ActionManager extends EventEmitter {
     }
 
     getPopup(extensionId, { tabId = null } = {}) {
-        return this.getState(extensionId, tabId).popup;
+        const p = this.getState(extensionId, tabId).popup;
+        console.log(`[DEBUG-EXT] ActionManager.getPopup ext="${extensionId}" tabId=${tabId} -> "${p}"`);
+        return p;
     }
 
     enable(extensionId, tabId = null) {
@@ -175,7 +178,8 @@ class ActionManager extends EventEmitter {
     }
 
     setIcon(extensionId, { imageData = null, path = null, tabId = null } = {}) {
-        const ext = this._getExtState(extensionId);
+        const cleanId = String(extensionId || '').trim().toLowerCase();
+        const ext = this._getExtState(cleanId);
         let iconUrl = null;
         if (typeof path === 'string') {
             iconUrl = path;
@@ -183,6 +187,36 @@ class ActionManager extends EventEmitter {
             const sizes = Object.keys(path).map(Number).sort((a, b) => b - a);
             if (sizes.length > 0) iconUrl = path[sizes[0]];
         }
+
+        // Convert chrome-extension:// or relative file path to base64 data: URL
+        if (iconUrl && typeof iconUrl === 'string') {
+            try {
+                let cleanRel = null;
+                if (iconUrl.startsWith('chrome-extension://')) {
+                    const parsed = new URL(iconUrl);
+                    cleanRel = parsed.pathname.replace(/^\/+/, '');
+                } else if (!iconUrl.startsWith('data:') && !iconUrl.startsWith('http://') && !iconUrl.startsWith('https://')) {
+                    cleanRel = iconUrl.replace(/^\/+/, '');
+                }
+
+                if (cleanRel) {
+                    const fs = require('fs');
+                    const pathMod = require('path');
+                    const ExtensionStorage = require('../ExtensionStorage');
+                    const State = require('../../state');
+                    const extState = ExtensionStorage.readState(State.defaultProfileId);
+                    const extMeta = extState[cleanId] || Object.values(extState).find(e => e && (e.id === cleanId || e.runtimeId === cleanId));
+                    if (extMeta?.path) {
+                        const fullPath = pathMod.join(extMeta.path, cleanRel);
+                        if (fs.existsSync(fullPath)) {
+                            const b64 = fs.readFileSync(fullPath).toString('base64');
+                            iconUrl = `data:image/png;base64,${b64}`;
+                        }
+                    }
+                }
+            } catch (_) {}
+        }
+
         if (tabId != null) {
             const num = Number(tabId);
             const tabState = ext.byTab.get(num) || {};
@@ -191,7 +225,7 @@ class ActionManager extends EventEmitter {
         } else {
             ext.global.icon = iconUrl;
         }
-        this._notify(extensionId, tabId);
+        this._notify(cleanId, tabId);
         return true;
     }
 }

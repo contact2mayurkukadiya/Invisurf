@@ -1,10 +1,19 @@
 /**
- * popup.js for Media Capture Tester
- * Exercises chrome.tabCapture, chrome.desktopCapture, and getUserMedia
+ * popup.js for Media Capture Test Suite
+ * Fully exercises all Chrome Media & Screen Capture APIs in InviSurf:
+ * 1. chrome.desktopCapture.chooseDesktopMedia (Picker Modal with screens, windows, tabs)
+ * 2. chrome.desktopCapture.cancelChooseDesktopMedia (Programmatic cancellation)
+ * 3. chrome.tabCapture.getMediaStreamId + getUserMedia
+ * 4. chrome.tabCapture.capture (Direct Tab Stream)
+ * 5. chrome.tabCapture.getCapturedTabs (Active Tab Captures query)
+ * 6. chrome.tabCapture.onStatusChanged (Real-time Status Events)
+ * 7. navigator.mediaDevices.getDisplayMedia (Web standard via native picker)
+ * 8. chrome.tabs.captureVisibleTab (Instant Tab Screenshot)
  */
 
 let currentStream = null;
 let activeTabId = null;
+let pendingChooseMediaRequestId = null;
 
 // DOM Elements
 const statusBadge = document.getElementById('statusBadge');
@@ -14,14 +23,17 @@ const tabIdBadge = document.getElementById('tabIdBadge');
 const previewVideo = document.getElementById('previewVideo');
 const previewPlaceholder = document.getElementById('previewPlaceholder');
 
+const btnCaptureDesktop = document.getElementById('btnCaptureDesktop');
 const btnCaptureStreamId = document.getElementById('btnCaptureStreamId');
 const btnCaptureDirect = document.getElementById('btnCaptureDirect');
-const btnCaptureDesktop = document.getElementById('btnCaptureDesktop');
-const btnStop = document.getElementById('btnStop');
+const btnGetDisplayMedia = document.getElementById('btnGetDisplayMedia');
+
+const btnTestCancelPicker = document.getElementById('btnTestCancelPicker');
+const btnGetCapturedTabs = document.getElementById('btnGetCapturedTabs');
+const btnCaptureVisibleTab = document.getElementById('btnCaptureVisibleTab');
 const btnSnapshot = document.getElementById('btnSnapshot');
+const btnStop = document.getElementById('btnStop');
 const btnClearLogs = document.getElementById('btnClearLogs');
-const btnOpenSystemSettings = document.getElementById('btnOpenSystemSettings');
-const macPermissionWarning = document.getElementById('macPermissionWarning');
 
 const chkAudio = document.getElementById('chkAudio');
 const chkVideo = document.getElementById('chkVideo');
@@ -31,10 +43,12 @@ const metricApi = document.getElementById('metricApi');
 const metricStreamId = document.getElementById('metricStreamId');
 const metricVideoTrack = document.getElementById('metricVideoTrack');
 const metricAudioTrack = document.getElementById('metricAudioTrack');
+const metricCapturedCount = document.getElementById('metricCapturedCount');
 const metricDrm = document.getElementById('metricDrm');
 
 const snapshotContainer = document.getElementById('snapshotContainer');
 const snapshotCanvas = document.getElementById('snapshotCanvas');
+const snapshotImg = document.getElementById('snapshotImg');
 const logConsole = document.getElementById('logConsole');
 
 function log(msg, type = 'info') {
@@ -65,7 +79,7 @@ async function detectActiveTab() {
         } else {
           tabTitleEl.textContent = 'No active tab found';
           tabIdBadge.textContent = 'Tab: None';
-          log('No active tab returned from chrome.tabs.query', 'error');
+          log('No active tab returned from chrome.tabs.query', 'warn');
         }
       });
     } else {
@@ -78,74 +92,68 @@ async function detectActiveTab() {
 }
 
 // 2. Set UI stream state
-function setStreamingState(isStreaming, apiName = '', streamId = '') {
+function setStreamingState(isStreaming, statusLabel = 'LIVE CAPTURE', badgeClass = 'live') {
   if (isStreaming) {
-    statusBadge.className = 'status-badge live';
-    statusText.textContent = 'LIVE CAPTURING';
-    previewPlaceholder.style.display = 'none';
+    statusBadge.className = `status-badge ${badgeClass}`;
+    statusText.textContent = statusLabel;
     previewVideo.style.display = 'block';
-
-    btnCaptureStreamId.disabled = true;
-    btnCaptureDirect.disabled = true;
-    btnCaptureDesktop.disabled = true;
+    previewPlaceholder.style.display = 'none';
     btnStop.disabled = false;
     btnSnapshot.disabled = false;
-
-    metricApi.textContent = apiName;
-    metricStreamId.textContent = streamId ? (streamId.length > 18 ? streamId.slice(0, 18) + '...' : streamId) : 'Native Stream';
-    metricDrm.textContent = 'Active (Protected window capture)';
-    metricDrm.style.color = '#34d399';
   } else {
     statusBadge.className = 'status-badge';
     statusText.textContent = 'IDLE';
-    previewPlaceholder.style.display = 'flex';
     previewVideo.style.display = 'none';
-
-    btnCaptureStreamId.disabled = false;
-    btnCaptureDirect.disabled = false;
-    btnCaptureDesktop.disabled = false;
+    previewPlaceholder.style.display = 'flex';
     btnStop.disabled = true;
     btnSnapshot.disabled = true;
-
     metricApi.textContent = 'None';
     metricStreamId.textContent = '-';
     metricVideoTrack.textContent = 'Inactive';
     metricAudioTrack.textContent = 'Inactive';
-    metricDrm.textContent = 'Protected (Restored)';
+    metricDrm.textContent = 'Protected (Auto-managed)';
     metricDrm.style.color = '#34d399';
   }
 }
 
-// 3. Update track metrics
-function updateTrackMetrics(stream) {
-  if (!stream) return;
-  const vTrack = stream.getVideoTracks()[0];
-  const aTrack = stream.getAudioTracks()[0];
-
-  if (vTrack) {
-    const settings = vTrack.getSettings ? vTrack.getSettings() : {};
-    const res = settings.width && settings.height ? `${settings.width}x${settings.height}` : 'Active (Live)';
-    metricVideoTrack.textContent = `${res} (${vTrack.readyState})`;
-  } else {
-    metricVideoTrack.textContent = 'No video track';
+// 3. Attach and play MediaStream
+function attachStream(stream, apiName, streamId = 'native-stream') {
+  if (currentStream) {
+    stopAllTracks();
   }
 
-  if (aTrack) {
-    metricAudioTrack.textContent = `${aTrack.label || 'Tab Audio'} (${aTrack.readyState})`;
-  } else {
-    metricAudioTrack.textContent = 'No audio track';
-  }
-}
-
-// 4. Attach stream to preview
-function attachStream(stream, apiName, streamId = '') {
   currentStream = stream;
   previewVideo.srcObject = stream;
-  previewVideo.play().catch(e => log(`Play error: ${e.message}`, 'error'));
+  previewVideo.play().catch(err => log(`Autoplay warning: ${err.message}`, 'warn'));
 
-  setStreamingState(true, apiName, streamId);
-  updateTrackMetrics(stream);
-  log(`Media stream attached successfully (${stream.getTracks().length} tracks)`, 'success');
+  setStreamingState(true);
+
+  metricApi.textContent = apiName;
+  metricStreamId.textContent = streamId.length > 25 ? streamId.substring(0, 22) + '...' : streamId;
+
+  const videoTracks = stream.getVideoTracks();
+  const audioTracks = stream.getAudioTracks();
+
+  if (videoTracks.length > 0) {
+    const vt = videoTracks[0];
+    const settings = vt.getSettings ? vt.getSettings() : {};
+    const res = settings.width && settings.height ? `${settings.width}x${settings.height}` : 'Active';
+    metricVideoTrack.textContent = `${res} (${vt.label || 'Video'})`;
+    log(`Video Track active: ${vt.label || 'Default'} [${res}]`, 'success');
+  } else {
+    metricVideoTrack.textContent = 'None';
+  }
+
+  if (audioTracks.length > 0) {
+    const at = audioTracks[0];
+    metricAudioTrack.textContent = `Active (${at.label || 'Audio'})`;
+    log(`Audio Track active: ${at.label || 'Audio stream'}`, 'success');
+  } else {
+    metricAudioTrack.textContent = 'None';
+  }
+
+  metricDrm.textContent = 'Suspended (Safe Capture Active)';
+  metricDrm.style.color = '#fbbf24';
 
   // Monitor tracks for ending
   stream.getTracks().forEach((t) => {
@@ -158,7 +166,7 @@ function attachStream(stream, apiName, streamId = '') {
   });
 }
 
-// 5. Stop stream
+// 4. Stop stream
 function stopAllTracks() {
   if (currentStream) {
     currentStream.getTracks().forEach(t => {
@@ -173,75 +181,116 @@ function stopAllTracks() {
     previewVideo.srcObject = null;
   }
   setStreamingState(false);
-  log('Capture stopped and DRM protections verified restored.', 'success');
+  log('Capture stopped and DRM protections restored.', 'success');
+  refreshCapturedTabs();
 }
 
-// InviSurf direct compositor tab frame stream generator (works with ZERO OS screen recording permissions)
-function createCompositorTabMediaStream() {
-  return new Promise((resolve) => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 1280;
-    canvas.height = 720;
-    const ctx = canvas.getContext('2d', { alpha: false });
-    if (ctx) {
-      ctx.fillStyle = '#0f172a';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-    }
-    const stream = canvas.captureStream ? canvas.captureStream(30) : null;
-    if (!stream) {
-      resolve(null);
+// =========================================================================
+// API Test 1: chrome.desktopCapture.chooseDesktopMedia (Picker Modal)
+// =========================================================================
+async function testDesktopCapturePicker() {
+  if (!chrome.desktopCapture?.chooseDesktopMedia) {
+    log('chrome.desktopCapture.chooseDesktopMedia is not available', 'error');
+    return;
+  }
+
+  const sources = ['screen', 'window', 'tab'];
+  if (chkAudio.checked) sources.push('audio');
+
+  log('Opening chrome.desktopCapture interactive picker modal...', 'info');
+  statusBadge.className = 'status-badge pending';
+  statusText.textContent = 'PICKER OPEN';
+
+  pendingChooseMediaRequestId = chrome.desktopCapture.chooseDesktopMedia(sources, async (streamId, options) => {
+    pendingChooseMediaRequestId = null;
+
+    if (chrome.runtime.lastError) {
+      log(`chooseDesktopMedia error: ${chrome.runtime.lastError.message}`, 'error');
+      setStreamingState(false);
       return;
     }
 
-    let active = true;
-    const img = new Image();
+    if (!streamId) {
+      log('User cancelled desktop media picker dialog', 'warn');
+      setStreamingState(false);
+      return;
+    }
 
-    const poll = () => {
-      if (!active) return;
-      if (chrome.tabs?.captureVisibleTab) {
-        chrome.tabs.captureVisibleTab(null, { format: 'jpeg', quality: 80 }, (dataUrl) => {
-          if (chrome.runtime.lastError || !dataUrl || !active) {
-            if (active) setTimeout(poll, 66);
-            return;
-          }
-          img.onload = () => {
-            if (!active) return;
-            if (img.width && img.height && (canvas.width !== img.width || canvas.height !== img.height)) {
-              canvas.width = img.width;
-              canvas.height = img.height;
-            }
-            ctx.drawImage(img, 0, 0);
-            if (active) setTimeout(poll, 33);
-          };
-          img.src = dataUrl;
-        });
-      } else {
-        if (active) setTimeout(poll, 100);
-      }
+    log(`Picker selected streamId: ${streamId} (audioTrackAllowed: ${options?.canRequestAudioTrack ?? true})`, 'success');
+
+    const wantAudio = chkAudio.checked && (options?.canRequestAudioTrack !== false);
+    const wantVideo = chkVideo.checked;
+    const is1080p = chkHighRes.checked;
+
+    const constraints = {
+      audio: wantAudio ? {
+        mandatory: {
+          chromeMediaSource: 'desktop',
+          chromeMediaSourceId: streamId,
+        }
+      } : false,
+      video: wantVideo ? {
+        mandatory: {
+          chromeMediaSource: 'desktop',
+          chromeMediaSourceId: streamId,
+          maxWidth: is1080p ? 1920 : 1280,
+          maxHeight: is1080p ? 1080 : 720,
+        }
+      } : false,
     };
 
-    poll();
-
-    stream.getTracks().forEach(t => {
-      const orig = t.stop.bind(t);
-      t.stop = () => {
-        active = false;
-        orig();
-      };
-    });
-
-    resolve(stream);
+    try {
+      log('Invoking navigator.mediaDevices.getUserMedia with streamId...', 'info');
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      attachStream(stream, 'desktopCapture (Modal)', streamId);
+      refreshCapturedTabs();
+    } catch (err) {
+      log(`getUserMedia failed (${err.name}: ${err.message})`, 'error');
+      setStreamingState(false);
+    }
   });
+
+  log(`chooseDesktopMedia request spawned with ID: ${pendingChooseMediaRequestId}`, 'info');
 }
 
-// Method A: chrome.tabCapture.getMediaStreamId + getUserMedia
-async function startTabCaptureStreamId() {
+// =========================================================================
+// API Test 2: chrome.desktopCapture.cancelChooseDesktopMedia
+// =========================================================================
+function testCancelPickerProgrammatically() {
+  if (!chrome.desktopCapture?.chooseDesktopMedia || !chrome.desktopCapture?.cancelChooseDesktopMedia) {
+    log('desktopCapture cancellation APIs not available', 'error');
+    return;
+  }
+
+  log('Spawning picker and scheduling auto-cancellation in 2.5 seconds...', 'info');
+  statusBadge.className = 'status-badge pending';
+  statusText.textContent = 'AUTO-CANCEL TEST';
+
+  const reqId = chrome.desktopCapture.chooseDesktopMedia(['screen', 'window', 'tab'], (streamId) => {
+    if (!streamId) {
+      log(`Picker successfully auto-cancelled (Request ID: ${reqId})!`, 'success');
+    } else {
+      log(`Picker resolved with streamId: ${streamId}`, 'info');
+    }
+    setStreamingState(false);
+  });
+
+  setTimeout(() => {
+    log(`Triggering chrome.desktopCapture.cancelChooseDesktopMedia(${reqId})...`, 'warn');
+    chrome.desktopCapture.cancelChooseDesktopMedia(reqId);
+  }, 2500);
+}
+
+// =========================================================================
+// API Test 3: chrome.tabCapture.getMediaStreamId + getUserMedia
+// =========================================================================
+async function testTabCaptureStreamId() {
   if (!chrome.tabCapture?.getMediaStreamId) {
     log('chrome.tabCapture.getMediaStreamId is not available', 'error');
     return;
   }
 
-  log(`Requesting streamId for Tab ${activeTabId || 'current'}...`, 'info');
+  log(`Requesting tab stream ID for Tab ${activeTabId || 'current'}...`, 'info');
 
   chrome.tabCapture.getMediaStreamId({ targetTabId: activeTabId }, async (streamId) => {
     if (chrome.runtime.lastError) {
@@ -259,37 +308,34 @@ async function startTabCaptureStreamId() {
     const wantVideo = chkVideo.checked;
     const is1080p = chkHighRes.checked;
 
-    log('Invoking navigator.mediaDevices.getUserMedia...', 'info');
+    const constraints = {
+      audio: wantAudio ? {
+        mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: streamId }
+      } : false,
+      video: wantVideo ? {
+        mandatory: {
+          chromeMediaSource: 'desktop',
+          chromeMediaSourceId: streamId,
+          maxWidth: is1080p ? 1920 : 1280,
+          maxHeight: is1080p ? 1080 : 720,
+        }
+      } : false,
+    };
 
-    let stream = null;
-    if (streamId.startsWith('window:') || streamId.startsWith('screen:')) {
-      try {
-        const constraints = {
-          audio: wantAudio ? { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: streamId } } : false,
-          video: wantVideo ? { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: streamId, maxWidth: is1080p ? 1920 : 1280, maxHeight: is1080p ? 1080 : 720 } } : false,
-        };
-        stream = await navigator.mediaDevices.getUserMedia(constraints);
-      } catch (err) {
-        log(`Native desktop stream failed (${err.name} - ${err.message}), using InviSurf compositor stream...`, 'info');
-      }
-    }
-
-    // Direct compositor fallback
-    if (!stream) {
-      log('Starting InviSurf direct compositor tab capture stream...', 'info');
-      stream = await createCompositorTabMediaStream();
-    }
-
-    if (stream) {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       attachStream(stream, 'tabCapture.getMediaStreamId', streamId);
-    } else {
-      log('Failed to create tab media stream', 'error');
+      refreshCapturedTabs();
+    } catch (err) {
+      log(`getUserMedia failed for tab stream: ${err.name} - ${err.message}`, 'error');
     }
   });
 }
 
-// Method B: chrome.tabCapture.capture (Direct API)
-async function startTabCaptureDirect() {
+// =========================================================================
+// API Test 4: chrome.tabCapture.capture (Direct API)
+// =========================================================================
+function testTabCaptureDirect() {
   if (!chrome.tabCapture?.capture) {
     log('chrome.tabCapture.capture is not available', 'error');
     return;
@@ -301,68 +347,101 @@ async function startTabCaptureDirect() {
   };
 
   log('Calling chrome.tabCapture.capture...', 'info');
-  chrome.tabCapture.capture(opt, async (stream) => {
+  chrome.tabCapture.capture(opt, (stream) => {
     if (chrome.runtime.lastError || !stream) {
-      log(`Native direct capture unavailable, falling back to compositor stream...`, 'info');
-      const fallbackStream = await createCompositorTabMediaStream();
-      if (fallbackStream) {
-        attachStream(fallbackStream, 'tabCapture.capture (Compositor Mode)');
-        return;
-      }
-      log(`capture error: ${chrome.runtime.lastError?.message || 'null stream'}`, 'error');
+      log(`chrome.tabCapture.capture returned error or null: ${chrome.runtime.lastError?.message || 'null'}`, 'error');
       return;
     }
     attachStream(stream, 'tabCapture.capture');
+    refreshCapturedTabs();
   });
 }
 
-// Method C: chrome.desktopCapture.chooseDesktopMedia
-async function startDesktopCapture() {
-  if (!chrome.desktopCapture?.chooseDesktopMedia) {
-    log('chrome.desktopCapture.chooseDesktopMedia is not available', 'error');
+// =========================================================================
+// API Test 5: navigator.mediaDevices.getDisplayMedia (Web Standard)
+// =========================================================================
+async function testGetDisplayMedia() {
+  if (!navigator.mediaDevices?.getDisplayMedia) {
+    log('navigator.mediaDevices.getDisplayMedia is not supported in this context', 'error');
     return;
   }
 
-  log('Opening chrome.desktopCapture picker...', 'info');
-  chrome.desktopCapture.chooseDesktopMedia(['screen', 'window'], async (streamId) => {
-    if (chrome.runtime.lastError) {
-      log(`chooseDesktopMedia error: ${chrome.runtime.lastError.message}`, 'error');
-      return;
-    }
-    if (!streamId) {
-      log('User cancelled desktop media selection', 'info');
-      return;
-    }
+  log('Invoking navigator.mediaDevices.getDisplayMedia (triggers native picker)...', 'info');
 
-    log(`Acquired desktop streamId: ${streamId}`, 'success');
-
-    const constraints = {
-      audio: false,
+  try {
+    const stream = await navigator.mediaDevices.getDisplayMedia({
       video: {
-        mandatory: {
-          chromeMediaSource: 'desktop',
-          chromeMediaSourceId: streamId,
-          maxWidth: 1920,
-          maxHeight: 1080,
-        }
-      }
-    };
+        width: chkHighRes.checked ? 1920 : 1280,
+        height: chkHighRes.checked ? 1080 : 720,
+      },
+      audio: chkAudio.checked,
+    });
+    attachStream(stream, 'getDisplayMedia (Web API)');
+    refreshCapturedTabs();
+  } catch (err) {
+    if (err.name === 'NotAllowedError') {
+      log('User cancelled getDisplayMedia selection', 'warn');
+    } else {
+      log(`getDisplayMedia error: ${err.name} - ${err.message}`, 'error');
+    }
+  }
+}
 
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      attachStream(stream, 'desktopCapture.chooseDesktopMedia', streamId);
-    } catch (err) {
-      log(`Desktop getUserMedia failed: ${err.name} - ${err.message}`, 'error');
-      if (err.name === 'NotAllowedError' || err.message?.includes('Permission denied')) {
-        if (macPermissionWarning) macPermissionWarning.style.display = 'block';
-        log('macOS requires Screen Recording permission for "Electron". Click the red settings button above to open macOS System Settings.', 'error');
-      }
+// =========================================================================
+// API Test 6: chrome.tabCapture.getCapturedTabs
+// =========================================================================
+function refreshCapturedTabs() {
+  if (!chrome.tabCapture?.getCapturedTabs) return;
+
+  chrome.tabCapture.getCapturedTabs((tabs) => {
+    if (chrome.runtime.lastError) {
+      log(`getCapturedTabs error: ${chrome.runtime.lastError.message}`, 'error');
+      return;
+    }
+
+    const count = Array.isArray(tabs) ? tabs.length : 0;
+    metricCapturedCount.textContent = String(count);
+
+    if (count > 0) {
+      log(`getCapturedTabs returned ${count} active session(s): ${JSON.stringify(tabs)}`, 'info');
     }
   });
 }
 
-// Snapshot capture from video
-function takeSnapshot() {
+// =========================================================================
+// API Test 7: chrome.tabs.captureVisibleTab (Instant Snapshot)
+// =========================================================================
+function testCaptureVisibleTab() {
+  if (!chrome.tabs?.captureVisibleTab) {
+    log('chrome.tabs.captureVisibleTab is not available', 'error');
+    return;
+  }
+
+  log('Taking tab snapshot via chrome.tabs.captureVisibleTab...', 'info');
+
+  chrome.tabs.captureVisibleTab(null, { format: 'png' }, (dataUrl) => {
+    if (chrome.runtime.lastError) {
+      log(`captureVisibleTab error: ${chrome.runtime.lastError.message}`, 'error');
+      return;
+    }
+    if (!dataUrl) {
+      log('captureVisibleTab returned empty image', 'error');
+      return;
+    }
+
+    snapshotCanvas.style.display = 'none';
+    snapshotImg.style.display = 'block';
+    snapshotImg.src = dataUrl;
+    snapshotContainer.style.display = 'block';
+
+    log('Tab snapshot captured and displayed below.', 'success');
+  });
+}
+
+// =========================================================================
+// API Test 8: Live Video Frame Snapshot
+// =========================================================================
+function takeVideoFrameSnapshot() {
   if (!currentStream || !previewVideo.videoWidth) {
     log('Cannot take snapshot: no active video frame', 'error');
     return;
@@ -375,43 +454,49 @@ function takeSnapshot() {
 
   const ctx = snapshotCanvas.getContext('2d');
   ctx.drawImage(previewVideo, 0, 0, w, h);
+
+  snapshotImg.style.display = 'none';
+  snapshotCanvas.style.display = 'block';
   snapshotContainer.style.display = 'block';
 
-  log(`Snapshot captured: ${w}x${h} frame`, 'success');
+  log(`Video frame snapshot captured (${w}x${h}px).`, 'success');
 }
 
-// Event Listeners
-btnCaptureStreamId.addEventListener('click', startTabCaptureStreamId);
-btnCaptureDirect.addEventListener('click', startTabCaptureDirect);
-btnCaptureDesktop.addEventListener('click', startDesktopCapture);
+// =========================================================================
+// Event Listeners & Status Listeners
+// =========================================================================
+btnCaptureDesktop.addEventListener('click', testDesktopCapturePicker);
+btnCaptureStreamId.addEventListener('click', testTabCaptureStreamId);
+btnCaptureDirect.addEventListener('click', testTabCaptureDirect);
+btnGetDisplayMedia.addEventListener('click', testGetDisplayMedia);
+
+btnTestCancelPicker.addEventListener('click', testCancelPickerProgrammatically);
+btnGetCapturedTabs.addEventListener('click', refreshCapturedTabs);
+btnCaptureVisibleTab.addEventListener('click', testCaptureVisibleTab);
+btnSnapshot.addEventListener('click', takeVideoFrameSnapshot);
 btnStop.addEventListener('click', stopAllTracks);
-btnSnapshot.addEventListener('click', takeSnapshot);
-
-if (btnOpenSystemSettings) {
-  btnOpenSystemSettings.addEventListener('click', () => {
-    if (window.invisurf?.openScreenCaptureSettings) {
-      window.invisurf.openScreenCaptureSettings();
-      log('Opened macOS Screen Recording settings.', 'info');
-    }
-  });
-}
 
 btnClearLogs.addEventListener('click', () => {
   logConsole.innerHTML = '';
   snapshotContainer.style.display = 'none';
 });
 
+// Subscribe to chrome.tabCapture.onStatusChanged
+if (chrome.tabCapture?.onStatusChanged) {
+  try {
+    chrome.tabCapture.onStatusChanged.addListener((info) => {
+      log(`[Event] tabCapture.onStatusChanged -> Tab ${info.tabId}: "${info.status}"`, 'info');
+      refreshCapturedTabs();
+    });
+    log('Subscribed to chrome.tabCapture.onStatusChanged events.', 'info');
+  } catch (err) {
+    log(`Failed to subscribe to onStatusChanged: ${err.message}`, 'warn');
+  }
+}
+
 // Initialize on load
 document.addEventListener('DOMContentLoaded', () => {
-  log('Media Capture Tester initialized in InviSurf.', 'info');
+  log('Media Capture Test Suite loaded.', 'info');
   detectActiveTab();
-
-  if (window.invisurf?.getMediaAccessStatus) {
-    window.invisurf.getMediaAccessStatus().then((res) => {
-      if (res?.screen && res.screen !== 'granted') {
-        if (macPermissionWarning) macPermissionWarning.style.display = 'block';
-        log('Notice: macOS Screen Recording permission is currently not granted to Electron.', 'info');
-      }
-    }).catch(() => {});
-  }
+  refreshCapturedTabs();
 });

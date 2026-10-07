@@ -650,6 +650,35 @@ function installDevToolsTypographyOnOpen(webContents) {
         const devTools = webContents.devToolsWebContents;
         if (!devTools || devTools.isDestroyed()) return;
         devTools.insertCSS(buildDevToolsTypographyCss(), { cssOrigin: 'user' }).catch(() => { });
+
+        const patchDevToolsFrames = async () => {
+            try {
+                if (!devTools || devTools.isDestroyed()) return;
+                const frames = devTools.mainFrame ? devTools.mainFrame.framesInSubtree : [];
+                for (const frame of frames) {
+                    if (frame.url && frame.url.includes('chrome-extension://')) {
+                        frame.executeJavaScript(`
+                            try {
+                                if (window.chrome && window.chrome.devtools && window.chrome.devtools.inspectedWindow) {
+                                    if (!window.chrome.devtools.inspectedWindow.tabId || window.chrome.devtools.inspectedWindow.tabId === -1) {
+                                        Object.defineProperty(window.chrome.devtools.inspectedWindow, 'tabId', {
+                                            value: ${webContents.id},
+                                            configurable: true,
+                                            enumerable: true,
+                                            writable: true,
+                                        });
+                                    }
+                                }
+                            } catch (_) {}
+                        `).catch(() => {});
+                    }
+                }
+            } catch (_) {}
+        };
+
+        patchDevToolsFrames();
+        setTimeout(patchDevToolsFrames, 250);
+        setTimeout(patchDevToolsFrames, 1000);
     });
 }
 
@@ -726,16 +755,25 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
     console.log('url', url);
     const effectiveStealth = !!context.stealthWindow;
     const tabPartition = context.stealthWindow ? context.stealthTabsPartition : context.partition;
-    const { buildSecureWebPreferences } = require('../../runtime/webPreferences');
+    const { buildSecureWebPreferences, buildExtensionWebPreferences } = require('../../runtime/webPreferences');
     const { applyIdentityToWebContents } = require('../../runtime/browserIdentity');
     const { installSessionNetworkGuards, recordCompatEvent } = require('../services/networkService');
 
+    const isExtensionUrl = typeof url === 'string' && url.startsWith('chrome-extension://');
     const view = new WebContentsView({
-        webPreferences: buildSecureWebPreferences({ partition: tabPartition }),
+        webPreferences: isExtensionUrl
+            ? buildExtensionWebPreferences({ partition: tabPartition })
+            : buildSecureWebPreferences({ partition: tabPartition }),
     });
+    view._pendingUrl = url;
 
+    if (!context.tabs) {
+        context.tabs = {};
+    }
     context.tabs[id] = view;
-    State.tabIdToWindowId.set(id, context.window.id);
+    if (context.window && !context.window.isDestroyed()) {
+        State.tabIdToWindowId.set(id, context.window.id);
+    }
     if (!options.prewarm) {
         if (!Array.isArray(context.tabOrder)) {
             context.tabOrder = [];
@@ -1025,6 +1063,7 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
     });
 
     view.webContents.on('page-favicon-updated', (e, favicons) => {
+        view._favicon = favicons[0] || null;
         if (!context.window || context.window.isDestroyed() || context.window.webContents.isDestroyed()) return;
         const { toDisplayUrl } = require('../utils/navigation');
         sendTabEvent(C.IPC_EVENT.TAB_UPDATE, { id, favicon: favicons[0] || null, url: toDisplayUrl(view.webContents.getURL()) });
@@ -1067,6 +1106,7 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
 
     view.webContents.on('did-start-navigation', (event, navUrl) => {
         try {
+            view._pendingUrl = navUrl;
             const { getWebNavigationManager } = require('../extensions/compat/WebNavigationManager');
             getWebNavigationManager().onBeforeNavigate(webContentsNumericId, navUrl);
         } catch (_) {}
@@ -1282,11 +1322,13 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
         }).catch((err) => {
             console.warn('Failed to restore tab navigation history:', err?.message || err);
             if (!view.webContents.isDestroyed()) {
-                view.webContents.loadURL(resolveTabLoadUrl(url));
+                view._pendingUrl = resolveTabLoadUrl(url);
+                view.webContents.loadURL(view._pendingUrl);
             }
         });
     } else {
-        view.webContents.loadURL(resolveTabLoadUrl(url));
+        view._pendingUrl = resolveTabLoadUrl(url);
+        view.webContents.loadURL(view._pendingUrl);
     }
 
     if (shouldActivate) {

@@ -122,12 +122,69 @@ class ExtensionController extends EventEmitter {
                 actionState = getActionManager().getState(ext.id);
             } catch (_) {}
 
+            let urlPatterns = ext.urlPatterns;
+            let hasAllUrls = ext.hasAllUrls;
+            let isPageAction = ext.isPageAction;
+
+            if (hasAllUrls === undefined && ext.path && fs.existsSync(ext.path)) {
+                try {
+                    const mPath = path.join(ext.path, 'manifest.json');
+                    if (fs.existsSync(mPath)) {
+                        const manifest = JSON.parse(fs.readFileSync(mPath, 'utf-8'));
+                        const patterns = [];
+                        if (Array.isArray(manifest.host_permissions)) {
+                            patterns.push(...manifest.host_permissions);
+                        }
+                        if (Array.isArray(manifest.permissions)) {
+                            manifest.permissions.forEach(p => {
+                                if (typeof p === 'string' && (p.includes('://') || p === '<all_urls>')) {
+                                    patterns.push(p);
+                                }
+                            });
+                        }
+                        if (Array.isArray(manifest.content_scripts)) {
+                            manifest.content_scripts.forEach(cs => {
+                                if (Array.isArray(cs.matches)) patterns.push(...cs.matches);
+                            });
+                        }
+                        urlPatterns = Array.from(new Set(patterns));
+                        const allUrlsSet = ['<all_urls>', '*://*/*', 'http://*/*', 'https://*/*'];
+                        hasAllUrls = urlPatterns.some(p => allUrlsSet.includes(String(p).trim()));
+                        isPageAction = !!(manifest.page_action || (manifest.action && manifest.action.default_state === 'disabled'));
+                    }
+                } catch (_) {}
+            }
+
+            let hasOptionsPage = ext.hasOptionsPage;
+            let optionsPage = ext.optionsPage;
+            if ((hasOptionsPage === undefined || optionsPage === undefined) && ext.path && fs.existsSync(ext.path)) {
+                try {
+                    const mPath = path.join(ext.path, 'manifest.json');
+                    if (fs.existsSync(mPath)) {
+                        const manifest = JSON.parse(fs.readFileSync(mPath, 'utf-8'));
+                        let opt = null;
+                        if (manifest.options_ui && typeof manifest.options_ui.page === 'string') {
+                            opt = manifest.options_ui.page.trim();
+                        } else if (typeof manifest.options_page === 'string') {
+                            opt = manifest.options_page.trim();
+                        }
+                        optionsPage = opt;
+                        hasOptionsPage = !!opt;
+                    }
+                } catch (_) {}
+            }
+
             return {
                 ...ext,
                 runtimeId,
                 iconDataUrl,
                 isLoaded: profileLoadedMap.has(ext.id),
                 actionState,
+                urlPatterns: urlPatterns || [],
+                hasAllUrls: hasAllUrls !== undefined ? hasAllUrls : true,
+                isPageAction: !!isPageAction,
+                hasOptionsPage: !!hasOptionsPage,
+                optionsPage: optionsPage || null,
             };
         });
     }
@@ -265,6 +322,8 @@ class ExtensionController extends EventEmitter {
                 iconDataUrl,
                 hasPopup: inspection.hasPopup,
                 popupFile: inspection.popupFile,
+                hasOptionsPage: !!inspection.hasOptionsPage,
+                optionsPage: inspection.optionsPage || null,
                 installedAt: Date.now(),
                 permissions: inspection.permissionsAudit,
             };
@@ -414,6 +473,8 @@ class ExtensionController extends EventEmitter {
             iconDataUrl,
             hasPopup: inspection.hasPopup,
             popupFile: inspection.popupFile,
+            hasOptionsPage: !!inspection.hasOptionsPage,
+            optionsPage: inspection.optionsPage || null,
             installedAt: Date.now(),
             permissions: inspection.permissionsAudit,
             allowedOrigins: [],
@@ -682,6 +743,86 @@ class ExtensionController extends EventEmitter {
     }
 
     /**
+     * Sets site access mode for an extension ('onClick' | 'onHost' | 'all').
+     */
+    setSiteAccess(profileId, extensionId, mode, host) {
+        const pId = ExtensionStorage.safeProfileId(profileId);
+        const cleanId = sanitizeExtensionId(extensionId);
+        const state = ExtensionStorage.readState(pId);
+        const ext = state[cleanId];
+        if (!ext) return null;
+
+        ext.siteAccess = mode;
+        if (mode === 'onHost' && host) {
+            if (!Array.isArray(ext.allowedHosts)) {
+                ext.allowedHosts = [];
+            }
+            if (!ext.allowedHosts.includes(host)) {
+                ext.allowedHosts.push(host);
+            }
+            if (!Array.isArray(ext.allowedOrigins)) {
+                ext.allowedOrigins = [];
+            }
+            const origin = `https://${host}`;
+            if (!ext.allowedOrigins.includes(origin)) {
+                ext.allowedOrigins.push(origin);
+            }
+        }
+        ExtensionStorage.writeState(pId, state);
+        this.emit('extensions-updated', { profileId: pId });
+        return ext;
+    }
+
+    /**
+     * Inspects an active extension popup in devtools.
+     */
+    async inspectPopup(profileId, extensionId, context) {
+        if (!context) return false;
+        if (context.activeExtensionPopup && context.activeExtensionPopup.extensionId === extensionId) {
+            const view = context.activeExtensionPopup.view;
+            if (view && view.webContents && !view.webContents.isDestroyed()) {
+                view.webContents.openDevTools({ mode: 'detach' });
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Opens an extension's declared options page in a new tab.
+     */
+    async openOptionsPage(profileId, extensionId, context = null) {
+        const pId = ExtensionStorage.safeProfileId(profileId || context?.profileId);
+        const cleanId = sanitizeExtensionId(extensionId);
+        const state = ExtensionStorage.readState(pId);
+        const ext = state[cleanId];
+        if (!ext) {
+            console.warn(`[ExtensionController] openOptionsPage: Extension ${cleanId} not found`);
+            return false;
+        }
+
+        let optionsPage = ext.optionsPage;
+        if (!optionsPage && ext.path && fs.existsSync(ext.path)) {
+            try {
+                const manifestPath = path.join(ext.path, 'manifest.json');
+                if (fs.existsSync(manifestPath)) {
+                    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+                    optionsPage = manifest.options_ui?.page || manifest.options_page || null;
+                }
+            } catch (_) {}
+        }
+
+        if (!optionsPage) {
+            console.warn(`[ExtensionController] Extension ${cleanId} does not declare an options page`);
+            return false;
+        }
+
+        const targetUrl = `chrome-extension://${cleanId}/${String(optionsPage).replace(/^\/+/, '')}`;
+        const { openUrlInNewTab } = require('../windows/tabManager');
+        return openUrlInNewTab(targetUrl, { background: false, context });
+    }
+
+    /**
      * Activates an extension's action on the active tab of a window context.
      * If the extension has a popup, opens the popup overlay.
      * If it has an action script or content script, prompts permission if needed and executes it on the active tab.
@@ -738,13 +879,20 @@ class ExtensionController extends EventEmitter {
             }
         }
 
-        // 1. Case A: Extension has a popup HTML -> Immediately open popup like Chrome
-        if (ext.hasPopup && ext.popupFile) {
+        // 1. Case A: Check dynamic action popup (per tab or global) or static manifest popup
+        const { getActionManager } = require('./compat/ActionManager');
+        const actionMgr = getActionManager();
+        const activeTabWcId = activeTab?.webContents?.id;
+        const currentTabPopup = actionMgr.getPopup(cleanId, { tabId: activeTabWcId });
+        console.log(`[DEBUG-EXT] triggerExtensionAction: ext="${cleanId}" tabId=${activeTabWcId} currentTabPopup="${currentTabPopup}" staticPopup="${ext.popupFile}"`);
+
+        const effectivePopup = currentTabPopup || (ext.hasPopup && ext.popupFile ? ext.popupFile : null);
+        if (effectivePopup) {
             const overlayManager = require('../windows/overlayManager');
             const profileLoadedMap = this.loadedExtensions.get(pId);
             const loaded = profileLoadedMap?.get(cleanId);
             const runtimeId = ext.runtimeId || loaded?.id || ext.id;
-            overlayManager.showExtensionPopup(context, { ...ext, runtimeId }, anchorRect);
+            overlayManager.showExtensionPopup(context, { ...ext, runtimeId, popupFile: effectivePopup }, anchorRect);
             return { ok: true, popup: true };
         }
 
@@ -1037,6 +1185,24 @@ class ExtensionController extends EventEmitter {
         for (const [extId, ext] of Object.entries(state)) {
             if (!ext.enabled || !ext.path || !fs.existsSync(ext.path)) continue;
 
+            // Check site access permissions:
+            // 1. 'onClick': only runs when user explicitly clicks the action button
+            if (ext.siteAccess === 'onClick') {
+                continue;
+            }
+            // 2. 'onHost': only runs on specifically permitted hosts
+            if (ext.siteAccess === 'onHost') {
+                let tabHost = '';
+                try {
+                    tabHost = new URL(url).host;
+                } catch (_) {}
+                const hostAllowed = (Array.isArray(ext.allowedHosts) && ext.allowedHosts.includes(tabHost)) ||
+                                    (Array.isArray(ext.allowedOrigins) && ext.allowedOrigins.some(o => o.includes(tabHost)));
+                if (!hostAllowed) {
+                    continue;
+                }
+            }
+
             const manifestPath = path.join(ext.path, 'manifest.json');
             if (!fs.existsSync(manifestPath)) continue;
 
@@ -1050,6 +1216,7 @@ class ExtensionController extends EventEmitter {
             if (!Array.isArray(manifest.content_scripts)) continue;
 
             const runtimeId = ext.runtimeId || profileLoadedMap.get(extId)?.id || extId;
+            const numericTabId = tab.webContents?.id || tabId;
 
             for (const cs of manifest.content_scripts) {
                 const matches = Array.isArray(cs.matches) && cs.matches.some(p => this.matchesPattern(p, url));
@@ -1083,12 +1250,17 @@ class ExtensionController extends EventEmitter {
                         if (fs.existsSync(fullJs)) {
                             try {
                                 const jsContent = fs.readFileSync(fullJs, 'utf-8');
+                                const safeJsKey = String(jsFile || '').replace(/[^a-zA-Z0-9_]/g, '_');
                                 const contentScriptWrapper = `
                                     (() => {
                                         try {
                                             const EXT_ID = ${JSON.stringify(runtimeId)};
                                             const PROF_ID = ${JSON.stringify(pId)};
-                                            const TAB_ID = ${JSON.stringify(tabId)};
+                                            const TAB_ID = ${JSON.stringify(numericTabId)};
+                                            const guardKey = '__invisurf_injected_' + EXT_ID.replace(/[^a-zA-Z0-9_]/g, '_') + '_' + ${JSON.stringify(safeJsKey)};
+                                            if (window[guardKey]) return;
+                                            window[guardKey] = true;
+
                                             if (!window.chrome) window.chrome = {};
 
                                             function _callExt(method, args = {}) {
@@ -1105,14 +1277,24 @@ class ExtensionController extends EventEmitter {
                                             if (!window.chrome.runtime) window.chrome.runtime = {};
                                             window.chrome.runtime.id = EXT_ID;
                                             window.chrome.runtime.getURL = (p) => 'chrome-extension://' + EXT_ID + '/' + (p ? String(p).replace(/^\\//, '') : '');
-                                            window.chrome.runtime.sendMessage = (extIdOrMsg, msgOrOpts, opts) => {
+                                            window.chrome.runtime.sendMessage = (extIdOrMsg, msgOrOpts, optsOrCallback, maybeCb) => {
                                                 let targetId = EXT_ID;
                                                 let message = extIdOrMsg;
+                                                let cb = null;
                                                 if (typeof extIdOrMsg === 'string' && msgOrOpts !== undefined) {
                                                     targetId = extIdOrMsg;
                                                     message = msgOrOpts;
+                                                    if (typeof optsOrCallback === 'function') cb = optsOrCallback;
+                                                    else if (typeof maybeCb === 'function') cb = maybeCb;
+                                                } else {
+                                                    if (typeof msgOrOpts === 'function') cb = msgOrOpts;
+                                                    else if (typeof optsOrCallback === 'function') cb = optsOrCallback;
                                                 }
-                                                return _callExt('runtime.sendMessage', { targetExtId: targetId, message });
+                                                const p = _callExt('runtime.sendMessage', { targetExtId: targetId, message, tabId: TAB_ID });
+                                                if (typeof cb === 'function') {
+                                                    p.then(res => { try { cb(res); } catch (_) {} }).catch(() => { try { cb(undefined); } catch (_) {} });
+                                                }
+                                                return p;
                                             };
                                             if (!window.chrome.runtime.onMessage) {
                                                 const _listeners = [];
@@ -1122,6 +1304,17 @@ class ExtensionController extends EventEmitter {
                                                     hasListener: (fn) => _listeners.includes(fn),
                                                     _listeners,
                                                 };
+
+                                                window.addEventListener('message', (ev) => {
+                                                    if (ev.source === window && ev.data && ev.data.source === 'invisurf-ext-event') {
+                                                        const payload = ev.data.payload;
+                                                        if (payload && payload.eventName === 'chrome.runtime.onMessage') {
+                                                            for (const fn of _listeners.slice()) {
+                                                                try { fn(...(payload.args || [])); } catch (e) { console.error(e); }
+                                                            }
+                                                        }
+                                                    }
+                                                });
                                             }
 
                                             if (!window.chrome.runtime.connect) {
@@ -1132,19 +1325,40 @@ class ExtensionController extends EventEmitter {
                                                     const _discListeners = [];
                                                     let _disconnected = false;
 
-                                                    _callExt('runtime.connect', { portId, name: portName, targetExtId: EXT_ID }).catch(() => {});
+                                                    _callExt('runtime.connect', { portId, name: portName, targetExtId: EXT_ID, tabId: TAB_ID }).catch(() => {});
+
+                                                    const _handlePortEvent = (ev) => {
+                                                        if (ev.source === window && ev.data && ev.data.source === 'invisurf-ext-event') {
+                                                            const payload = ev.data.payload;
+                                                            if (!payload) return;
+                                                            if (payload.eventName === ('chrome.runtime.portOnMessage_' + portId)) {
+                                                                const msgArg = payload.args && payload.args.length > 0 ? payload.args[0] : undefined;
+                                                                for (const fn of _msgListeners.slice()) {
+                                                                    try { fn(msgArg); } catch (e) { console.error(e); }
+                                                                }
+                                                            } else if (payload.eventName === ('chrome.runtime.portOnDisconnect_' + portId)) {
+                                                                _disconnected = true;
+                                                                window.removeEventListener('message', _handlePortEvent);
+                                                                for (const fn of _discListeners.slice()) {
+                                                                    try { fn(); } catch (e) { console.error(e); }
+                                                                }
+                                                            }
+                                                        }
+                                                    };
+                                                    window.addEventListener('message', _handlePortEvent);
 
                                                     return {
                                                         name: portName,
                                                         postMessage: (message) => {
                                                             if (_disconnected) return;
-                                                            _callExt('runtime.portPostMessage', { portId, message, targetExtId: EXT_ID }).catch(() => {});
+                                                            _callExt('runtime.portPostMessage', { portId, message, targetExtId: EXT_ID, tabId: TAB_ID }).catch(() => {});
                                                         },
                                                         disconnect: () => {
                                                             if (_disconnected) return;
                                                             _disconnected = true;
-                                                            _callExt('runtime.portDisconnect', { portId, targetExtId: EXT_ID }).catch(() => {});
-                                                            for (const fn of _discListeners) {
+                                                            window.removeEventListener('message', _handlePortEvent);
+                                                            _callExt('runtime.portDisconnect', { portId, targetExtId: EXT_ID, tabId: TAB_ID }).catch(() => {});
+                                                            for (const fn of _discListeners.slice()) {
                                                                 try { fn(); } catch (_) {}
                                                             }
                                                         },

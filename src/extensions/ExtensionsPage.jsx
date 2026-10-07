@@ -390,6 +390,16 @@ export default function ExtensionsPage() {
                       >
                         Details
                       </button>
+                      {(ext.hasOptionsPage || ext.optionsPage) && (
+                        <button
+                          type="button"
+                          className="extension-btn-secondary"
+                          onClick={() => window.extensionAPI?.openOptionsPage(ext.id)}
+                          title="Open extension options page"
+                        >
+                          Options
+                        </button>
+                      )}
                       {(devMode || ext.isUnpacked) && (
                         <button
                           type="button"
@@ -584,6 +594,31 @@ export default function ExtensionsPage() {
                   )}
                 </span>
               </div>
+
+              {/* Extension options */}
+              {(activeDetailsExt.hasOptionsPage || activeDetailsExt.optionsPage) && (
+                <div className="extension-modal__row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0' }}>
+                  <div>
+                    <span className="extension-modal__label" style={{ fontWeight: '500' }}>Extension options</span>
+                    <span className="extension-modal__value" style={{ display: 'block', color: 'var(--chrome-secondary-fg)', fontSize: '12px', marginTop: '2px' }}>
+                      Configure extension settings and preferences
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="extension-btn-secondary"
+                    onClick={() => window.extensionAPI?.openOptionsPage(activeDetailsExt.id)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
+                  >
+                    <span>Open options</span>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                      <polyline points="15 3 21 3 21 9"></polyline>
+                      <line x1="10" y1="14" x2="21" y2="3"></line>
+                    </svg>
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="extension-modal__footer">

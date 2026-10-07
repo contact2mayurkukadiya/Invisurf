@@ -6,6 +6,9 @@
   box-sizing: border-box;
   position: relative;
   transition: border-color 0.15s ease, background-color 0.15s ease;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
 }
 
 /* When pinned extensions are present, wrap the group in a pill container */
@@ -57,6 +60,9 @@ body:has(.header--stealth-window) .extensions-toolbar-container--has-pinned.is-o
   position: relative;
   transition: background-color 0.15s ease;
   flex-shrink: 0;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -webkit-user-drag: none;
 }
 
 /* Standalone extensions menu button (when no pinned extensions exist) */
@@ -73,6 +79,9 @@ body:has(.header--stealth-window) .extensions-toolbar-container--has-pinned.is-o
   border: none;
   position: relative;
   transition: background-color 0.15s ease;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -webkit-user-drag: none;
 }
 
 /* Circular hover background for all extension buttons (matching bookmark button) */
@@ -94,12 +103,17 @@ body:has(.header--stealth-window) .extensions-toolbar-container--has-pinned.is-o
   object-fit: contain;
   border-radius: 3px;
   pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
 }
 
 .extension-action-fallback {
   font-size: 15px;
   line-height: 1;
   pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .extension-badge {
@@ -116,4 +130,27 @@ body:has(.header--stealth-window) .extensions-toolbar-container--has-pinned.is-o
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Disabled / inactive extension action button on toolbar (grayed out) */
+.extension-action-btn--disabled {
+  cursor: default !important;
+}
+
+.extension-action-btn--disabled .extension-action-img,
+.extension-action-btn--disabled .extension-action-fallback {
+  filter: grayscale(100%) !important;
+  opacity: 0.4 !important;
+  transition: filter 0.15s ease, opacity 0.15s ease;
+}
+
+.extension-action-btn--disabled:hover .extension-action-img,
+.extension-action-btn--disabled:hover .extension-action-fallback {
+  opacity: 0.65 !important;
+}
+
+.extension-action-btn--disabled .extension-badge {
+  opacity: 0.45 !important;
 }

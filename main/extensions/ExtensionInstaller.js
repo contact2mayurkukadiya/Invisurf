@@ -370,6 +370,37 @@ function inspectExtractedExtension(extractDir) {
     const hasPopup = !!(action && (action.default_popup || action.popup));
     const popupFile = hasPopup ? (action.default_popup || action.popup) : null;
 
+    // Extract URL match patterns from host_permissions, permissions, and content_scripts
+    const patterns = [];
+    if (Array.isArray(manifest.host_permissions)) {
+        patterns.push(...manifest.host_permissions);
+    }
+    if (Array.isArray(manifest.permissions)) {
+        manifest.permissions.forEach(p => {
+            if (typeof p === 'string' && (p.includes('://') || p === '<all_urls>')) {
+                patterns.push(p);
+            }
+        });
+    }
+    if (Array.isArray(manifest.content_scripts)) {
+        manifest.content_scripts.forEach(cs => {
+            if (Array.isArray(cs.matches)) patterns.push(...cs.matches);
+        });
+    }
+    const urlPatterns = Array.from(new Set(patterns));
+    const allUrlsSet = ['<all_urls>', '*://*/*', 'http://*/*', 'https://*/*'];
+    const hasAllUrls = urlPatterns.some(p => allUrlsSet.includes(String(p).trim()));
+    const isPageAction = !!(manifest.page_action || (manifest.action && manifest.action.default_state === 'disabled'));
+
+    // Options page metadata (options_ui or legacy options_page)
+    let optionsPage = null;
+    if (manifest.options_ui && typeof manifest.options_ui.page === 'string') {
+        optionsPage = manifest.options_ui.page.trim();
+    } else if (typeof manifest.options_page === 'string') {
+        optionsPage = manifest.options_page.trim();
+    }
+    const hasOptionsPage = !!optionsPage;
+
     return {
         name: manifest.name,
         version: manifest.version,
@@ -378,8 +409,13 @@ function inspectExtractedExtension(extractDir) {
         iconRelativePath,
         hasPopup,
         popupFile,
+        hasOptionsPage,
+        optionsPage,
         permissionsAudit,
         manifest,
+        urlPatterns,
+        hasAllUrls,
+        isPageAction,
     };
 }
 

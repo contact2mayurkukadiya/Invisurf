@@ -13,9 +13,30 @@ class TabRegistry {
      */
     resolveTab(tabId) {
         let stringTabId = null;
-        const numericId = Number(tabId);
-        if (!isNaN(numericId)) {
+        let numericId = Number(tabId);
+        if (numericId === -1 || numericId === 0) {
+            const active = this.getActiveTab();
+            if (active && active.id) {
+                numericId = active.id;
+            }
+        }
+        if (!isNaN(numericId) && numericId > 0) {
             stringTabId = State.webContentsIdToTabId.get(numericId);
+            if (!stringTabId) {
+                for (const [winId, ctx] of State.windowContextsById.entries()) {
+                    if (ctx?.tabs) {
+                        for (const [tid, view] of Object.entries(ctx.tabs)) {
+                            if (view?.webContents && !view.webContents.isDestroyed() && view.webContents.id === numericId) {
+                                stringTabId = tid;
+                                State.webContentsIdToTabId.set(numericId, tid);
+                                State.tabIdToWindowId.set(tid, winId);
+                                break;
+                            }
+                        }
+                    }
+                    if (stringTabId) break;
+                }
+            }
         } else if (typeof tabId === 'string' && State.tabIdToWindowId.has(tabId)) {
             stringTabId = tabId;
         }
@@ -266,9 +287,20 @@ class TabRegistry {
         const url = createProperties.url || 'about:blank';
         const activate = createProperties.active !== false;
 
-        let ctx = senderContext;
+        let ctx = null;
         if (createProperties.windowId) {
-            ctx = State.windowContextsById.get(createProperties.windowId) || ctx;
+            ctx = State.windowContextsById.get(createProperties.windowId) || null;
+        }
+        if (!ctx && senderContext?.window && !senderContext.window.isDestroyed() && senderContext?.tabs) {
+            ctx = senderContext;
+        }
+        if (!ctx && senderContext?.senderWebContents) {
+            const { getWindowContextByEventSender } = require('../../windows/windowContextUtils');
+            ctx = getWindowContextByEventSender(senderContext.senderWebContents);
+        }
+        if (!ctx) {
+            const { getWindowContextForShellFallback } = require('../../windows/windowContextUtils');
+            ctx = getWindowContextForShellFallback();
         }
         if (!ctx && State.windowContextsById.size > 0) {
             ctx = State.windowContextsById.values().next().value;
@@ -421,7 +453,26 @@ class TabRegistry {
                             }
                             if (!asyncWait) setTimeout(() => resolve(undefined), 50);
                         } else {
-                            resolve(undefined);
+                            const cbId = 'cb_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+                            const onResp = (ev) => {
+                                if (ev.source === window && ev.data && ev.data.source === 'invisurf-ext-response' && ev.data.callbackId === cbId) {
+                                    window.removeEventListener('message', onResp);
+                                    sendResponse(ev.data.response);
+                                }
+                            };
+                            window.addEventListener('message', onResp);
+                            window.postMessage({
+                                source: 'invisurf-ext-event',
+                                payload: {
+                                    eventName: 'chrome.runtime.onMessage',
+                                    args: [msg, sender],
+                                    callbackId: cbId
+                                }
+                            }, '*');
+                            setTimeout(() => {
+                                window.removeEventListener('message', onResp);
+                                if (!responded) resolve(undefined);
+                            }, 5000);
                         }
                     } catch (e) {
                         resolve(undefined);
