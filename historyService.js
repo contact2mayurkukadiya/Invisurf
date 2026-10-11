@@ -586,6 +586,50 @@ class HistoryService {
         if (tabId != null) this._lastVisitByTab.delete(String(tabId));
     }
 
+    async getHistoryCount(profileId) {
+        if (this._closing) return 0;
+        const sid = safeProfileId(profileId);
+        const dbPath = this.getDbPath(sid);
+        const legacyPath = this.getLegacyHistoryPath(sid);
+        if (!fs.existsSync(dbPath)) {
+            if (!fs.existsSync(legacyPath)) return 0;
+            try {
+                const content = fs.readFileSync(legacyPath, 'utf-8');
+                return content.split('\n').filter((line) => line.trim()).length;
+            } catch (_) {
+                return 0;
+            }
+        }
+        try {
+            const db = await this.getDb(sid);
+            const row = await this._get(db, 'SELECT COUNT(*) as count FROM visits');
+            if (row && typeof row.count === 'number' && row.count > 0) {
+                return row.count;
+            }
+            const urlsRow = await this._get(db, 'SELECT COUNT(*) as count FROM urls');
+            return urlsRow?.count || 0;
+        } catch (e) {
+            console.warn('Failed to get history count:', e);
+            return 0;
+        }
+    }
+
+    async closeProfile(profileId) {
+        const sid = safeProfileId(profileId);
+        const queue = this._queues.get(sid);
+        if (queue) {
+            await queue.catch(() => undefined);
+            this._queues.delete(sid);
+        }
+        const db = this._dbs.get(sid);
+        if (db) {
+            await new Promise((resolve) => {
+                db.close(() => resolve());
+            });
+            this._dbs.delete(sid);
+        }
+    }
+
     async closeAll() {
         if (this._closePromise) return this._closePromise;
         this._closing = true;

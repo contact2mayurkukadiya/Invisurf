@@ -90,6 +90,11 @@ function readState(profileId, forceReload = false) {
     }
 }
 
+function evictProfileState(profileId) {
+    const cleanProfileId = safeProfileId(profileId);
+    memoryStateCache.delete(cleanProfileId);
+}
+
 /**
  * Recovers unpromoted staging extensions and migrates legacy extensions.json entries.
  */
@@ -501,4 +506,5 @@ module.exports = {
     cleanStaging,
     listProfileIds,
     findExtension,
+    evictProfileState,
 };

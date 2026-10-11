@@ -315,6 +315,179 @@ function getProfileAvatarDataUrl(profileId) {
     return `data:${mime};base64,${buf.toString('base64')}`;
 }
 
+async function deleteProfileDataFromDisk(profileId) {
+    const safeId = safeProfileIdForPath(profileId);
+    if (!safeId) return;
+
+    // 1. Close history DB connection if open
+    try {
+        if (State.historyService) {
+            await State.historyService.closeProfile(safeId);
+        }
+    } catch (e) {
+        console.warn(`[ProfileService] Failed to close history for ${safeId}:`, e);
+    }
+
+    // 2. Remove avatar files
+    removeAvatarFilesForProfile(safeId);
+
+    // 3. Clear session partition storage and cache in Electron
+    try {
+        const { session } = require('electron');
+        const partition = `persist:profile-${safeId}`;
+        const ses = session.fromPartition(partition);
+        if (ses) {
+            await ses.clearStorageData();
+            await ses.clearCache();
+        }
+    } catch (e) {
+        console.warn(`[ProfileService] Failed to clear partition storage for ${safeId}:`, e);
+    }
+
+    // 4. Remove session partition directories from disk
+    try {
+        const sessionDataDir = app.getPath('sessionData');
+        const partitionsDir = path.join(sessionDataDir, 'Partitions');
+        if (fs.existsSync(partitionsDir)) {
+            for (const item of fs.readdirSync(partitionsDir)) {
+                if (item.includes(safeId)) {
+                    try {
+                        fs.rmSync(path.join(partitionsDir, item), { recursive: true, force: true });
+                    } catch (_) {}
+                }
+            }
+        }
+    } catch (_) {}
+
+    try {
+        const userPartitionsDir = path.join(app.getPath('userData'), 'Partitions');
+        if (fs.existsSync(userPartitionsDir)) {
+            for (const item of fs.readdirSync(userPartitionsDir)) {
+                if (item.includes(safeId)) {
+                    try {
+                        fs.rmSync(path.join(userPartitionsDir, item), { recursive: true, force: true });
+                    } catch (_) {}
+                }
+            }
+        }
+    } catch (_) {}
+
+    // 5. Remove profile directory in userData/profiles/<safeId>
+    try {
+        const profilesDir = path.join(app.getPath('userData'), 'profiles', safeId);
+        if (fs.existsSync(profilesDir)) {
+            fs.rmSync(profilesDir, { recursive: true, force: true });
+        }
+    } catch (e) {
+        console.warn(`[ProfileService] Failed to remove profiles directory for ${safeId}:`, e);
+    }
+
+    // 6. Evict extension cache & unload extension runtime
+    try {
+        const ExtensionStorage = require('../extensions/ExtensionStorage');
+        ExtensionStorage.evictProfileState?.(safeId);
+    } catch (_) {}
+    try {
+        const { getExtensionController } = require('../extensions/ExtensionController');
+        getExtensionController().unloadProfile?.(safeId);
+    } catch (_) {}
+
+    // 7. Delete bookmarks file
+    try {
+        const bkPath = path.join(app.getPath('userData'), `bookmarks-${safeId}.json`);
+        if (fs.existsSync(bkPath)) {
+            fs.unlinkSync(bkPath);
+        }
+    } catch (_) {}
+
+    // 8. Delete history files (.sqlite, -wal, -shm, key, legacy ndjson)
+    try {
+        const userData = app.getPath('userData');
+        const historyFiles = [
+            `history-${safeId}.sqlite`,
+            `history-${safeId}.sqlite-wal`,
+            `history-${safeId}.sqlite-shm`,
+            `history-key-${safeId}.json`,
+            `history-${safeId}.ndjson`,
+        ];
+        for (const hf of historyFiles) {
+            const fp = path.join(userData, hf);
+            if (fs.existsSync(fp)) {
+                try { fs.unlinkSync(fp); } catch (_) {}
+            }
+        }
+    } catch (_) {}
+
+    // 9. Sweep userData for any remaining file or folder matching safeId
+    try {
+        const userData = app.getPath('userData');
+        for (const item of fs.readdirSync(userData)) {
+            if (item.includes(safeId)) {
+                const fp = path.join(userData, item);
+                try {
+                    const st = fs.statSync(fp);
+                    if (st.isDirectory()) {
+                        fs.rmSync(fp, { recursive: true, force: true });
+                    } else {
+                        fs.unlinkSync(fp);
+                    }
+                } catch (_) {}
+            }
+        }
+    } catch (_) {}
+
+    // 10. Clean permissions
+    try {
+        const { getPermissionController } = require('../permissions/PermissionController');
+        getPermissionController().db.deleteProfile(safeId);
+    } catch (_) {}
+
+    // 11. Clean session state (recently closed & session.json & startupSessionDoc)
+    try {
+        State.recentlyClosedTabsByProfile.delete(safeId);
+        const sessionService = require('./sessionService');
+        const sessionPath = sessionService.getSessionPath();
+        if (fs.existsSync(sessionPath)) {
+            const doc = sessionService.readDecodedSessionDoc();
+            if (doc && doc.windowsById) {
+                let changed = false;
+                for (const [wId, wData] of Object.entries(doc.windowsById)) {
+                    if (wData?.profileId === safeId) {
+                        delete doc.windowsById[wId];
+                        changed = true;
+                    }
+                }
+                if (Array.isArray(doc.profiles)) {
+                    doc.profiles = doc.profiles.filter((p) => p !== safeId && p?.profileId !== safeId);
+                    changed = true;
+                }
+                if (changed) {
+                    const payload = encryption.encrypt(JSON.stringify(doc));
+                    fs.writeFileSync(sessionPath, JSON.stringify(payload, null, 2), 'utf-8');
+                }
+            }
+        }
+    } catch (_) {}
+
+    if (State.startupSessionDoc?.windowsById) {
+        for (const [wId, wData] of Object.entries(State.startupSessionDoc.windowsById)) {
+            if (wData?.profileId === safeId) {
+                delete State.startupSessionDoc.windowsById[wId];
+            }
+        }
+    }
+
+    // 12. Clean cookie config in settings
+    try {
+        const settingsService = require('./settingsService');
+        const settings = settingsService.loadSettings();
+        if (settings?.cookieConfigByProfile && settings.cookieConfigByProfile[safeId]) {
+            delete settings.cookieConfigByProfile[safeId];
+            settingsService.saveSettings(settings);
+        }
+    } catch (_) {}
+}
+
 module.exports = {
     getProfilesPath,
     getProfileAvatarsDir,
@@ -328,5 +501,6 @@ module.exports = {
     setProfileAvatarFromDataUrl,
     setProfileAvatarFromPresetPngFile,
     getProfileAvatarDataUrl,
-    discoverDiskProfiles
+    discoverDiskProfiles,
+    deleteProfileDataFromDisk,
 };

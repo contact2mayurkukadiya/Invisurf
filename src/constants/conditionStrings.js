@@ -304,6 +304,7 @@ export const IPC_INVOKE = freeze({
   PROFILE_CLEAR_AVATAR: 'profile:clearAvatar',
   PROFILE_GET_AVATAR: 'profile:getAvatarDataUrl',
   PROFILE_DELETE: 'profile:delete',
+  PROFILE_GET_DATA_SUMMARY: 'profile:get-data-summary',
   PROFILE_OPEN_WINDOW: 'profile:open-window',
   PROFILE_PICKER_OPEN: 'profile:picker-open',
   PROFILE_CLOSE_CURRENT: 'profile:close-current',
