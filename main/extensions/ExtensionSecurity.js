@@ -258,6 +258,78 @@ function validateTrustedIpcSender(event) {
     return url.startsWith('app://') || url.startsWith('file://') || url === 'about:blank';
 }
 
+/**
+ * Safely resolves and validates a target navigation URL requested by an extension.
+ * Guarantees:
+ * 1. Blocks dangerous schemes: file://, javascript:, data:, invisurf://, chrome://, app://, stealth://, etc.
+ * 2. Allows safe web URLs: http://, https://, and about:blank.
+ * 3. Safely resolves extension-relative paths (e.g. "/Game_Source/index.html", "popup.html")
+ *    strictly to the requesting extension's own origin: `chrome-extension://${cleanExtId}/${path}`.
+ * 4. Strictly prevents cross-extension origin access (blocks chrome-extension:// URLs for different extension IDs).
+ * 5. Prevents protocol-relative bypasses (//evil.com, \\\evil.com), path traversal attacks, and control characters.
+ *
+ * @param {string} rawUrl - The requested URL or relative path.
+ * @param {string} [extensionId] - The ID of the extension requesting navigation.
+ * @returns {string} The fully qualified, validated, and normalized URL.
+ * @throws {Error} If the URL violates security constraints or targets a disallowed scheme.
+ */
+function resolveExtensionNavigationUrl(rawUrl, extensionId) {
+    if (!rawUrl || typeof rawUrl !== 'string') {
+        return 'about:blank';
+    }
+
+    const trimmed = rawUrl.trim();
+    if (!trimmed || trimmed === 'about:blank') {
+        return 'about:blank';
+    }
+
+    // Block control characters, line breaks, and null bytes
+    if (/[\x00-\x1f\x7f]/.test(trimmed)) {
+        throw new Error('[Security] URL contains invalid control characters');
+    }
+
+    // Block protocol-relative (//) and backslash-prefixed (\\ or \/) evasion attempts
+    if (trimmed.startsWith('//') || trimmed.startsWith('\\') || (/^[\\/]/.test(trimmed) && trimmed.length > 1 && (trimmed[1] === '\\' || trimmed[1] === '/'))) {
+        throw new Error(`[Security] Protocol-relative or malformed URL blocked: ${trimmed}`);
+    }
+
+    const { sanitizeExtensionId } = require('./ExtensionStorage');
+    const cleanExtId = extensionId ? sanitizeExtensionId(extensionId) : '';
+
+    let parsed = null;
+    try {
+        if (cleanExtId) {
+            parsed = new URL(trimmed, `chrome-extension://${cleanExtId}/`);
+        } else {
+            parsed = new URL(trimmed);
+        }
+    } catch {
+        throw new Error(`[Security] Invalid URL format: ${trimmed}`);
+    }
+
+    const protocol = parsed.protocol.toLowerCase();
+
+    // 1. Allowed standard web schemes
+    if (protocol === 'http:' || protocol === 'https:') {
+        return parsed.href;
+    }
+
+    // 2. Allowed chrome-extension scheme (MUST match caller's extension ID)
+    if (protocol === 'chrome-extension:') {
+        if (!cleanExtId) {
+            throw new Error(`[Security] Extension context required to open chrome-extension URLs: ${trimmed}`);
+        }
+        if (parsed.hostname.toLowerCase() !== cleanExtId.toLowerCase()) {
+            throw new Error(`[Security] Cross-extension navigation blocked: ${trimmed}`);
+        }
+        return parsed.href;
+    }
+
+    // 3. Strict rejection of internal schemes and unsafe protocols
+    // (e.g. invisurf:, chrome:, app:, stealth:, file:, javascript:, data:, blob:, vbscript:)
+    throw new Error(`[Security] Extensions are not permitted to navigate to ${protocol} URLs: ${trimmed}`);
+}
+
 module.exports = {
     PERMISSION_DESCRIPTIONS,
     describeHostPattern,
@@ -265,4 +337,6 @@ module.exports = {
     isExtensionUrl,
     getExtensionIdFromUrl,
     validateTrustedIpcSender,
+    resolveExtensionNavigationUrl,
 };
+

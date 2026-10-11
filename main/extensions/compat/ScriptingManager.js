@@ -42,22 +42,56 @@ class ScriptingManager {
      */
     async executeScript(extensionId, extensionPath, injection = {}) {
         const { target, files, func, args = [] } = injection;
-        const { webContents: wc } = this._getTargetWebContents(target);
+        const { tabId, webContents: wc } = this._getTargetWebContents(target);
 
         const results = [];
+
+        // Helper to resolve all target frames for execution
+        const getTargetFrames = () => {
+            const main = wc.mainFrame;
+            if (!main) return [{ frameId: 0, frame: wc }];
+            const framesInSubtree = main.framesInSubtree || [main];
+            const list = [];
+            let nextId = 1;
+            const frameMap = new Map();
+            frameMap.set(main, 0);
+            for (const f of framesInSubtree) {
+                if (f !== main) frameMap.set(f, f.routingId || nextId++);
+            }
+
+            if (target?.allFrames) {
+                for (const f of framesInSubtree) {
+                    list.push({ frameId: frameMap.get(f) ?? 0, frame: f });
+                }
+            } else if (Array.isArray(target?.frameIds) && target.frameIds.length > 0) {
+                const reqIds = target.frameIds.map(Number);
+                for (const f of framesInSubtree) {
+                    const id = frameMap.get(f) ?? 0;
+                    if (reqIds.includes(id)) {
+                        list.push({ frameId: id, frame: f });
+                    }
+                }
+                if (list.length === 0) list.push({ frameId: 0, frame: main });
+            } else {
+                list.push({ frameId: 0, frame: main });
+            }
+            return list;
+        };
+
+        const targetFrames = getTargetFrames();
 
         // 1. If files specified
         if (Array.isArray(files) && files.length > 0) {
             let resolvedExtPath = extensionPath;
             if (!resolvedExtPath) {
-                const extState = ExtensionStorage.readState(State.defaultProfileId);
-                resolvedExtPath = extState[extensionId]?.path || Object.values(extState).find(e => e?.id === extensionId || e?.runtimeId === extensionId)?.path;
+                const ext = ExtensionStorage.findExtension(extensionId);
+                resolvedExtPath = ext?.path || null;
             }
 
             for (const file of files) {
                 let code = '';
+                const cleanFile = String(file || '').replace(/^\/+/, '');
                 if (resolvedExtPath) {
-                    const cleanFile = String(file || '').replace(/^\/+/, '');
                     const fullPath = path.join(resolvedExtPath, cleanFile);
                     if (fs.existsSync(fullPath)) {
                         code = fs.readFileSync(fullPath, 'utf-8');
@@ -65,12 +99,18 @@ class ScriptingManager {
                 }
 
                 if (code) {
-                    try {
-                        const result = await wc.executeJavaScript(code);
-                        results.push({ frameId: 0, result });
-                    } catch (err) {
-                        console.warn(`[ScriptingManager] Failed to execute ${file} in tab:`, err?.message || err);
-                        results.push({ frameId: 0, error: String(err?.message || err) });
+                    const wrappedCode = this.buildContentScriptWrapper(extensionId, tabId, code, cleanFile, true);
+                    for (const tf of targetFrames) {
+                        try {
+                            const execFn = typeof tf.frame?.executeJavaScript === 'function'
+                                ? tf.frame.executeJavaScript.bind(tf.frame)
+                                : wc.executeJavaScript.bind(wc);
+                            const result = await execFn(wrappedCode);
+                            results.push({ frameId: tf.frameId, result });
+                        } catch (err) {
+                            console.warn(`[ScriptingManager] Failed to execute ${file} in frame ${tf.frameId}:`, err?.message || err);
+                            results.push({ frameId: tf.frameId, error: String(err?.message || err) });
+                        }
                     }
                 }
             }
@@ -118,15 +158,21 @@ class ScriptingManager {
                 })();
             `;
 
-            try {
-                const result = await wc.executeJavaScript(code);
-                if (result && result.__error) {
-                    throw new Error(result.__error);
+            for (const tf of targetFrames) {
+                try {
+                    const execFn = typeof tf.frame?.executeJavaScript === 'function'
+                        ? tf.frame.executeJavaScript.bind(tf.frame)
+                        : wc.executeJavaScript.bind(wc);
+                    const result = await execFn(code);
+                    if (result && result.__error) {
+                        throw new Error(result.__error);
+                    }
+                    results.push({ frameId: tf.frameId, result });
+                } catch (err) {
+                    throw new Error(`Script execution failed in frame ${tf.frameId}: ${err?.message || err}`);
                 }
-                return [{ frameId: 0, result }];
-            } catch (err) {
-                throw new Error(`Script execution failed: ${err?.message || err}`);
             }
+            return results;
         }
 
         return [{ frameId: 0, result: null }];
@@ -314,7 +360,7 @@ class ScriptingManager {
      * Builds a robust compatibility wrapper around an isolated/content script.
      * Implements bidirectional chrome.runtime messaging, port lifecycle, and event delivery.
      */
-    buildContentScriptWrapper(extId, tabId, codeContent, scriptKey = '') {
+    buildContentScriptWrapper(extId, tabId, codeContent, scriptKey = '', isDynamic = false) {
         const cleanExtId = String(extId || '').trim().toLowerCase();
         const numericTabId = Number(tabId) || 0;
         const safeKey = String(scriptKey || 'script').replace(/[^a-zA-Z0-9_]/g, '_');
@@ -324,198 +370,332 @@ class ScriptingManager {
                 try {
                     const EXT_ID = ${JSON.stringify(cleanExtId)};
                     const TAB_ID = ${JSON.stringify(numericTabId)};
+                    const IS_DYNAMIC = ${JSON.stringify(Boolean(isDynamic))};
                     const guardKey = '__invisurf_injected_' + EXT_ID.replace(/[^a-zA-Z0-9_]/g, '_') + '_' + ${JSON.stringify(safeKey)};
-                    if (window[guardKey]) return;
+                    if (!IS_DYNAMIC && window[guardKey]) return;
                     window[guardKey] = true;
 
-                    if (!window.chrome) window.chrome = {};
-                    if (!window.chrome.runtime) window.chrome.runtime = {};
-                    window.chrome.runtime.id = EXT_ID;
-                    window.chrome.runtime.getURL = (p) => 'chrome-extension://' + EXT_ID + '/' + (p ? String(p).replace(/^\\//, '') : '');
+                    // Initialize multi-extension registries on window
+                    if (!window.__invisurf_ext_listeners) window.__invisurf_ext_listeners = {};
+                    if (!window.__invisurf_ext_listeners[EXT_ID]) window.__invisurf_ext_listeners[EXT_ID] = [];
+                    window.__invisurf_last_ext_id = EXT_ID;
 
-                    if (!window.chrome.runtime.sendMessage) {
-                        window.chrome.runtime.sendMessage = (extIdOrMsg, msgOrOpts, optsOrCallback, maybeCb) => {
-                            let targetId = EXT_ID;
-                            let message = extIdOrMsg;
-                            let cb = null;
-                            if (typeof extIdOrMsg === 'string' && msgOrOpts !== undefined) {
-                                targetId = extIdOrMsg;
-                                message = msgOrOpts;
-                                if (typeof optsOrCallback === 'function') cb = optsOrCallback;
-                                else if (typeof maybeCb === 'function') cb = maybeCb;
-                            } else {
-                                if (typeof msgOrOpts === 'function') cb = msgOrOpts;
-                                else if (typeof optsOrCallback === 'function') cb = optsOrCallback;
+                    // Isolated listeners list for this extension instance
+                    const _extListeners = [];
+
+                    const _sendMessage = (extIdOrMsg, msgOrOpts, optsOrCallback, maybeCb) => {
+                        let targetId = EXT_ID;
+                        let message = extIdOrMsg;
+                        let cb = null;
+                        if (typeof extIdOrMsg === 'string' && msgOrOpts !== undefined) {
+                            targetId = extIdOrMsg;
+                            message = msgOrOpts;
+                            if (typeof optsOrCallback === 'function') cb = optsOrCallback;
+                            else if (typeof maybeCb === 'function') cb = maybeCb;
+                        } else {
+                            if (typeof msgOrOpts === 'function') cb = msgOrOpts;
+                            else if (typeof optsOrCallback === 'function') cb = optsOrCallback;
+                        }
+
+                        if (typeof chrome !== 'undefined' && chrome?.runtime) chrome.runtime.lastError = null;
+                        if (window.chrome?.runtime) window.chrome.runtime.lastError = null;
+
+                        const p = fetch('invisurf-ext://api/call', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                method: 'runtime.sendMessage',
+                                args: { targetExtId: targetId, message, tabId: TAB_ID },
+                                extensionId: EXT_ID,
+                                tabId: TAB_ID
+                            })
+                        }).then(r => r.json()).then(d => d && d.ok ? d.result : null).catch(() => null);
+
+                        if (typeof cb === 'function') {
+                            p.then(res => {
+                                if (typeof chrome !== 'undefined' && chrome?.runtime) chrome.runtime.lastError = null;
+                                if (window.chrome?.runtime) window.chrome.runtime.lastError = null;
+                                try { cb(res); } catch (_) {}
+                            });
+                        }
+                        return p;
+                    };
+
+                    const _onMessage = {
+                        addListener: (fn) => {
+                            if (typeof fn === 'function') {
+                                if (!_extListeners.includes(fn)) _extListeners.push(fn);
+                                if (!window.__invisurf_ext_listeners[EXT_ID].includes(fn)) {
+                                    window.__invisurf_ext_listeners[EXT_ID].push(fn);
+                                }
+                                if (window.chrome?.runtime?.onMessage?._listeners && !window.chrome.runtime.onMessage._listeners.includes(fn)) {
+                                    window.chrome.runtime.onMessage._listeners.push(fn);
+                                }
                             }
+                        },
+                        removeListener: (fn) => {
+                            const idx = _extListeners.indexOf(fn);
+                            if (idx !== -1) _extListeners.splice(idx, 1);
+                            const winIdx = window.__invisurf_ext_listeners[EXT_ID].indexOf(fn);
+                            if (winIdx !== -1) window.__invisurf_ext_listeners[EXT_ID].splice(winIdx, 1);
+                            if (window.chrome?.runtime?.onMessage?._listeners) {
+                                const gIdx = window.chrome.runtime.onMessage._listeners.indexOf(fn);
+                                if (gIdx !== -1) window.chrome.runtime.onMessage._listeners.splice(gIdx, 1);
+                            }
+                        },
+                        hasListener: (fn) => _extListeners.includes(fn),
+                        _listeners: _extListeners,
+                    };
 
+                    window.addEventListener('message', (ev) => {
+                        if (ev.source === window && ev.data && ev.data.source === 'invisurf-ext-event') {
+                            const payload = ev.data.payload;
+                            if (payload && payload.eventName === 'chrome.runtime.onMessage') {
+                                const targetExt = payload.targetExtId || payload.extensionId || (payload.args && payload.args[1] && payload.args[1].id);
+                                if (targetExt && String(targetExt).toLowerCase() !== EXT_ID) {
+                                    return;
+                                }
+                                const args = payload.args || [];
+                                const callbackId = payload.callbackId || null;
+                                let responded = false;
+                                let asyncWait = false;
+                                const sendResponse = (response) => {
+                                    if (responded) return;
+                                    responded = true;
+                                    if (callbackId) {
+                                        window.postMessage({
+                                            source: 'invisurf-ext-response',
+                                            callbackId,
+                                            response
+                                        }, '*');
+                                    }
+                                };
+                                for (const fn of _extListeners.slice()) {
+                                    try {
+                                        const r = fn(args[0], args[1], sendResponse);
+                                        if (r === true) {
+                                            asyncWait = true;
+                                        } else if (r && typeof r.then === 'function') {
+                                            asyncWait = true;
+                                            r.then(sendResponse).catch(() => sendResponse(undefined));
+                                        }
+                                    } catch (e) {
+                                        console.error(e);
+                                    }
+                                }
+                                if (!asyncWait && !responded && callbackId) {
+                                    setTimeout(() => {
+                                        if (!responded) sendResponse(undefined);
+                                    }, 20);
+                                }
+                            }
+                        }
+                    });
+
+                    const _connect = (connectOpts = {}) => {
+                        const portName = typeof connectOpts === 'string' ? connectOpts : (connectOpts?.name || '');
+                        const portId = 'port_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+                        const _msgListeners = [];
+                        const _discListeners = [];
+                        let _disconnected = false;
+
+                        fetch('invisurf-ext://api/call', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                method: 'runtime.connect',
+                                args: { portId, name: portName, targetExtId: EXT_ID, tabId: TAB_ID },
+                                extensionId: EXT_ID,
+                                tabId: TAB_ID
+                            })
+                        }).catch(() => {});
+
+                        const _handlePortEvent = (ev) => {
+                            if (ev.source === window && ev.data && ev.data.source === 'invisurf-ext-event') {
+                                const payload = ev.data.payload;
+                                if (!payload) return;
+                                if (payload.eventName === ('chrome.runtime.portOnMessage_' + portId)) {
+                                    const msgArg = payload.args && payload.args.length > 0 ? payload.args[0] : undefined;
+                                    for (const fn of _msgListeners.slice()) {
+                                        try { fn(msgArg); } catch (e) { console.error(e); }
+                                    }
+                                } else if (payload.eventName === ('chrome.runtime.portOnDisconnect_' + portId)) {
+                                    _disconnected = true;
+                                    window.removeEventListener('message', _handlePortEvent);
+                                    for (const fn of _discListeners.slice()) {
+                                        try { fn(); } catch (e) { console.error(e); }
+                                    }
+                                }
+                            }
+                        };
+                        window.addEventListener('message', _handlePortEvent);
+
+                        return {
+                            name: portName,
+                            postMessage: (message) => {
+                                if (_disconnected) return;
+                                fetch('invisurf-ext://api/call', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        method: 'runtime.portPostMessage',
+                                        args: { portId, message, targetExtId: EXT_ID, tabId: TAB_ID },
+                                        extensionId: EXT_ID,
+                                        tabId: TAB_ID
+                                    })
+                                }).catch(() => {});
+                            },
+                            disconnect: () => {
+                                if (_disconnected) return;
+                                _disconnected = true;
+                                window.removeEventListener('message', _handlePortEvent);
+                                fetch('invisurf-ext://api/call', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        method: 'runtime.portDisconnect',
+                                        args: { portId, targetExtId: EXT_ID, tabId: TAB_ID },
+                                        extensionId: EXT_ID,
+                                        tabId: TAB_ID
+                                    })
+                                }).catch(() => {});
+                                for (const fn of _discListeners.slice()) {
+                                    try { fn(); } catch (_) {}
+                                }
+                            },
+                            onMessage: {
+                                addListener: (fn) => { if (typeof fn === 'function' && !_msgListeners.includes(fn)) _msgListeners.push(fn); },
+                                removeListener: (fn) => { const i = _msgListeners.indexOf(fn); if (i !== -1) _msgListeners.splice(i, 1); },
+                                hasListener: (fn) => _msgListeners.includes(fn),
+                            },
+                            onDisconnect: {
+                                addListener: (fn) => { if (typeof fn === 'function' && !_discListeners.includes(fn)) _discListeners.push(fn); },
+                                removeListener: (fn) => { const i = _discListeners.indexOf(fn); if (i !== -1) _discListeners.splice(i, 1); },
+                                hasListener: (fn) => _discListeners.includes(fn),
+                            },
+                        };
+                    };
+
+                    const _storageArea = (areaName) => ({
+                        get: (keys, cb) => {
+                            let callback = cb;
+                            let queryKeys = keys;
+                            if (typeof keys === 'function') {
+                                callback = keys;
+                                queryKeys = null;
+                            }
                             const p = fetch('invisurf-ext://api/call', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
-                                    method: 'runtime.sendMessage',
-                                    args: { targetExtId: targetId, message, tabId: TAB_ID },
+                                    method: 'storage.' + areaName + '.get',
+                                    args: { keys: queryKeys },
+                                    extensionId: EXT_ID,
+                                    tabId: TAB_ID
+                                })
+                            }).then(r => r.json()).then(d => d && d.ok ? (d.result || {}) : {}).catch(() => ({}));
+                            if (typeof callback === 'function') {
+                                p.then(res => { try { callback(res); } catch (_) {} });
+                            }
+                            return p;
+                        },
+                        set: (items, cb) => {
+                            const p = fetch('invisurf-ext://api/call', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    method: 'storage.' + areaName + '.set',
+                                    args: { items },
                                     extensionId: EXT_ID,
                                     tabId: TAB_ID
                                 })
                             }).then(r => r.json()).then(d => d && d.ok ? d.result : null).catch(() => null);
-
                             if (typeof cb === 'function') {
                                 p.then(res => { try { cb(res); } catch (_) {} });
                             }
                             return p;
-                        };
-                    }
+                        },
+                    });
 
+                    const _storage = {
+                        local: _storageArea('local'),
+                        sync: _storageArea('sync'),
+                        session: _storageArea('session'),
+                    };
+
+                    const _runtime = {
+                        id: EXT_ID,
+                        lastError: null,
+                        getURL: (p) => 'chrome-extension://' + EXT_ID + '/' + (p ? String(p).replace(/^\\//, '') : ''),
+                        sendMessage: _sendMessage,
+                        onMessage: _onMessage,
+                        connect: _connect,
+                    };
+
+                    // Lexical declarations that shadow window.chrome for scripts inside this wrapper
+                    var chrome = {
+                        runtime: _runtime,
+                        storage: _storage,
+                    };
+                    var browser = chrome;
+
+                    // Ensure window.chrome fallback exists and routes safely
+                    if (!window.chrome) window.chrome = {};
+                    if (!window.chrome.runtime) window.chrome.runtime = {};
+                    if (!window.chrome.storage) window.chrome.storage = _storage;
                     if (!window.chrome.runtime.onMessage) {
-                        const _listeners = [];
+                        const _globalListeners = [];
                         window.chrome.runtime.onMessage = {
-                            addListener: (fn) => { if (typeof fn === 'function' && !_listeners.includes(fn)) _listeners.push(fn); },
-                            removeListener: (fn) => { const idx = _listeners.indexOf(fn); if (idx !== -1) _listeners.splice(idx, 1); },
-                            hasListener: (fn) => _listeners.includes(fn),
-                            _listeners,
+                            addListener: (fn) => { if (typeof fn === 'function' && !_globalListeners.includes(fn)) _globalListeners.push(fn); },
+                            removeListener: (fn) => { const idx = _globalListeners.indexOf(fn); if (idx !== -1) _globalListeners.splice(idx, 1); },
+                            hasListener: (fn) => _globalListeners.includes(fn),
+                            _listeners: _globalListeners,
                         };
-
-                        window.addEventListener('message', (ev) => {
-                            if (ev.source === window && ev.data && ev.data.source === 'invisurf-ext-event') {
-                                const payload = ev.data.payload;
-                                if (payload && payload.eventName === 'chrome.runtime.onMessage') {
-                                    for (const fn of _listeners.slice()) {
-                                        try { fn(...(payload.args || [])); } catch (e) { console.error(e); }
-                                    }
-                                }
-                            }
-                        });
                     }
+                    window.chrome.runtime.sendMessage = (extIdOrMsg, msgOrOpts, optsOrCallback, maybeCb) => {
+                        let targetId = null;
+                        let message = extIdOrMsg;
+                        let cb = null;
+                        if (typeof extIdOrMsg === 'string' && msgOrOpts !== undefined) {
+                            targetId = extIdOrMsg;
+                            message = msgOrOpts;
+                            if (typeof optsOrCallback === 'function') cb = optsOrCallback;
+                            else if (typeof maybeCb === 'function') cb = maybeCb;
+                        } else {
+                            if (typeof msgOrOpts === 'function') cb = msgOrOpts;
+                            else if (typeof optsOrCallback === 'function') cb = optsOrCallback;
+                        }
+                        let callerExtId = EXT_ID;
+                        try {
+                            const stack = (new Error()).stack || '';
+                            const match = stack.match(/chrome-extension:\\/\\/([a-z0-9_-]+)/i) || stack.match(/__invisurf_injected_([a-z0-9_-]+)_/i);
+                            if (match && match[1]) callerExtId = match[1];
+                        } catch (_) {}
+                        if (!targetId) targetId = callerExtId;
 
+                        if (window.chrome?.runtime) window.chrome.runtime.lastError = null;
+
+                        const p = fetch('invisurf-ext://api/call', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                method: 'runtime.sendMessage',
+                                args: { targetExtId: targetId, message, tabId: TAB_ID },
+                                extensionId: callerExtId,
+                                tabId: TAB_ID
+                            })
+                        }).then(r => r.json()).then(d => d && d.ok ? d.result : null).catch(() => null);
+
+                        if (typeof cb === 'function') {
+                            p.then(res => {
+                                if (window.chrome?.runtime) window.chrome.runtime.lastError = null;
+                                try { cb(res); } catch (_) {}
+                            });
+                        }
+                        return p;
+                    };
                     if (!window.chrome.runtime.connect) {
-                        window.chrome.runtime.connect = (connectOpts = {}) => {
-                            const portName = typeof connectOpts === 'string' ? connectOpts : (connectOpts?.name || '');
-                            const portId = 'port_' + Date.now() + '_' + Math.random().toString(36).slice(2);
-                            const _msgListeners = [];
-                            const _discListeners = [];
-                            let _disconnected = false;
-
-                            fetch('invisurf-ext://api/call', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    method: 'runtime.connect',
-                                    args: { portId, name: portName, targetExtId: EXT_ID, tabId: TAB_ID },
-                                    extensionId: EXT_ID,
-                                    tabId: TAB_ID
-                                })
-                            }).catch(() => {});
-
-                            const _handlePortEvent = (ev) => {
-                                if (ev.source === window && ev.data && ev.data.source === 'invisurf-ext-event') {
-                                    const payload = ev.data.payload;
-                                    if (!payload) return;
-                                    if (payload.eventName === ('chrome.runtime.portOnMessage_' + portId)) {
-                                        const msgArg = payload.args && payload.args.length > 0 ? payload.args[0] : undefined;
-                                        for (const fn of _msgListeners.slice()) {
-                                            try { fn(msgArg); } catch (e) { console.error(e); }
-                                        }
-                                    } else if (payload.eventName === ('chrome.runtime.portOnDisconnect_' + portId)) {
-                                        _disconnected = true;
-                                        window.removeEventListener('message', _handlePortEvent);
-                                        for (const fn of _discListeners.slice()) {
-                                            try { fn(); } catch (e) { console.error(e); }
-                                        }
-                                    }
-                                }
-                            };
-                            window.addEventListener('message', _handlePortEvent);
-
-                            return {
-                                name: portName,
-                                postMessage: (message) => {
-                                    if (_disconnected) return;
-                                    fetch('invisurf-ext://api/call', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({
-                                            method: 'runtime.portPostMessage',
-                                            args: { portId, message, targetExtId: EXT_ID, tabId: TAB_ID },
-                                            extensionId: EXT_ID,
-                                            tabId: TAB_ID
-                                        })
-                                    }).catch(() => {});
-                                },
-                                disconnect: () => {
-                                    if (_disconnected) return;
-                                    _disconnected = true;
-                                    window.removeEventListener('message', _handlePortEvent);
-                                    fetch('invisurf-ext://api/call', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({
-                                            method: 'runtime.portDisconnect',
-                                            args: { portId, targetExtId: EXT_ID, tabId: TAB_ID },
-                                            extensionId: EXT_ID,
-                                            tabId: TAB_ID
-                                        })
-                                    }).catch(() => {});
-                                    for (const fn of _discListeners.slice()) {
-                                        try { fn(); } catch (_) {}
-                                    }
-                                },
-                                onMessage: {
-                                    addListener: (fn) => { if (typeof fn === 'function' && !_msgListeners.includes(fn)) _msgListeners.push(fn); },
-                                    removeListener: (fn) => { const i = _msgListeners.indexOf(fn); if (i !== -1) _msgListeners.splice(i, 1); },
-                                    hasListener: (fn) => _msgListeners.includes(fn),
-                                },
-                                onDisconnect: {
-                                    addListener: (fn) => { if (typeof fn === 'function' && !_discListeners.includes(fn)) _discListeners.push(fn); },
-                                    removeListener: (fn) => { const i = _discListeners.indexOf(fn); if (i !== -1) _discListeners.splice(i, 1); },
-                                    hasListener: (fn) => _discListeners.includes(fn),
-                                },
-                            };
-                        };
-                    }
-
-                    if (!window.chrome.storage) {
-                        window.chrome.storage = {
-                            local: {
-                                get: (keys, cb) => {
-                                    let callback = cb;
-                                    let queryKeys = keys;
-                                    if (typeof keys === 'function') {
-                                        callback = keys;
-                                        queryKeys = null;
-                                    }
-                                    const p = fetch('invisurf-ext://api/call', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({
-                                            method: 'storage.local.get',
-                                            args: { keys: queryKeys },
-                                            extensionId: EXT_ID,
-                                            tabId: TAB_ID
-                                        })
-                                    }).then(r => r.json()).then(d => d && d.ok ? (d.result || {}) : {}).catch(() => ({}));
-                                    if (typeof callback === 'function') {
-                                        p.then(res => { try { callback(res); } catch (_) {} });
-                                    }
-                                    return p;
-                                },
-                                set: (items, cb) => {
-                                    const p = fetch('invisurf-ext://api/call', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({
-                                            method: 'storage.local.set',
-                                            args: { items },
-                                            extensionId: EXT_ID,
-                                            tabId: TAB_ID
-                                        })
-                                    }).then(r => r.json()).then(d => d && d.ok ? d.result : null).catch(() => null);
-                                    if (typeof cb === 'function') {
-                                        p.then(res => { try { cb(res); } catch (_) {} });
-                                    }
-                                    return p;
-                                },
-                            },
-                        };
+                        window.chrome.runtime.connect = _connect;
                     }
 
                     ${codeContent}

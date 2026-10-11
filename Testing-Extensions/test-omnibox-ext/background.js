@@ -2,6 +2,11 @@
 (() => {
     if (typeof self === 'undefined') return;
     if (self.__invisurf_compat_initialized) return;
+    if (self.__invisurf_preload_active) {
+        // Preload script (extensionPreload.js) is already active in this window/context.
+        // It provides native IPC-based chrome APIs. Do not initialize a duplicate SSE stream or duplicate listeners.
+        return;
+    }
     self.__invisurf_compat_initialized = true;
 
     const EXT_ID = "gemmdgkodikgghlcpfhmedekpfppfidm";
@@ -23,6 +28,9 @@
         'chrome.tabs.onActivated': [],
         'chrome.commands.onCommand': [],
         'chrome.contextMenus.onClicked': [],
+        'chrome.proxy.settings.onChange': [],
+        'chrome.proxy.onProxyError': [],
+        'chrome.idle.onStateChanged': [],
     };
 
     // Capture native chrome events before defining any wrappers
@@ -35,6 +43,12 @@
 
     function _wrapPortIfNeeded(port) {
         if (!port) return port;
+        if (port.sender?.tab) {
+            if (!port.sender.tab.width || !port.sender.tab.height) {
+                port.sender.tab.width = port.sender.tab.width || 1280;
+                port.sender.tab.height = port.sender.tab.height || 800;
+            }
+        }
         if (port.name === 'proxy') {
             if (port.sender?.tab?.id) {
                 _lastActiveProxyTabId = port.sender.tab.id;
@@ -71,8 +85,11 @@
             if (!sender.tab || sender.tab.id === -1 || !sender.tab.id) {
                 const targetTabId = _lastActiveProxyTabId || _lastKnownActiveTabId;
                 if (targetTabId) {
-                    sender.tab = { id: targetTabId, url: sender.url || '' };
+                    sender.tab = { id: targetTabId, url: sender.url || '', width: 1280, height: 800 };
                 }
+            } else if (sender.tab && (!sender.tab.width || !sender.tab.height)) {
+                sender.tab.width = sender.tab.width || 1280;
+                sender.tab.height = sender.tab.height || 800;
             }
         }
         return message;
@@ -122,6 +139,13 @@
             processedArgs = [_wrapPortIfNeeded(args[0])];
         } else if (name === 'chrome.runtime.onMessage' && args[0]) {
             _wrapMessageIfNeeded(args[0], args[1]);
+        } else if ((name === 'chrome.action.onClicked' || name === 'chrome.browserAction.onClicked') && args[0]) {
+            if (typeof args[0] === 'object') {
+                if (!args[0].width || !args[0].height) {
+                    args[0].width = args[0].width || 1280;
+                    args[0].height = args[0].height || 800;
+                }
+            }
         }
         const list = _listeners[name] || [];
         for (const fn of list) {
@@ -129,6 +153,41 @@
                 fn(...processedArgs);
             } catch (err) {
                 console.warn('[InviSurf Polyfill Event Error]:', err);
+            }
+        }
+    }
+
+    function _dispatchMessageEvent(args = [], messageId = null) {
+        const message = args[0];
+        const sender = args[1] || {};
+        _wrapMessageIfNeeded(message, sender);
+
+        let responded = false;
+        const sendResponse = (res) => {
+            if (responded) return;
+            responded = true;
+            if (messageId) {
+                _call('runtime.sendResponse', { messageId, response: res }).catch(() => {});
+            }
+        };
+
+        const list = _listeners['chrome.runtime.onMessage'] || [];
+        if (list.length === 0) {
+            return;
+        }
+
+        let asyncWait = false;
+        for (const fn of list) {
+            try {
+                const r = fn(message, sender, sendResponse);
+                if (r === true || (r && typeof r.then === 'function')) {
+                    asyncWait = true;
+                    if (r && typeof r.then === 'function') {
+                        r.then(sendResponse).catch(() => sendResponse(undefined));
+                    }
+                }
+            } catch (err) {
+                console.warn('[InviSurf Worker onMessage Error]:', err);
             }
         }
     }
@@ -152,6 +211,53 @@
             console.warn('[InviSurf Polyfill Call Error] ' + method + ':', err?.message || err);
             throw err;
         }
+    }
+
+    // Error Trapping Layer for Service Worker (Passive & Rate-Limited)
+    let _errTokens = 10;
+    let _lastTokenRefill = Date.now();
+    function _reportError(errData) {
+        try {
+            const now = Date.now();
+            if (now - _lastTokenRefill > 1000) {
+                _errTokens = 10;
+                _lastTokenRefill = now;
+            }
+            if (_errTokens <= 0) return;
+            _errTokens--;
+
+            _call('error.report', {
+                message: errData.message || 'Unknown worker error',
+                source: errData.source || errData.filename || '',
+                lineno: errData.lineno || 0,
+                colno: errData.colno || 0,
+                stack: errData.stack || '',
+                context: 'service_worker',
+            }).catch(() => {});
+        } catch (_) {}
+    }
+
+    if (typeof self !== 'undefined' && typeof self.addEventListener === 'function') {
+        self.addEventListener('error', (event) => {
+            _reportError({
+                message: event.message || (event.error && event.error.message) || String(event.error || 'Error'),
+                source: event.filename || '',
+                lineno: event.lineno || 0,
+                colno: event.colno || 0,
+                stack: event.error?.stack || '',
+            });
+        });
+
+        self.addEventListener('unhandledrejection', (event) => {
+            const reason = event.reason;
+            _reportError({
+                message: reason?.message || String(reason || 'Unhandled Promise Rejection'),
+                source: reason?.fileName || reason?.sourceURL || '',
+                lineno: reason?.lineNumber || reason?.line || 0,
+                colno: reason?.columnNumber || reason?.column || 0,
+                stack: reason?.stack || '',
+            });
+        });
     }
 
     function _createPortObject(portId, name, sender) {
@@ -213,6 +319,8 @@
                                     const info = (ev.args && ev.args[0]) || {};
                                     const port = _createPortObject(info.portId, info.name, info.sender);
                                     _dispatchEvent('chrome.runtime.onConnect', [port]);
+                                } else if (ev.eventName === 'chrome.runtime.onMessage') {
+                                    _dispatchMessageEvent(ev.args || [], ev.messageId);
                                 } else {
                                     _dispatchEvent(ev.eventName, ev.args || []);
                                 }
@@ -248,16 +356,26 @@
     self.chrome.runtime.sendMessage = (extIdOrMsg, msgOrOpts, opts) => {
         let targetId = EXT_ID;
         let message = extIdOrMsg;
+        let callback = null;
         if (typeof extIdOrMsg === 'string' && msgOrOpts !== undefined) {
             targetId = extIdOrMsg;
             message = msgOrOpts;
+            if (typeof opts === 'function') callback = opts;
+        } else {
+            if (typeof msgOrOpts === 'function') callback = msgOrOpts;
+            else if (typeof opts === 'function') callback = opts;
         }
         if (_nativeSendMessage) {
             try {
                 return _nativeSendMessage.call(self.chrome.runtime, extIdOrMsg, msgOrOpts, opts);
             } catch (_) {}
         }
-        return _call('runtime.sendMessage', { targetExtId: targetId, message });
+        const messageId = 'msg_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+        const p = _call('runtime.sendMessage', { targetExtId: targetId, message, messageId });
+        if (typeof callback === 'function') {
+            p.then(res => callback(res)).catch(() => callback(undefined));
+        }
+        return p;
     };
     self.chrome.runtime.onMessage = _createEventTarget('chrome.runtime.onMessage', _nativeOnMessage, (msg, sender, sendResp) => {
         _wrapMessageIfNeeded(msg, sender);
@@ -377,7 +495,15 @@
             return p;
         },
         create: (props, cb) => {
-            const p = _call('tabs.create', { createProperties: props || {} });
+            const pProps = props ? { ...props } : {};
+            if (pProps.url && typeof pProps.url === 'string' && !/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(pProps.url)) {
+                try {
+                    if (self.chrome?.runtime?.getURL) {
+                        pProps.url = self.chrome.runtime.getURL(pProps.url);
+                    }
+                } catch (_) {}
+            }
+            const p = _call('tabs.create', { createProperties: pProps });
             if (typeof cb === 'function') p.then(res => cb(res)).catch(() => cb(null));
             return p;
         },
@@ -388,7 +514,15 @@
                 pProps = tabId;
                 tId = null;
             }
-            const p = _call('tabs.update', { tabId: tId, updateProperties: pProps || {} });
+            pProps = pProps ? { ...pProps } : {};
+            if (pProps.url && typeof pProps.url === 'string' && !/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(pProps.url)) {
+                try {
+                    if (self.chrome?.runtime?.getURL) {
+                        pProps.url = self.chrome.runtime.getURL(pProps.url);
+                    }
+                } catch (_) {}
+            }
+            const p = _call('tabs.update', { tabId: tId, updateProperties: pProps });
             if (typeof cb === 'function') p.then(res => cb(res)).catch(() => cb(null));
             return p;
         },
@@ -677,7 +811,24 @@
             return p;
         },
         create: (createData, cb) => {
-            const p = _call('windows.create', { createData: createData || {} });
+            const data = createData ? { ...createData } : {};
+            if (data.url) {
+                try {
+                    if (typeof data.url === 'string' && !/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(data.url)) {
+                        if (self.chrome?.runtime?.getURL) {
+                            data.url = self.chrome.runtime.getURL(data.url);
+                        }
+                    } else if (Array.isArray(data.url)) {
+                        data.url = data.url.map(u => {
+                            if (typeof u === 'string' && !/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(u)) {
+                                return self.chrome?.runtime?.getURL ? self.chrome.runtime.getURL(u) : u;
+                            }
+                            return u;
+                        });
+                    }
+                } catch (_) {}
+            }
+            const p = _call('windows.create', { createData: data });
             if (typeof cb === 'function') p.then(res => cb(res)).catch(() => cb(null));
             return p;
         },
@@ -898,29 +1049,37 @@
 
     // 15. chrome.permissions (Native Chromium Passthrough with fallback)
     if (!self.chrome.permissions) {
+        const _dynamicallyGrantedPerms = new Set();
         self.chrome.permissions = {
             contains: (permissions, cb) => {
                 const manifest = self.chrome.runtime.getManifest();
                 const manifestPerms = Array.isArray(manifest?.permissions) ? manifest.permissions : [];
                 const reqPerms = Array.isArray(permissions?.permissions) ? permissions.permissions : [];
-                const hasAll = reqPerms.every(p => manifestPerms.includes(p));
+                const hasAll = reqPerms.every(p => manifestPerms.includes(p) || _dynamicallyGrantedPerms.has(p));
                 if (typeof cb === 'function') cb(hasAll);
                 return Promise.resolve(hasAll);
             },
             getAll: (cb) => {
                 const manifest = self.chrome.runtime.getManifest();
                 const perms = {
-                    permissions: Array.isArray(manifest?.permissions) ? manifest.permissions : [],
+                    permissions: [
+                        ...(Array.isArray(manifest?.permissions) ? manifest.permissions : []),
+                        ..._dynamicallyGrantedPerms,
+                    ],
                     origins: Array.isArray(manifest?.host_permissions) ? manifest.host_permissions : [],
                 };
                 if (typeof cb === 'function') cb(perms);
                 return Promise.resolve(perms);
             },
             request: (permissions, cb) => {
+                const reqPerms = Array.isArray(permissions?.permissions) ? permissions.permissions : [];
+                for (const p of reqPerms) _dynamicallyGrantedPerms.add(p);
                 if (typeof cb === 'function') cb(true);
                 return Promise.resolve(true);
             },
             remove: (permissions, cb) => {
+                const reqPerms = Array.isArray(permissions?.permissions) ? permissions.permissions : [];
+                for (const p of reqPerms) _dynamicallyGrantedPerms.delete(p);
                 if (typeof cb === 'function') cb(true);
                 return Promise.resolve(true);
             },
@@ -1301,6 +1460,109 @@
                 return p;
             },
             onChanged: _createEventTarget('chrome.sessions.onChanged'),
+        };
+    }
+
+    // 27. chrome.proxy
+    if (!self.chrome.proxy) {
+        self.chrome.proxy = {
+            settings: {
+                get: (details, cb) => {
+                    let d = details;
+                    let callback = cb;
+                    if (typeof details === 'function') { callback = details; d = {}; }
+                    const p = _call('proxy.settings.get', d || {});
+                    if (typeof callback === 'function') p.then(res => callback(res)).catch(() => callback({ value: { mode: 'system' }, levelOfControl: 'controllable_by_this_extension' }));
+                    return p;
+                },
+                set: (details, cb) => {
+                    const p = _call('proxy.settings.set', details || {});
+                    if (typeof cb === 'function') p.then(() => cb()).catch(() => cb());
+                    return p;
+                },
+                clear: (details, cb) => {
+                    let d = details;
+                    let callback = cb;
+                    if (typeof details === 'function') { callback = details; d = {}; }
+                    const p = _call('proxy.settings.clear', d || {});
+                    if (typeof callback === 'function') p.then(() => cb()).catch(() => cb());
+                    return p;
+                },
+                onChange: _createEventTarget('chrome.proxy.settings.onChange'),
+            },
+            onProxyError: _createEventTarget('chrome.proxy.onProxyError'),
+        };
+    }
+
+    // 28. chrome.browsingData
+    if (!self.chrome.browsingData) {
+        function _createRemovalMethod(methodName) {
+            return (options, cb) => {
+                let opts = options;
+                let callback = cb;
+                if (typeof options === 'function') { callback = options; opts = {}; }
+                const p = _call(methodName, { options: opts || {} });
+                if (typeof callback === 'function') p.then(() => callback()).catch(() => callback());
+                return p;
+            };
+        }
+
+        self.chrome.browsingData = {
+            settings: (cb) => {
+                const p = _call('browsingData.settings');
+                if (typeof cb === 'function') p.then(res => cb(res)).catch(() => cb({ options: { since: 0 }, dataToRemove: {}, dataRemovalPermitted: {} }));
+                return p;
+            },
+            remove: (options, dataToRemove, cb) => {
+                const p = _call('browsingData.remove', { options: options || {}, dataToRemove: dataToRemove || {} });
+                if (typeof cb === 'function') p.then(() => cb()).catch(() => cb());
+                return p;
+            },
+            removeAppcache: _createRemovalMethod('browsingData.removeAppcache'),
+            removeCache: _createRemovalMethod('browsingData.removeCache'),
+            removeCookies: _createRemovalMethod('browsingData.removeCookies'),
+            removeDownloads: _createRemovalMethod('browsingData.removeDownloads'),
+            removeFileSystems: _createRemovalMethod('browsingData.removeFileSystems'),
+            removeFormData: _createRemovalMethod('browsingData.removeFormData'),
+            removeHistory: _createRemovalMethod('browsingData.removeHistory'),
+            removeIndexedDB: _createRemovalMethod('browsingData.removeIndexedDB'),
+            removeLocalStorage: _createRemovalMethod('browsingData.removeLocalStorage'),
+            removePasswords: _createRemovalMethod('browsingData.removePasswords'),
+            removePluginData: _createRemovalMethod('browsingData.removePluginData'),
+            removeServiceWorkers: _createRemovalMethod('browsingData.removeServiceWorkers'),
+            removeWebSQL: _createRemovalMethod('browsingData.removeWebSQL'),
+        };
+    }
+
+    // 29. chrome.idle
+    if (!self.chrome.idle) {
+        self.chrome.idle = {
+            queryState: (detectionIntervalInSeconds, cb) => {
+                const p = _call('idle.queryState', { detectionIntervalInSeconds });
+                if (typeof cb === 'function') p.then(state => cb(state)).catch(() => cb('active'));
+                return p;
+            },
+            setDetectionInterval: (intervalInSeconds) => {
+                _call('idle.setDetectionInterval', { intervalInSeconds }).catch(() => {});
+            },
+            getAutoLockDelay: (cb) => {
+                const p = _call('idle.getAutoLockDelay');
+                if (typeof cb === 'function') p.then(delay => cb(delay)).catch(() => cb(0));
+                return p;
+            },
+            onStateChanged: _createEventTarget('chrome.idle.onStateChanged'),
+        };
+    }
+
+    // 30. chrome.power
+    if (!self.chrome.power) {
+        self.chrome.power = {
+            requestKeepAwake: (level) => {
+                _call('power.requestKeepAwake', { level: level || 'system' }).catch(() => {});
+            },
+            releaseKeepAwake: () => {
+                _call('power.releaseKeepAwake', {}).catch(() => {});
+            },
         };
     }
 

@@ -878,6 +878,15 @@ contextBridge.exposeInMainWorld('extensionAPI', {
         ipcRenderer.on('extensions:action-state-updated', handler);
         return () => ipcRenderer.removeListener('extensions:action-state-updated', handler);
     },
+    getErrors: (extensionId) => ipcRenderer.invoke('extensions:get-errors', { extensionId }),
+    clearErrors: (extensionId) => ipcRenderer.invoke('extensions:clear-errors', { extensionId }),
+    clearError: (extensionId, errorId) => ipcRenderer.invoke('extensions:clear-error', { extensionId, errorId }),
+    getCodeSnippet: (extensionId, source, lineno) => ipcRenderer.invoke('extensions:get-code-snippet', { extensionId, source, lineno }),
+    onErrorsUpdated: (callback) => {
+        const handler = (_event, data) => callback(data);
+        ipcRenderer.on('extensions:errors-updated', handler);
+        return () => ipcRenderer.removeListener('extensions:errors-updated', handler);
+    },
 });
 
 try {

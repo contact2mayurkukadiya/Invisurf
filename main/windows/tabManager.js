@@ -813,6 +813,11 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
         view._invisurfPromoted = true;
     };
     resetTabWebContentsScale(view);
+    view.webContents.on('console-message', (event, level, message, line, sourceId) => {
+        if (message.includes('GFP') || message.includes('ScrollFinder') || message.includes('arrangements') || message.includes('GoFullPage') || message.includes('capture') || level >= 2) {
+            console.log(`[TAB-CONSOLE ${id}] [lvl=${level}] ${message}`);
+        }
+    });
 
     try {
         const { getIpcBridge } = require('../extensions/compat/IpcBridge');

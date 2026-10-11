@@ -977,6 +977,13 @@ async function showExtensionPopup(context, extension, anchorRect) {
     }
     console.log(`[DEBUG-EXT] showExtensionPopup: actualId="${actualId}" rawPopup="${rawPopup}" finalUrl="${popupUrl}"`);
 
+    if (actualId === 'fdpohaocaechififmbbbbbknoalclacl') {
+        try {
+            const { getTabRegistry } = require('../extensions/compat/TabRegistry');
+            getTabRegistry().markCapturingActive?.(actualId);
+        } catch (_) {}
+    }
+
     const cv = context.window.contentView;
     const { buildExtensionWebPreferences } = require('../../runtime/webPreferences');
 
@@ -984,6 +991,9 @@ async function showExtensionPopup(context, extension, anchorRect) {
         webPreferences: buildExtensionWebPreferences({
             partition: context.partition,
         }),
+    });
+    popupView.webContents.on('console-message', (event, level, message, line, sourceId) => {
+        console.log(`[EXT-POPUP ${extension.id}] [lvl=${level}] ${message} (${sourceId}:${line})`);
     });
     try {
         popupView.setBackgroundColor('#00000000');
@@ -1084,13 +1094,28 @@ async function showExtensionPopup(context, extension, anchorRect) {
         if (context.activeDesktopMediaPicker || context.activeExtensionInstallPrompt) {
             return;
         }
+        try {
+            const { getTabRegistry } = require('../extensions/compat/TabRegistry');
+            if (getTabRegistry().isCapturingActive?.()) {
+                return;
+            }
+        } catch (_) {}
         if (context.activeExtensionPopup) {
+            if (context.activeExtensionPopup.extensionId === 'fdpohaocaechififmbbbbbknoalclacl') {
+                return;
+            }
             context.activeExtensionPopup.blurTimer = setTimeout(() => {
                 if (context.activeDesktopMediaPicker || context.activeExtensionInstallPrompt) {
                     return;
                 }
+                try {
+                    const { getTabRegistry } = require('../extensions/compat/TabRegistry');
+                    if (getTabRegistry().isCapturingActive?.()) {
+                        return;
+                    }
+                } catch (_) {}
                 hideExtensionPopup(context);
-            }, 200);
+            }, 350);
         }
     };
     const onFocus = () => {

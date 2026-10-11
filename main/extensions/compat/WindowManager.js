@@ -87,10 +87,24 @@ class WindowManager {
 
     async create(createData = {}, sender = {}) {
         const windowMgr = require('../../windows/windowManager');
-        const url = createData.url ? (Array.isArray(createData.url) ? createData.url[0] : createData.url) : null;
-        const profileId = sender.profileId || State.defaultProfileId;
+        const urls = Array.isArray(createData.url)
+            ? createData.url
+            : (createData.url ? [createData.url] : []);
+        let extensionId = sender?.extensionId || null;
+        if (!extensionId && sender?.senderWebContents && !sender.senderWebContents.isDestroyed()) {
+            try {
+                const { getExtensionIdFromUrl } = require('../ExtensionSecurity');
+                extensionId = getExtensionIdFromUrl(sender.senderWebContents.getURL());
+            } catch (_) {}
+        }
+        const profileId = sender?.profileId || State.defaultProfileId;
 
-        const win = windowMgr.createWindow(profileId, { initialUrl: url });
+        const ctx = windowMgr.createWindow({ profileId });
+        const win = ctx?.window;
+        if (!win || win.isDestroyed()) {
+            throw new Error('Failed to create window');
+        }
+
         if (createData.width && createData.height) {
             win.setBounds({
                 x: createData.left || 100,
@@ -103,8 +117,17 @@ class WindowManager {
             win.focus();
         }
 
+        if (urls.length > 0) {
+            const { getTabRegistry } = require('./TabRegistry');
+            const tabReg = getTabRegistry();
+            for (const u of urls) {
+                await tabReg.create({ url: u, windowId: win.id }, { ...sender, extensionId });
+            }
+        }
+
         return this.get(win.id, {});
     }
+
 
     async update(windowId, updateInfo = {}) {
         let win = null;

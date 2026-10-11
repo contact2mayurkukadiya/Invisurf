@@ -15,6 +15,8 @@ class ExtensionController extends EventEmitter {
         this.loadedExtensions = new Map();
         /** Map of installToken -> pending install data */
         this.pendingInstalls = new Map();
+        /** Map of `${profileId}:${extensionId}` -> WebContentsView (MV3 Background host) */
+        this.backgroundHosts = new Map();
     }
 
     /**
@@ -66,11 +68,22 @@ class ExtensionController extends EventEmitter {
                             extData.runtimeId = loaded.id;
                             stateDirty = true;
                         }
+                        await this.ensureBackgroundHost(pId, extensionId, extData.path, electronSession);
                         console.log(`[ExtensionController] Loaded extension "${extData.name}" (${extensionId}, runtimeId: ${loaded?.id}) for profile ${pId}`);
                     } else {
                         console.warn(`[ExtensionController] Path not found for extension ${extensionId}: ${extData.path}`);
                     }
                 } catch (loadErr) {
+                    try {
+                        const { getExtensionErrorManager } = require('./ExtensionErrorManager');
+                        getExtensionErrorManager().reportError(extensionId, {
+                            message: `Failed to load extension: ${loadErr?.message || loadErr}`,
+                            stack: loadErr?.stack || '',
+                            source: 'manifest.json',
+                            type: 'manifest',
+                            context: 'system'
+                        });
+                    } catch (_) {}
                     console.error(`[ExtensionController] Failed to load extension ${extensionId} for profile ${pId}:`, loadErr?.message || loadErr);
                 }
             }
@@ -81,6 +94,97 @@ class ExtensionController extends EventEmitter {
         }
 
         this.emit('extensions-updated', { profileId: pId });
+    }
+
+    /**
+     * Ensures an MV3 extension's background host WebContentsView is instantiated and active.
+     */
+    async ensureBackgroundHost(profileId, extensionId, extPath, electronSession) {
+        const pId = ExtensionStorage.safeProfileId(profileId);
+        const cleanId = sanitizeExtensionId(extensionId);
+        if (!cleanId) return null;
+
+        const hostKey = `${pId}:${cleanId}`;
+        const existingView = this.backgroundHosts.get(hostKey);
+        if (existingView) {
+            try {
+                if (!existingView.webContents.isDestroyed()) {
+                    return existingView;
+                }
+            } catch (_) {}
+            this.backgroundHosts.delete(hostKey);
+        }
+
+        const state = ExtensionStorage.readState(pId);
+        const ext = state[cleanId] || ExtensionStorage.findExtension(cleanId);
+        const resolvedPath = extPath || ext?.path;
+        if (!resolvedPath || !fs.existsSync(resolvedPath)) {
+            return null;
+        }
+
+        const manifestPath = path.join(resolvedPath, 'manifest.json');
+        if (!fs.existsSync(manifestPath)) {
+            return null;
+        }
+
+        let manifest = null;
+        try {
+            manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+        } catch (_) {
+            return null;
+        }
+
+        const hasServiceWorker = !!manifest.background?.service_worker;
+        if (!hasServiceWorker) {
+            return null;
+        }
+
+        // Ensure _invisurf_background_page.html exists
+        const bgHtmlPath = path.join(resolvedPath, '_invisurf_background_page.html');
+        if (!fs.existsSync(bgHtmlPath)) {
+            try {
+                const ExtensionInstaller = require('./ExtensionInstaller');
+                ExtensionInstaller.ensureExtensionPolyfills(resolvedPath, cleanId);
+            } catch (_) {}
+        }
+        if (!fs.existsSync(bgHtmlPath)) {
+            return null;
+        }
+
+        const session = electronSession || this.activeSessions.get(pId) || require('electron').session.defaultSession;
+        const partition = `persist:profile-${pId}`;
+
+        try {
+            const { WebContentsView } = require('electron');
+            const { buildExtensionWebPreferences } = require('../../runtime/webPreferences');
+            const view = new WebContentsView({
+                webPreferences: buildExtensionWebPreferences({ partition }),
+            });
+
+            try {
+                const { getIpcBridge } = require('./compat/IpcBridge');
+                getIpcBridge().attachToSession(view.webContents.session || session);
+            } catch (_) {}
+
+            this.backgroundHosts.set(hostKey, view);
+
+            view.webContents.once('destroyed', () => {
+                if (this.backgroundHosts.get(hostKey) === view) {
+                    this.backgroundHosts.delete(hostKey);
+                }
+            });
+
+            const targetExtId = ext?.runtimeId || cleanId;
+            const targetUrl = `chrome-extension://${targetExtId}/_invisurf_background_page.html`;
+
+            await view.webContents.loadURL(targetUrl);
+            console.log(`[ExtensionController] Started MV3 background host for "${cleanId}" (${targetUrl})`);
+            return view;
+        } catch (err) {
+            this.backgroundHosts.delete(hostKey);
+            console.warn(`[ExtensionController] Failed to start MV3 background host for "${cleanId}":`, err?.message || err);
+            return null;
+        }
     }
 
     /**
@@ -174,6 +278,12 @@ class ExtensionController extends EventEmitter {
                 } catch (_) {}
             }
 
+            let errorCount = 0;
+            try {
+                const { getExtensionErrorManager } = require('./ExtensionErrorManager');
+                errorCount = getExtensionErrorManager().getErrorCount(ext.id);
+            } catch (_) {}
+
             return {
                 ...ext,
                 runtimeId,
@@ -185,6 +295,8 @@ class ExtensionController extends EventEmitter {
                 isPageAction: !!isPageAction,
                 hasOptionsPage: !!hasOptionsPage,
                 optionsPage: optionsPage || null,
+                errorCount,
+                hasErrors: errorCount > 0,
             };
         });
     }
@@ -483,6 +595,8 @@ class ExtensionController extends EventEmitter {
         state[extId] = entry;
         ExtensionStorage.writeState(pId, state);
 
+        await this.ensureBackgroundHost(pId, extId, resolvedPath, session);
+
         this.emit('extension-installed', { profileId: pId, extension: entry });
         this.emit('extensions-updated', { profileId: pId });
         console.log(`[ExtensionController] Successfully loaded unpacked extension "${entry.name}" (${extId}) from ${resolvedPath}`);
@@ -502,7 +616,12 @@ class ExtensionController extends EventEmitter {
             throw new Error(`Extension ${cleanId} not found or path missing`);
         }
 
-        // 1. Unload from active sessions
+        // 1. Unload from active sessions and reset error records
+        try {
+            const { getExtensionErrorManager } = require('./ExtensionErrorManager');
+            getExtensionErrorManager().resetExtension(cleanId);
+        } catch (_) {}
+
         for (const [sessPid, s] of this.activeSessions.entries()) {
             try { s.extensions.removeExtension(cleanId); } catch (_) {}
             if (ext.runtimeId && ext.runtimeId !== cleanId) {
@@ -541,7 +660,18 @@ class ExtensionController extends EventEmitter {
                         profileLoadedMap.set(cleanId, loaded);
                     }
                     this._loadStaticRulesets(cleanId, ext.path);
+                    await this.ensureBackgroundHost(pId, cleanId, ext.path, session);
                 } catch (loadErr) {
+                    try {
+                        const { getExtensionErrorManager } = require('./ExtensionErrorManager');
+                        getExtensionErrorManager().reportError(cleanId, {
+                            message: `Failed to reload extension: ${loadErr?.message || loadErr}`,
+                            stack: loadErr?.stack || '',
+                            source: 'manifest.json',
+                            type: 'manifest',
+                            context: 'system'
+                        });
+                    } catch (_) {}
                     console.error(`[ExtensionController] Error reloading extension ${cleanId}:`, loadErr);
                 }
             }
@@ -582,6 +712,7 @@ class ExtensionController extends EventEmitter {
                 }
                 profileLoadedMap.set(cleanId, loaded);
                 this._loadStaticRulesets(cleanId, ext.path);
+                await this.ensureBackgroundHost(pId, cleanId, ext.path, session);
             } catch (err) {
                 console.error(`[ExtensionController] Failed to load enabled extension ${cleanId}:`, err);
             }
@@ -696,6 +827,11 @@ class ExtensionController extends EventEmitter {
                 }
             }
         }
+
+        try {
+            const { getExtensionErrorManager } = require('./ExtensionErrorManager');
+            getExtensionErrorManager().resetExtension(cleanId);
+        } catch (_) {}
 
         this.emit('extension-uninstalled', { profileId: pId, extensionId: cleanId });
         this.emit('extensions-updated', { profileId: pId });
@@ -905,21 +1041,55 @@ class ExtensionController extends EventEmitter {
             } catch (_) {}
         }
 
-        const tabObj = {
-            id: activeTab.webContents.id,
-            index: 0,
-            windowId: context.window.id,
-            active: true,
-            url: tabUrl,
-            title: activeTab.webContents.getTitle(),
-        };
+        const { getTabRegistry } = require('./compat/TabRegistry');
+        const tabReg = getTabRegistry();
+        let tabObj = tabReg.formatTab(context, activeTabId, activeTab, activeTab.webContents);
+        if (!tabObj) {
+            let width = 0;
+            let height = 0;
+            try {
+                if (activeTab && typeof activeTab.getBounds === 'function') {
+                    const b = activeTab.getBounds();
+                    width = b?.width || 0;
+                    height = b?.height || 0;
+                }
+                if ((!width || !height) && context?.window && typeof context.window.getContentBounds === 'function') {
+                    const b = context.window.getContentBounds();
+                    width = width || b?.width || 0;
+                    height = height || b?.height || 0;
+                }
+            } catch (_) {}
+            tabObj = {
+                id: activeTab.webContents.id,
+                index: 0,
+                windowId: context.window?.id || 1,
+                active: true,
+                url: tabUrl,
+                title: activeTab.webContents.getTitle(),
+                width: width || 1280,
+                height: height || 800,
+            };
+        }
+        if (!tabObj.width || !tabObj.height) {
+            const winBounds = context.window?.getContentBounds?.() || {};
+            tabObj.width = tabObj.width || winBounds.width || 1280;
+            tabObj.height = tabObj.height || winBounds.height || 800;
+        }
+
+        // Ensure background host is active for MV3 service worker extension
+        try {
+            await this.ensureBackgroundHost(pId, cleanId, ext.path, session);
+        } catch (_) {}
 
         try {
             const { webContents } = require('electron');
             const allWc = typeof webContents?.getAllWebContents === 'function' ? webContents.getAllWebContents() : [];
+            const targetIds = [cleanId, ext.id, ext.runtimeId].filter(Boolean).map(id => id.toLowerCase());
             const bgWc = Array.isArray(allWc) ? allWc.find(wc => {
                 try {
-                    return wc && !wc.isDestroyed() && (wc.getURL() || '').includes(ext.id);
+                    if (!wc || wc.isDestroyed()) return false;
+                    const u = (wc.getURL() || '').toLowerCase();
+                    return targetIds.some(id => u.includes(id));
                 } catch {
                     return false;
                 }
@@ -930,29 +1100,22 @@ class ExtensionController extends EventEmitter {
                     try {
                         const tab = ${JSON.stringify(tabObj)};
                         if (typeof chrome !== 'undefined') {
-                            if (chrome.action?.onClicked?.dispatch) chrome.action.onClicked.dispatch(tab);
-                            else if (Array.isArray(chrome.action?.onClicked?._listeners)) {
-                                chrome.action.onClicked._listeners.forEach(fn => { try { fn(tab); } catch(e){} });
-                            }
-                            if (chrome.browserAction?.onClicked?.dispatch) chrome.browserAction.onClicked.dispatch(tab);
-                            else if (Array.isArray(chrome.browserAction?.onClicked?._listeners)) {
-                                chrome.browserAction.onClicked._listeners.forEach(fn => { try { fn(tab); } catch(e){} });
-                            }
+                            if (typeof chrome.action?.onClicked?.dispatch === 'function') chrome.action.onClicked.dispatch(tab);
+                            if (typeof chrome.browserAction?.onClicked?.dispatch === 'function') chrome.browserAction.onClicked.dispatch(tab);
                         }
                     } catch (_) {}
                 `).catch(() => {});
             }
         } catch (_) {}
 
-        // Broadcast onClicked to Service Worker long-poll & popups
+        // Broadcast onClicked to Service Worker / Background host & popups
         try {
             const { getIpcBridge } = require('./compat/IpcBridge');
             const bridge = getIpcBridge();
             bridge.broadcastEvent(cleanId, 'chrome.action.onClicked', [tabObj]);
-            bridge.broadcastEvent(cleanId, 'chrome.browserAction.onClicked', [tabObj]);
         } catch (_) {}
 
-        // Read extension files from disk and inject action script or content scripts directly into active tab
+        // Read extension files from disk and inject content scripts directly into active tab if defined
         if (ext.path && fs.existsSync(ext.path)) {
             const manifestPath = path.join(ext.path, 'manifest.json');
             if (fs.existsSync(manifestPath)) {
@@ -985,152 +1148,158 @@ class ExtensionController extends EventEmitter {
                         }
                     }
 
-                    // Execute action script (service worker or background script)
+                    // Legacy fallback for specific extensions that need direct DOM injection (e.g., MeasureIt)
                     const bgFile = manifest.background?.service_worker || (Array.isArray(manifest.background?.scripts) && manifest.background.scripts[0]);
                     if (bgFile) {
                         const fullBg = path.join(ext.path, bgFile);
                         if (fs.existsSync(fullBg)) {
                             const bgContent = fs.readFileSync(fullBg, 'utf-8');
-                            const injection = `
-                                (() => {
-                                    try {
-                                        // Toggle off if already active
-                                        if (document.getElementById('tslOverlay')) {
-                                            document.getElementById('tslOverlay').remove();
-                                            return;
-                                        }
-
-                                        var letsGo;
-
-                                        const defaultChoices = {
-                                            background: '#000000',
-                                            popup: '#ffff00',
-                                            popupOpacity: '0.3',
-                                            backgroundOpacity: '0.4'
-                                        };
-
-                                        const createStorageArea = () => ({
-                                            get: (keys, cb) => {
-                                                const data = { choices: defaultChoices };
-                                                if (typeof cb === 'function') {
-                                                    try { cb(data); } catch (_) {}
-                                                }
-                                                return Promise.resolve(data);
-                                            },
-                                            set: (items, cb) => {
-                                                if (typeof cb === 'function') {
-                                                    try { cb(); } catch (_) {}
-                                                }
-                                                return Promise.resolve();
+                            if (bgContent.includes('drawMeasurIt')) {
+                                const injection = `
+                                    (() => {
+                                        try {
+                                            // Toggle off if already active
+                                            if (document.getElementById('tslOverlay')) {
+                                                document.getElementById('tslOverlay').remove();
+                                                return;
                                             }
-                                        });
 
-                                        const messageListeners = [];
-                                        const mockRuntime = {
-                                            id: ${JSON.stringify(cleanId)},
-                                            getURL: (p) => 'chrome-extension://${cleanId}/' + (p ? String(p).replace(/^\\//, '') : ''),
-                                            onMessage: {
-                                                addListener: (fn) => { if (typeof fn === 'function') messageListeners.push(fn); },
-                                                removeListener: (fn) => {
-                                                    const idx = messageListeners.indexOf(fn);
-                                                    if (idx !== -1) messageListeners.splice(idx, 1);
-                                                }
-                                            },
-                                            sendMessage: (msg, cb) => {
-                                                messageListeners.forEach(fn => {
-                                                    try { fn(msg, { id: ${JSON.stringify(cleanId)} }, () => {}); } catch (_) {}
-                                                });
-                                                if (typeof cb === 'function') cb();
-                                                return Promise.resolve();
-                                            },
-                                            lastError: null
-                                        };
+                                            var letsGo;
 
-                                        const mockTabs = {
-                                            query: (_q, cb) => {
-                                                const tabs = [{ id: 1, active: true, currentWindow: true, url: window.location.href, title: document.title }];
-                                                if (typeof cb === 'function') cb(tabs);
-                                                return Promise.resolve(tabs);
-                                            },
-                                            sendMessage: (tabId, msg, cb) => {
-                                                messageListeners.forEach(fn => {
-                                                    try { fn(msg, { id: ${JSON.stringify(cleanId)}, tab: { id: tabId } }, () => {}); } catch (_) {}
-                                                });
-                                                if (typeof cb === 'function') cb();
-                                                return Promise.resolve();
-                                            }
-                                        };
+                                            const defaultChoices = {
+                                                background: '#000000',
+                                                popup: '#ffff00',
+                                                popupOpacity: '0.3',
+                                                backgroundOpacity: '0.4'
+                                            };
 
-                                        const mockScripting = {
-                                            executeScript: ({ func, args, target, files } = {}, cb) => {
-                                                let result = undefined;
-                                                try {
-                                                    if (typeof func === 'function') {
-                                                        result = func(...(args || []));
-                                                    }
-                                                } catch (e) {
-                                                    console.error('[InviSurf] executeScript function error:', e);
-                                                }
-                                                if (typeof cb === 'function') {
-                                                    try { cb([{ result }]); } catch (_) {}
-                                                }
-                                                return Promise.resolve([{ result }]);
-                                            },
-                                            insertCSS: () => Promise.resolve(),
-                                            removeCSS: () => Promise.resolve()
-                                        };
-
-                                        let actionListener = null;
-                                        const mockAction = {
-                                            onClicked: {
-                                                addListener: (cb) => {
-                                                    actionListener = cb;
+                                            const createStorageArea = () => ({
+                                                get: (keys, cb) => {
+                                                    const data = { choices: defaultChoices };
                                                     if (typeof cb === 'function') {
-                                                        try {
-                                                            cb({
-                                                                id: 1,
-                                                                active: true,
-                                                                currentWindow: true,
-                                                                url: window.location.href,
-                                                                title: document.title
-                                                            });
-                                                        } catch (e) {
-                                                            console.error('[InviSurf] onClicked callback error:', e);
+                                                        try { cb(data); } catch (_) {}
+                                                    }
+                                                    return Promise.resolve(data);
+                                                },
+                                                set: (items, cb) => {
+                                                    if (typeof cb === 'function') {
+                                                        try { cb(); } catch (_) {}
+                                                    }
+                                                    return Promise.resolve();
+                                                }
+                                            });
+
+                                            const messageListeners = [];
+                                            const mockRuntime = {
+                                                id: ${JSON.stringify(cleanId)},
+                                                getURL: (p) => 'chrome-extension://${cleanId}/' + (p ? String(p).replace(/^\\//, '') : ''),
+                                                onMessage: {
+                                                    addListener: (fn) => { if (typeof fn === 'function') messageListeners.push(fn); },
+                                                    removeListener: (fn) => {
+                                                        const idx = messageListeners.indexOf(fn);
+                                                        if (idx !== -1) messageListeners.splice(idx, 1);
+                                                    }
+                                                },
+                                                sendMessage: (msg, cb) => {
+                                                    messageListeners.forEach(fn => {
+                                                        try { fn(msg, { id: ${JSON.stringify(cleanId)} }, () => {}); } catch (_) {}
+                                                    });
+                                                    if (typeof cb === 'function') cb();
+                                                    return Promise.resolve();
+                                                },
+                                                lastError: null
+                                            };
+
+                                            const mockTabs = {
+                                                query: (_q, cb) => {
+                                                    const tabs = [{ id: 1, active: true, currentWindow: true, url: window.location.href, title: document.title, width: window.innerWidth, height: window.innerHeight }];
+                                                    if (typeof cb === 'function') cb(tabs);
+                                                    return Promise.resolve(tabs);
+                                                },
+                                                sendMessage: (tabId, msg, cb) => {
+                                                    messageListeners.forEach(fn => {
+                                                        try { fn(msg, { id: ${JSON.stringify(cleanId)}, tab: { id: tabId } }, () => {}); } catch (_) {}
+                                                    });
+                                                    if (typeof cb === 'function') cb();
+                                                    return Promise.resolve();
+                                                }
+                                            };
+
+                                            const mockScripting = {
+                                                executeScript: ({ func, args, target, files } = {}, cb) => {
+                                                    let result = undefined;
+                                                    try {
+                                                        if (typeof func === 'function') {
+                                                            result = func(...(args || []));
+                                                        }
+                                                    } catch (e) {
+                                                        console.error('[InviSurf] executeScript function error:', e);
+                                                    }
+                                                    if (typeof cb === 'function') {
+                                                        try { cb([{ result }]); } catch (_) {}
+                                                    }
+                                                    return Promise.resolve([{ result }]);
+                                                },
+                                                insertCSS: () => Promise.resolve(),
+                                                removeCSS: () => Promise.resolve()
+                                            };
+
+                                            let actionListener = null;
+                                            const mockAction = {
+                                                onClicked: {
+                                                    addListener: (cb) => {
+                                                        actionListener = cb;
+                                                        if (typeof cb === 'function') {
+                                                            setTimeout(() => {
+                                                                try {
+                                                                    cb({
+                                                                        id: 1,
+                                                                        active: true,
+                                                                        currentWindow: true,
+                                                                        url: window.location.href,
+                                                                        title: document.title,
+                                                                        width: window.innerWidth,
+                                                                        height: window.innerHeight
+                                                                    });
+                                                                } catch (e) {
+                                                                    console.error('[InviSurf] onClicked callback error:', e);
+                                                                }
+                                                            }, 0);
                                                         }
                                                     }
+                                                },
+                                                setTitle: () => {},
+                                                setIcon: () => {},
+                                                setBadgeText: () => {},
+                                                setBadgeBackgroundColor: () => {}
+                                            };
+
+                                            const chrome = window.chrome || {};
+                                            chrome.storage = { local: createStorageArea(), sync: createStorageArea() };
+                                            chrome.scripting = mockScripting;
+                                            chrome.action = mockAction;
+                                            chrome.browserAction = mockAction;
+                                            chrome.runtime = { ...(chrome.runtime || {}), ...mockRuntime };
+                                            chrome.tabs = mockTabs;
+
+                                            ${bgContent}
+
+                                            // Fallback if drawMeasurIt exists and hasn't been invoked
+                                            if (typeof drawMeasurIt === 'function' && !document.getElementById('tslOverlay')) {
+                                                try {
+                                                    drawMeasurIt(defaultChoices);
+                                                } catch (e) {
+                                                    console.error('[InviSurf] drawMeasurIt direct call error:', e);
                                                 }
-                                            },
-                                            setTitle: () => {},
-                                            setIcon: () => {},
-                                            setBadgeText: () => {},
-                                            setBadgeBackgroundColor: () => {}
-                                        };
-
-                                        const chrome = window.chrome || {};
-                                        chrome.storage = { local: createStorageArea(), sync: createStorageArea() };
-                                        chrome.scripting = mockScripting;
-                                        chrome.action = mockAction;
-                                        chrome.browserAction = mockAction;
-                                        chrome.runtime = { ...(chrome.runtime || {}), ...mockRuntime };
-                                        chrome.tabs = mockTabs;
-
-                                        ${bgContent}
-
-                                        // Fallback if drawMeasurIt exists and hasn't been invoked
-                                        if (typeof drawMeasurIt === 'function' && !document.getElementById('tslOverlay')) {
-                                            try {
-                                                drawMeasurIt(defaultChoices);
-                                            } catch (e) {
-                                                console.error('[InviSurf] drawMeasurIt direct call error:', e);
                                             }
+                                        } catch (e) {
+                                            console.error('[InviSurf] Error executing action script:', e);
                                         }
-                                    } catch (e) {
-                                        console.error('[InviSurf] Error executing action script:', e);
-                                    }
-                                })();
-                            `;
-                            await activeTab.webContents.executeJavaScript(injection);
-                            console.log(`[ExtensionController] Injected and executed action script for "${ext.name}" on tab ${activeTabId}`);
+                                    })();
+                                `;
+                                await activeTab.webContents.executeJavaScript(injection);
+                                console.log(`[ExtensionController] Injected and executed action script for "${ext.name}" on tab ${activeTabId}`);
+                            }
                         }
                     }
                 } catch (manifestErr) {
@@ -1309,8 +1478,38 @@ class ExtensionController extends EventEmitter {
                                                     if (ev.source === window && ev.data && ev.data.source === 'invisurf-ext-event') {
                                                         const payload = ev.data.payload;
                                                         if (payload && payload.eventName === 'chrome.runtime.onMessage') {
+                                                            const args = payload.args || [];
+                                                            const callbackId = payload.callbackId || null;
+                                                            let responded = false;
+                                                            let asyncWait = false;
+                                                            const sendResponse = (response) => {
+                                                                if (responded) return;
+                                                                responded = true;
+                                                                if (callbackId) {
+                                                                    window.postMessage({
+                                                                        source: 'invisurf-ext-response',
+                                                                        callbackId,
+                                                                        response
+                                                                    }, '*');
+                                                                }
+                                                            };
                                                             for (const fn of _listeners.slice()) {
-                                                                try { fn(...(payload.args || [])); } catch (e) { console.error(e); }
+                                                                try {
+                                                                    const r = fn(args[0], args[1], sendResponse);
+                                                                    if (r === true) {
+                                                                        asyncWait = true;
+                                                                    } else if (r && typeof r.then === 'function') {
+                                                                        asyncWait = true;
+                                                                        r.then(sendResponse).catch(() => sendResponse(undefined));
+                                                                    }
+                                                                } catch (e) {
+                                                                    console.error(e);
+                                                                }
+                                                            }
+                                                            if (!asyncWait && !responded && callbackId) {
+                                                                setTimeout(() => {
+                                                                    if (!responded) sendResponse(undefined);
+                                                                }, 20);
                                                             }
                                                         }
                                                     }
@@ -1459,6 +1658,19 @@ class ExtensionController extends EventEmitter {
     }
 
     _unloadExtensionCompat(extensionId) {
+        try {
+            const cleanId = sanitizeExtensionId(extensionId);
+            for (const [key, view] of this.backgroundHosts.entries()) {
+                if (key.endsWith(`:${cleanId}`) || key.includes(cleanId)) {
+                    try {
+                        if (!view.webContents.isDestroyed()) {
+                            view.webContents.destroy();
+                        }
+                    } catch (_) {}
+                    this.backgroundHosts.delete(key);
+                }
+            }
+        } catch (_) {}
         try {
             const { getDeclarativeNetRequestManager } = require('./compat/DeclarativeNetRequestManager');
             getDeclarativeNetRequestManager().unloadStaticRulesets(extensionId);
