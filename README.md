@@ -272,3 +272,7 @@ https://www.flaticon.com/search?word=folder&weight=regular&type=uicon
 - InBuilt VPN
 - InBuild AdBlocker
 - Auto-complete menu item fix - show native query instead of url.
+
+
+// Security Audit
+https://github.com/cloudflare/security-audit-skill

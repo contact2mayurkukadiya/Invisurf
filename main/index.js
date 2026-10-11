@@ -101,6 +101,7 @@ app.whenReady().then(async () => {
                 p.avatarSource = profile.avatarSource === 'preset' || profile.avatarSource === 'upload' ? profile.avatarSource : null;
             }
         }
+        profileService.saveProfiles();
     } else {
         profileService.ensureProfile(`profile-${crypto.randomUUID()}`, 'Default');
         profileService.saveProfiles();

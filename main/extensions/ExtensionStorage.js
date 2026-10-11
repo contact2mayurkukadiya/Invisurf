@@ -13,7 +13,11 @@ function safeProfileId(profileId) {
  * Returns safe extension ID string (32 lowercase alphanumeric letters).
  */
 function sanitizeExtensionId(extensionId) {
-    return String(extensionId || '').trim().toLowerCase().replace(/[^a-p0-9]/g, '');
+    const raw = String(extensionId || '').trim().toLowerCase();
+    if (/^[a-p0-9]{32}$/.test(raw)) {
+        return raw;
+    }
+    return raw.replace(/[^a-z0-9_-]/g, '');
 }
 
 function getUserDataPath() {
@@ -348,9 +352,143 @@ function listProfileIds() {
     return [];
 }
 
+/**
+ * Derives the canonical Chrome extension ID from a manifest public key.
+ */
+function deriveExtIdFromKey(pubKeyBase64) {
+    if (!pubKeyBase64 || typeof pubKeyBase64 !== 'string') return null;
+    try {
+        const crypto = require('crypto');
+        const der = Buffer.from(pubKeyBase64, 'base64');
+        const hash = crypto.createHash('sha256').update(der).digest();
+        return hash.subarray(0, 16).toString('hex').split('').map(c => String.fromCharCode(parseInt(c, 16) + 'a'.charCodeAt(0))).join('');
+    } catch (_) {
+        return null;
+    }
+}
+
+/**
+ * Resolves extension metadata by ID or runtimeId across profiles, session extensions, and testing directories.
+ */
+function findExtension(extensionId, preferredProfileId = null) {
+    if (!extensionId) return null;
+    const cleanId = sanitizeExtensionId(extensionId);
+    const State = require('../state');
+
+    // 0. Check active Electron session extensions if available
+    try {
+        const { session } = require('electron');
+        const sessionsToCheck = [];
+        if (session?.defaultSession) sessionsToCheck.push(session.defaultSession);
+        for (const ctx of State.windowContextsById.values()) {
+            if (ctx.partition) {
+                try { sessionsToCheck.push(session.fromPartition(ctx.partition)); } catch (_) {}
+            }
+        }
+        for (const s of sessionsToCheck) {
+            if (s?.extensions) {
+                const loaded = s.extensions.getAllExtensions().find(e =>
+                    e.id === cleanId ||
+                    e.id === extensionId ||
+                    (e.name && sanitizeExtensionId(e.name) === cleanId)
+                );
+                if (loaded && loaded.path && fs.existsSync(loaded.path)) {
+                    const manifestFile = path.join(loaded.path, 'manifest.json');
+                    let manifest = {};
+                    if (fs.existsSync(manifestFile)) {
+                        try { manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf-8')); } catch (_) {}
+                    }
+                    return {
+                        id: loaded.id,
+                        runtimeId: loaded.id,
+                        name: loaded.name || manifest.name || cleanId,
+                        version: loaded.version || manifest.version || '1.0',
+                        path: loaded.path,
+                        manifest,
+                        hasPopup: !!(manifest.action?.default_popup || manifest.browser_action?.default_popup),
+                        popupFile: manifest.action?.default_popup || manifest.browser_action?.default_popup || 'popup.html',
+                    };
+                }
+            }
+        }
+    } catch (_) {}
+
+    // Helper to match state entries
+    const matchState = (state) => {
+        if (!state || typeof state !== 'object') return null;
+        if (state[cleanId]) return state[cleanId];
+        for (const e of Object.values(state)) {
+            if (!e) continue;
+            if (e.id === cleanId || e.runtimeId === cleanId) return e;
+            if (e.manifest?.key && deriveExtIdFromKey(e.manifest.key) === cleanId) return e;
+        }
+        return null;
+    };
+
+    // 1. Check preferred profile if provided
+    if (preferredProfileId) {
+        const match = matchState(readState(preferredProfileId));
+        if (match) return match;
+    }
+
+    // 2. Check default profile
+    if (State.defaultProfileId) {
+        const match = matchState(readState(State.defaultProfileId));
+        if (match) return match;
+    }
+
+    // 3. Search all profiles in User Data
+    const allProfileIds = listProfileIds();
+    for (const pId of allProfileIds) {
+        const match = matchState(readState(pId));
+        if (match) return match;
+    }
+
+    // 4. Fallback search in Testing-Extensions directory
+    try {
+        const testingExtDir = path.join(__dirname, '..', '..', 'Testing-Extensions');
+        if (fs.existsSync(testingExtDir)) {
+            for (const folder of fs.readdirSync(testingExtDir)) {
+                const fullDir = path.join(testingExtDir, folder);
+                const manifestFile = path.join(fullDir, 'manifest.json');
+                if (fs.existsSync(manifestFile)) {
+                    let manifest = {};
+                    try {
+                        manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf-8'));
+                    } catch (_) {
+                        continue;
+                    }
+                    const folderClean = sanitizeExtensionId(folder);
+                    const derivedKeyId = manifest.key ? deriveExtIdFromKey(manifest.key) : null;
+                    const isMatch = folderClean === cleanId ||
+                        folder.toLowerCase() === String(extensionId).toLowerCase() ||
+                        (derivedKeyId && derivedKeyId === cleanId);
+
+                    if (isMatch) {
+                        const finalId = derivedKeyId || cleanId;
+                        return {
+                            id: finalId,
+                            runtimeId: finalId,
+                            name: manifest.name || folder,
+                            version: manifest.version || '1.0',
+                            path: fullDir,
+                            manifest,
+                            hasPopup: !!(manifest.action?.default_popup || manifest.browser_action?.default_popup),
+                            popupFile: manifest.action?.default_popup || manifest.browser_action?.default_popup || 'popup.html',
+                        };
+                    }
+                }
+            }
+        }
+    } catch (_) {}
+
+    return null;
+}
+
 module.exports = {
     safeProfileId,
     sanitizeExtensionId,
+    deriveExtIdFromKey,
     getProfileExtensionsDir,
     getStagingDir,
     getStateFilePath,
@@ -362,4 +500,5 @@ module.exports = {
     deleteExtensionFiles,
     cleanStaging,
     listProfileIds,
+    findExtension,
 };

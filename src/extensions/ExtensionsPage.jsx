@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import './ExtensionsPage.css';
 import { useChromeTheme } from '../hooks/useChromeTheme';
 import { useInvsurfDocumentFavicon } from '../hooks/useInvsurfLogoFavicon';
+import ExtensionErrorModal from './ExtensionErrorModal';
 
 export default function ExtensionsPage() {
   useChromeTheme();
@@ -13,6 +14,7 @@ export default function ExtensionsPage() {
   const [devMode, setDevMode] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeDetailsExt, setActiveDetailsExt] = useState(null);
+  const [activeErrorExt, setActiveErrorExt] = useState(null);
   const [confirmUninstallExt, setConfirmUninstallExt] = useState(null);
   const [copiedId, setCopiedId] = useState(false);
 
@@ -32,17 +34,21 @@ export default function ExtensionsPage() {
   useEffect(() => {
     loadExtensions();
 
-    if (window.extensionAPI?.onExtensionsUpdated) {
-      const unsubscribe = window.extensionAPI.onExtensionsUpdated(() => {
-        loadExtensions();
-      });
-      return () => {
-        if (typeof unsubscribe === 'function') unsubscribe();
-      };
-    }
+    const unsubUpdates = window.extensionAPI?.onExtensionsUpdated?.(() => {
+      loadExtensions();
+    });
+
+    const unsubErrors = window.extensionAPI?.onErrorsUpdated?.(() => {
+      loadExtensions();
+    });
+
+    return () => {
+      if (typeof unsubUpdates === 'function') unsubUpdates();
+      if (typeof unsubErrors === 'function') unsubErrors();
+    };
   }, [loadExtensions]);
 
-  // Keep details modal in sync with extension updates
+  // Keep details and error modals in sync with extension updates
   useEffect(() => {
     if (activeDetailsExt) {
       const current = extensions.find((e) => e.id === activeDetailsExt.id);
@@ -50,7 +56,13 @@ export default function ExtensionsPage() {
         setActiveDetailsExt(current);
       }
     }
-  }, [extensions, activeDetailsExt]);
+    if (activeErrorExt) {
+      const current = extensions.find((e) => e.id === activeErrorExt.id);
+      if (current) {
+        setActiveErrorExt(current);
+      }
+    }
+  }, [extensions, activeDetailsExt, activeErrorExt]);
 
   const handleToggle = async (extId) => {
     try {
@@ -383,6 +395,31 @@ export default function ExtensionsPage() {
                   {/* Card Bottom Actions */}
                   <div className="extension-card__bottom">
                     <div className="extension-card__actions">
+                      {ext.hasErrors && (
+                        <button
+                          type="button"
+                          className="extension-btn-errors"
+                          onClick={() => setActiveErrorExt(ext)}
+                          title={`${ext.errorCount} error${ext.errorCount > 1 ? 's' : ''} reported`}
+                        >
+                          <svg
+                            width="13"
+                            height="13"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            style={{ flexShrink: 0 }}
+                          >
+                            <circle cx="12" cy="12" r="10" />
+                            <line x1="12" y1="8" x2="12" y2="12" />
+                            <line x1="12" y1="16" x2="12.01" y2="16" />
+                          </svg>
+                          Errors ({ext.errorCount})
+                        </button>
+                      )}
                       <button
                         type="button"
                         className="extension-btn-secondary"
@@ -685,6 +722,15 @@ export default function ExtensionsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Error Inspector Modal ─────────────────────────────── */}
+      {activeErrorExt && (
+        <ExtensionErrorModal
+          extension={activeErrorExt}
+          onClose={() => setActiveErrorExt(null)}
+          onErrorsCleared={loadExtensions}
+        />
       )}
     </div>
   );

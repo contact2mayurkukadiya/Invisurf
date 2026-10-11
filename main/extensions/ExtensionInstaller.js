@@ -428,6 +428,12 @@ function ensureExtensionPolyfills(extractDir, explicitExtId = null) {
     try {
         const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
         let extId = explicitExtId;
+        if (!extId && manifest.key) {
+            try {
+                const ExtensionStorage = require('./ExtensionStorage');
+                extId = ExtensionStorage.deriveExtIdFromKey(manifest.key);
+            } catch (_) {}
+        }
         if (!extId || /^\d+(\.\d+)*$/.test(extId) || extId === 'latest') {
             const parentDir = path.basename(path.dirname(extractDir));
             if (parentDir && parentDir !== 'Extensions' && parentDir !== 'staging' && parentDir.length >= 10) {
@@ -526,6 +532,31 @@ function ensureExtensionPolyfills(extractDir, explicitExtId = null) {
                     fs.writeFileSync(scriptPath, newContent, 'utf-8');
                     console.log(`[ExtensionInstaller] Applied runtime polyfill (${extId}) to ${scriptPath}`);
                 }
+            }
+        }
+
+        if (manifest.background?.service_worker) {
+            const bgHtmlPath = path.join(extractDir, '_invisurf_background_page.html');
+            const workerScript = manifest.background.service_worker.replace(/^\/+/, '');
+            const isModule = manifest.background.type === 'module';
+            const scriptTag = isModule
+                ? `<script type="module" src="${workerScript}"></script>`
+                : `<script src="${workerScript}"></script>`;
+            const bgHtmlContent = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>InviSurf Extension Background Host</title>
+</head>
+<body>
+    ${scriptTag}
+</body>
+</html>`;
+            try {
+                fs.writeFileSync(bgHtmlPath, bgHtmlContent, 'utf-8');
+                console.log(`[ExtensionInstaller] Generated MV3 background host page for ${extId}`);
+            } catch (err) {
+                console.warn(`[ExtensionInstaller] Failed to write background host page for ${extId}:`, err?.message || err);
             }
         }
     } catch (err) {

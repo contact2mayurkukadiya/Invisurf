@@ -22,6 +22,10 @@ const { getOffscreenManager } = require('./OffscreenManager');
 const { getOmniboxManager } = require('./OmniboxManager');
 const { getMediaCaptureManager } = require('./MediaCaptureManager');
 const { getSessionManager } = require('./SessionManager');
+const { getProxyManager } = require('./ProxyManager');
+const { getBrowsingDataManager } = require('./BrowsingDataManager');
+const { getIdleManager } = require('./IdleManager');
+const { getPowerManager } = require('./PowerManager');
 const ExtensionStorage = require('../ExtensionStorage');
 
 /**
@@ -55,6 +59,12 @@ class IpcBridge {
          * Active connected ports: Map<portId, PortInfo>
          */
         this.activePorts = new Map();
+
+        /**
+         * Pending response resolvers for runtime.sendMessage:
+         * Map<messageId, (response) => void>
+         */
+        this.pendingMessageResolvers = new Map();
 
         this.initialized = false;
         this.keepAliveInterval = null;
@@ -169,6 +179,19 @@ class IpcBridge {
         // Forward sessions onChanged events
         getSessionManager().on('sessions-changed', () => {
             this.broadcastToAllExtensions('chrome.sessions.onChanged', []);
+        });
+
+        // Forward proxy events
+        getProxyManager().on('proxy-changed', ({ profileId, extensionId, config }) => {
+            this.broadcastToAllExtensions('chrome.proxy.settings.onChange', [{ value: config, levelOfControl: 'controlled_by_this_extension' }]);
+        });
+        getProxyManager().on('proxy-error', ({ profileId, extensionId, error }) => {
+            this.broadcastEvent(extensionId, 'chrome.proxy.onProxyError', [{ fatal: true, error, details: error }]);
+        });
+
+        // Forward idle state change events
+        getIdleManager().on('idle-state-changed', ({ extensionId, newState }) => {
+            this.broadcastEvent(extensionId, 'chrome.idle.onStateChanged', [newState]);
         });
     }
 
@@ -374,12 +397,38 @@ class IpcBridge {
      * Registers ipcMain handler for renderers (popups, options, content scripts).
      */
     _registerIpcMainHandler() {
+        ipcMain.on('invisurf-ext-get-manifest', (event, extensionId) => {
+            try {
+                const ext = ExtensionStorage.findExtension(extensionId);
+                if (ext?.manifest) {
+                    event.returnValue = ext.manifest;
+                    return;
+                }
+                if (ext?.path) {
+                    const manifestPath = path.join(ext.path, 'manifest.json');
+                    if (fs.existsSync(manifestPath)) {
+                        event.returnValue = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+                        return;
+                    }
+                }
+            } catch (_) {}
+            event.returnValue = {};
+        });
+
         ipcMain.handle('invisurf-ext-api', async (event, { method, args, extensionId, profileId } = {}) => {
             const senderWc = event.sender;
             const senderTabId = senderWc ? senderWc.id : null;
 
             // Resolve context & profile from sender
-            const resolvedProfile = profileId || State.defaultProfileId;
+            let resolvedProfile = profileId;
+            if (!resolvedProfile && senderWc) {
+                try {
+                    const { getWindowContextByEventSender } = require('../../windows/windowContextUtils');
+                    const senderCtx = getWindowContextByEventSender(senderWc);
+                    if (senderCtx?.profileId) resolvedProfile = senderCtx.profileId;
+                } catch (_) {}
+            }
+            if (!resolvedProfile) resolvedProfile = State.defaultProfileId;
 
             return this.dispatch(method, args, {
                 extensionId,
@@ -393,36 +442,74 @@ class IpcBridge {
     /**
      * Broadcasts an event to an extension's service worker, popups, and tab content scripts.
      */
-    broadcastEvent(extensionId, eventName, args = []) {
-        const cleanId = ExtensionStorage.sanitizeExtensionId(extensionId);
-        const eventPayload = { eventName, args, timestamp: Date.now() };
+    broadcastEvent(extensionId, eventName, args = [], extraMeta = {}) {
+        let cleanId = ExtensionStorage.sanitizeExtensionId(extensionId);
+        let runtimeId = null;
+
+        // Resolve runtimeId and canonical ext.id if they differ
+        try {
+            const extState = ExtensionStorage.readState(State.defaultProfileId);
+            if (extState) {
+                const ext = extState[cleanId] || Object.values(extState).find(e => e && (e.id === cleanId || e.runtimeId === cleanId));
+                if (ext?.runtimeId) runtimeId = ExtensionStorage.sanitizeExtensionId(ext.runtimeId);
+                if (ext?.id) cleanId = ExtensionStorage.sanitizeExtensionId(ext.id);
+            }
+        } catch (_) {}
+
+        const extObj = ExtensionStorage.findExtension(cleanId);
+        const knownIds = new Set([cleanId, String(extensionId || '').toLowerCase()]);
+        if (runtimeId) knownIds.add(runtimeId);
+        if (extObj?.id) knownIds.add(ExtensionStorage.sanitizeExtensionId(extObj.id));
+        if (extObj?.runtimeId) knownIds.add(ExtensionStorage.sanitizeExtensionId(extObj.runtimeId));
+        if (extObj?.manifest?.key) {
+            const derived = ExtensionStorage.deriveExtIdFromKey(extObj.manifest.key);
+            if (derived) knownIds.add(derived);
+        }
+
+        const eventPayload = {
+            eventName,
+            args,
+            targetExtId: cleanId,
+            extensionId: cleanId,
+            messageId: extraMeta.messageId || null,
+            timestamp: Date.now(),
+        };
 
         // 1. Deliver to Service Worker via active streaming response (0% CPU push)
-        const streams = this.activeStreams.get(cleanId);
+        const checkStreamKeys = Array.from(knownIds).filter(Boolean);
         let deliveredToStream = false;
-        if (streams && streams.size > 0) {
-            const encoder = new TextEncoder();
-            const chunk = encoder.encode(JSON.stringify(eventPayload) + '\n');
-            for (const controller of [...streams]) {
-                try {
-                    controller.enqueue(chunk);
-                    deliveredToStream = true;
-                } catch (err) {
-                    streams.delete(controller);
+        for (const k of checkStreamKeys) {
+            const streams = this.activeStreams.get(k);
+            if (streams && streams.size > 0) {
+                const encoder = new TextEncoder();
+                const chunk = encoder.encode(JSON.stringify(eventPayload) + '\n');
+                for (const controller of [...streams]) {
+                    try {
+                        controller.enqueue(chunk);
+                        deliveredToStream = true;
+                    } catch (err) {
+                        streams.delete(controller);
+                    }
                 }
-            }
-            if (streams.size === 0) {
-                this.activeStreams.delete(cleanId);
+                if (streams.size === 0) {
+                    this.activeStreams.delete(k);
+                }
             }
         }
 
         // 2. Deliver via legacy long-polling or buffer in queue
         if (!deliveredToStream) {
-            const pollers = this.pendingPolls.get(cleanId);
-            if (pollers && pollers.length > 0) {
-                const resolver = pollers.shift();
-                resolver([eventPayload]);
-            } else {
+            let deliveredToPoll = false;
+            for (const k of checkStreamKeys) {
+                const pollers = this.pendingPolls.get(k);
+                if (pollers && pollers.length > 0) {
+                    const resolver = pollers.shift();
+                    resolver([eventPayload]);
+                    deliveredToPoll = true;
+                    break;
+                }
+            }
+            if (!deliveredToPoll) {
                 if (!this.queuedEvents.has(cleanId)) {
                     this.queuedEvents.set(cleanId, []);
                 }
@@ -433,15 +520,51 @@ class IpcBridge {
             }
         }
 
-        // 2. Deliver to any active WebContents for this extension (popups, background page, options)
+        // Track delivered WebContents IDs to prevent duplicate event dispatching
+        const deliveredWcIds = new Set();
+        if (extraMeta.senderWcId) {
+            deliveredWcIds.add(extraMeta.senderWcId);
+        }
+
+        // 3. Deliver to active extension popups directly
+        for (const ctx of State.windowContextsById.values()) {
+            const popupView = ctx.activeExtensionPopup?.view;
+            if (popupView && !popupView.webContents.isDestroyed()) {
+                const wcId = popupView.webContents.id;
+                if (deliveredWcIds.has(wcId)) continue;
+                const popupExtId = ExtensionStorage.sanitizeExtensionId(ctx.activeExtensionPopup.extensionId);
+                const popupObj = ExtensionStorage.findExtension(popupExtId);
+                const popupDerived = popupObj?.manifest?.key ? ExtensionStorage.deriveExtIdFromKey(popupObj.manifest.key) : null;
+                const matchesPopup = knownIds.has(popupExtId) ||
+                    (popupDerived && knownIds.has(popupDerived)) ||
+                    (popupObj?.id && knownIds.has(ExtensionStorage.sanitizeExtensionId(popupObj.id)));
+                if (matchesPopup) {
+                    try {
+                        deliveredWcIds.add(wcId);
+                        popupView.webContents.send('invisurf-ext-event', eventPayload);
+                    } catch (_) {}
+                }
+            }
+        }
+
+        // 4. Deliver to any active WebContents for this extension (popups, background page, options)
         try {
             const allWc = typeof webContents?.getAllWebContents === 'function' ? webContents.getAllWebContents() : [];
             if (Array.isArray(allWc)) {
                 for (const wc of allWc) {
                     try {
                         if (!wc || wc.isDestroyed()) continue;
+                        if (deliveredWcIds.has(wc.id)) continue;
                         const url = wc.getURL() || '';
-                        if (url.includes(`chrome-extension://${cleanId}`)) {
+                        let isMatch = false;
+                        for (const kid of knownIds) {
+                            if (url.includes(`chrome-extension://${kid}`)) {
+                                isMatch = true;
+                                break;
+                            }
+                        }
+                        if (isMatch) {
+                            deliveredWcIds.add(wc.id);
                             wc.send('invisurf-ext-event', eventPayload);
                         }
                     } catch (_) {}
@@ -485,11 +608,11 @@ class IpcBridge {
         const cleanExtId = ExtensionStorage.sanitizeExtensionId(extensionId);
 
         // Resolve extension path
-        const extState = ExtensionStorage.readState(pId);
-        const extMeta = extState[cleanExtId] || null;
+        const extMeta = ExtensionStorage.findExtension(cleanExtId, pId);
         let extensionPath = extMeta?.path || null;
         if (!extensionPath) {
-            const ext = Object.values(extState).find(e => e && (e.id === cleanExtId || e.runtimeId === cleanExtId));
+            const extState = ExtensionStorage.readState(pId);
+            const ext = extState[cleanExtId] || Object.values(extState).find(e => e && (e.id === cleanExtId || e.runtimeId === cleanExtId));
             if (ext?.path) extensionPath = ext.path;
         }
 
@@ -506,6 +629,17 @@ class IpcBridge {
             case 'debug.log':
                 console.log('[DEBUG-EXT content-script]:', args?.msg || args);
                 return { success: true };
+
+            case 'error.report': {
+                try {
+                    const { getExtensionErrorManager } = require('../ExtensionErrorManager');
+                    const record = getExtensionErrorManager().reportError(cleanExtId, args);
+                    return { success: !!record };
+                } catch (err) {
+                    console.warn('[IpcBridge] Error reporting failure:', err?.message || err);
+                    return { success: false };
+                }
+            }
 
             // ==================== STORAGE ====================
             case 'storage.get':
@@ -538,10 +672,10 @@ class IpcBridge {
                 return tabReg.getCurrent(senderTabId);
 
             case 'tabs.create':
-                return tabReg.create(args.createProperties || {}, sender);
+                return tabReg.create(args.createProperties || {}, { ...sender, extensionId: cleanExtId });
 
             case 'tabs.update':
-                return tabReg.update(args.tabId, args.updateProperties || {});
+                return tabReg.update(args.tabId, args.updateProperties || {}, { ...sender, extensionId: cleanExtId });
 
             case 'tabs.remove':
                 return tabReg.remove(args.tabIds);
@@ -607,7 +741,7 @@ class IpcBridge {
                 return tabReg.duplicate(args.tabId, sender);
 
             case 'tabs.captureVisibleTab':
-                return tabReg.captureVisibleTab(null, args.windowId, args.options);
+                return tabReg.captureVisibleTab(sender, args.windowId, args.options);
 
             case 'tabs.getZoom':
                 return tabReg.getZoom(args.tabId);
@@ -756,6 +890,7 @@ class IpcBridge {
             case 'runtime.sendMessage': {
                 const targetId = args.targetExtId || cleanExtId;
                 const message = args.message;
+                const messageId = args.messageId || ('msg_' + Date.now() + '_' + Math.random().toString(36).slice(2));
                 const rawTabId = args.tabId || senderTabId;
                 const effectiveTabId = (rawTabId && Number(rawTabId) > 0) ? rawTabId : tabReg.getActiveTab()?.id;
                 const senderTab = effectiveTabId ? await tabReg.get(effectiveTabId).catch(() => null) : null;
@@ -765,11 +900,36 @@ class IpcBridge {
                     tab: senderTab || (effectiveTabId ? { id: Number(effectiveTabId), url: (effectiveTabId ? (await tabReg.get(effectiveTabId).catch(() => null))?.url : '') || '' } : null),
                 };
 
-                console.log(`[DEBUG-EXT] IpcBridge runtime.sendMessage: target=${targetId} fromTab=${effectiveTabId} msgSource=${message?.source} msgType=${message?.payload?.type} senderTabId=${senderObj?.tab?.id}`);
+                const responsePromise = new Promise((resolve) => {
+                    const timer = setTimeout(() => {
+                        if (this.pendingMessageResolvers.has(messageId)) {
+                            this.pendingMessageResolvers.delete(messageId);
+                            resolve(undefined);
+                        }
+                    }, 10000);
 
-                // Dispatch to the extension's worker and pages
-                this.broadcastEvent(targetId, 'chrome.runtime.onMessage', [message, senderObj]);
-                return { success: true };
+                    this.pendingMessageResolvers.set(messageId, (responsePayload) => {
+                        clearTimeout(timer);
+                        this.pendingMessageResolvers.delete(messageId);
+                        resolve(responsePayload);
+                    });
+                });
+
+                // Dispatch to the extension's worker and pages (excluding the sender WebContents)
+                const senderWcId = sender?.senderWebContents?.id || null;
+                this.broadcastEvent(targetId, 'chrome.runtime.onMessage', [message, senderObj], { messageId, senderWcId });
+
+                return await responsePromise;
+            }
+
+            case 'runtime.sendResponse': {
+                const { messageId, response } = args || {};
+                if (messageId && this.pendingMessageResolvers.has(messageId)) {
+                    const resolver = this.pendingMessageResolvers.get(messageId);
+                    resolver(response);
+                    return { success: true };
+                }
+                return { success: false };
             }
 
             case 'runtime.connect': {
@@ -783,6 +943,11 @@ class IpcBridge {
                     url: senderTab ? senderTab.url : (effectiveTabId ? (await tabReg.get(effectiveTabId).catch(() => null))?.url : `chrome-extension://${cleanExtId}/`),
                     tab: senderTab || (effectiveTabId ? { id: Number(effectiveTabId), url: (effectiveTabId ? (await tabReg.get(effectiveTabId).catch(() => null))?.url : '') || '' } : null),
                 };
+                if (senderObj.tab && (!senderObj.tab.width || !senderObj.tab.height)) {
+                    const activeT = tabReg.getActiveTab();
+                    senderObj.tab.width = senderObj.tab.width || activeT?.width || 1280;
+                    senderObj.tab.height = senderObj.tab.height || activeT?.height || 800;
+                }
                 this.activePorts.set(portId, {
                     portId,
                     name: args.name || '',
@@ -925,6 +1090,72 @@ class IpcBridge {
                 return [];
             }
 
+            // ==================== WEB NAVIGATION ====================
+            case 'webNavigation.getAllFrames': {
+                const { tabId } = args;
+                const resolved = tabReg.resolveTab(tabId);
+                if (!resolved?.webContents || resolved.webContents.isDestroyed()) {
+                    return [];
+                }
+                const wc = resolved.webContents;
+                const main = wc.mainFrame;
+                if (!main) {
+                    return [{ frameId: 0, parentFrameId: -1, url: wc.getURL() || '', errorOccurred: false }];
+                }
+                const framesInSubtree = main.framesInSubtree || [main];
+                const frameList = [];
+                let nextFrameId = 1;
+                const frameIdMap = new Map();
+                frameIdMap.set(main, 0);
+
+                for (const f of framesInSubtree) {
+                    if (f !== main) {
+                        const fId = f.routingId || nextFrameId++;
+                        frameIdMap.set(f, fId);
+                    }
+                }
+
+                for (const f of framesInSubtree) {
+                    const isMain = f === main;
+                    const fId = frameIdMap.get(f) ?? 0;
+                    const parentId = isMain ? -1 : (f.parent ? (frameIdMap.get(f.parent) ?? 0) : 0);
+                    frameList.push({
+                        frameId: fId,
+                        parentFrameId: parentId,
+                        url: f.url || (isMain ? wc.getURL() || '' : ''),
+                        errorOccurred: false,
+                    });
+                }
+                return frameList;
+            }
+
+            case 'webNavigation.getFrame': {
+                const { tabId, frameId } = args;
+                const resolved = tabReg.resolveTab(tabId);
+                if (!resolved?.webContents || resolved.webContents.isDestroyed()) {
+                    return null;
+                }
+                const wc = resolved.webContents;
+                const main = wc.mainFrame;
+                if (!main) return null;
+                const targetFrameId = Number(frameId) || 0;
+                if (targetFrameId === 0) {
+                    return { frameId: 0, parentFrameId: -1, url: main.url || wc.getURL() || '', errorOccurred: false };
+                }
+                const framesInSubtree = main.framesInSubtree || [];
+                for (const f of framesInSubtree) {
+                    if (f.routingId === targetFrameId) {
+                        return {
+                            frameId: targetFrameId,
+                            parentFrameId: f.parent ? 0 : -1,
+                            url: f.url || '',
+                            errorOccurred: false,
+                        };
+                    }
+                }
+                return null;
+            }
+
             // ==================== DOWNLOADS ====================
             case 'downloads.download': {
                 const session = State.windowContextsById.values().next().value?.partition ?
@@ -994,7 +1225,7 @@ class IpcBridge {
             case 'windows.getAll':
                 return getWindowManager().getAll(args.queryOptions);
             case 'windows.create':
-                return getWindowManager().create(args.createData, sender);
+                return getWindowManager().create(args.createData, { ...sender, extensionId: cleanExtId });
             case 'windows.update':
                 return getWindowManager().update(args.windowId, args.updateInfo);
             case 'windows.remove':
@@ -1152,6 +1383,60 @@ class IpcBridge {
                 }
                 return { screen: screenStatus };
             }
+
+            // ==================== PROXY ====================
+            case 'proxy.settings.get':
+                return getProxyManager().get(pId, args);
+            case 'proxy.settings.set':
+                return getProxyManager().set(pId, cleanExtId, args);
+            case 'proxy.settings.clear':
+                return getProxyManager().clear(pId, cleanExtId, args);
+
+            // ==================== BROWSING DATA ====================
+            case 'browsingData.settings':
+                return getBrowsingDataManager().settings();
+            case 'browsingData.remove':
+                return getBrowsingDataManager().remove(pId, args.options, args.dataToRemove);
+            case 'browsingData.removeAppcache':
+                return getBrowsingDataManager().removeAppcache(pId, args.options);
+            case 'browsingData.removeCache':
+                return getBrowsingDataManager().removeCache(pId, args.options);
+            case 'browsingData.removeCookies':
+                return getBrowsingDataManager().removeCookies(pId, args.options);
+            case 'browsingData.removeDownloads':
+                return getBrowsingDataManager().removeDownloads(pId, args.options);
+            case 'browsingData.removeFileSystems':
+                return getBrowsingDataManager().removeFileSystems(pId, args.options);
+            case 'browsingData.removeFormData':
+                return getBrowsingDataManager().removeFormData(pId, args.options);
+            case 'browsingData.removeHistory':
+                return getBrowsingDataManager().removeHistory(pId, args.options);
+            case 'browsingData.removeIndexedDB':
+                return getBrowsingDataManager().removeIndexedDB(pId, args.options);
+            case 'browsingData.removeLocalStorage':
+                return getBrowsingDataManager().removeLocalStorage(pId, args.options);
+            case 'browsingData.removePasswords':
+                return getBrowsingDataManager().removePasswords(pId, args.options);
+            case 'browsingData.removePluginData':
+                return getBrowsingDataManager().removePluginData(pId, args.options);
+            case 'browsingData.removeServiceWorkers':
+                return getBrowsingDataManager().removeServiceWorkers(pId, args.options);
+            case 'browsingData.removeWebSQL':
+                return getBrowsingDataManager().removeWebSQL(pId, args.options);
+
+            // ==================== IDLE ====================
+            case 'idle.queryState':
+                return getIdleManager().queryState(cleanExtId, args.detectionIntervalInSeconds);
+            case 'idle.setDetectionInterval':
+                return getIdleManager().setDetectionInterval(cleanExtId, args.intervalInSeconds);
+            case 'idle.getAutoLockDelay':
+                return getIdleManager().getAutoLockDelay();
+
+            // ==================== POWER ====================
+            case 'power.requestKeepAwake':
+                return getPowerManager().requestKeepAwake(cleanExtId, args.level);
+            case 'power.releaseKeepAwake':
+                return getPowerManager().releaseKeepAwake(cleanExtId);
 
             default:
                 console.warn(`[IpcBridge] Unhandled method: ${method}`);

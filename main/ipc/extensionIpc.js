@@ -289,6 +289,36 @@ function registerExtensionIpcHandlers() {
         return controller.openOptionsPage(targetProfile, extensionId, context);
     });
 
+    // 16. Get extension error records (ONLY callable by trusted InviSurf UI)
+    ipcMain.handle('extensions:get-errors', async (event, { extensionId } = {}) => {
+        if (!isTrustedShellSender(event)) return [];
+        const { getExtensionErrorManager } = require('../extensions/ExtensionErrorManager');
+        return getExtensionErrorManager().getErrors(extensionId);
+    });
+
+    // 17. Clear all errors for an extension
+    ipcMain.handle('extensions:clear-errors', async (event, { extensionId } = {}) => {
+        if (!isTrustedShellSender(event)) return { success: false };
+        const { getExtensionErrorManager } = require('../extensions/ExtensionErrorManager');
+        getExtensionErrorManager().clearErrors(extensionId);
+        return { success: true };
+    });
+
+    // 18. Clear single error by ID
+    ipcMain.handle('extensions:clear-error', async (event, { extensionId, errorId } = {}) => {
+        if (!isTrustedShellSender(event)) return { success: false };
+        const { getExtensionErrorManager } = require('../extensions/ExtensionErrorManager');
+        const success = getExtensionErrorManager().clearError(extensionId, errorId);
+        return { success };
+    });
+
+    // 19. Get source code snippet around failing line
+    ipcMain.handle('extensions:get-code-snippet', async (event, { extensionId, source, lineno } = {}) => {
+        if (!isTrustedShellSender(event)) return { error: 'Unauthorized' };
+        const { getExtensionErrorManager } = require('../extensions/ExtensionErrorManager');
+        return getExtensionErrorManager().getCodeSnippet(extensionId, source, lineno);
+    });
+
     // Forward updates to renderer windows
     controller.on('extensions-updated', ({ profileId }) => {
         for (const ctx of State.windowContextsById.values()) {

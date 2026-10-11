@@ -14,7 +14,7 @@ class TabRegistry {
     resolveTab(tabId) {
         let stringTabId = null;
         let numericId = Number(tabId);
-        if (numericId === -1 || numericId === 0) {
+        if (numericId === -1 || numericId === 0 || tabId === undefined || tabId === null || isNaN(numericId)) {
             const active = this.getActiveTab();
             if (active && active.id) {
                 numericId = active.id;
@@ -102,14 +102,25 @@ class TabRegistry {
         try {
             if (view && typeof view.getBounds === 'function') {
                 const b = view.getBounds();
-                width = b.width;
-                height = b.height;
-            } else if (context?.window) {
+                width = b?.width || 0;
+                height = b?.height || 0;
+            }
+            if ((!width || !height) && context?.window && typeof context.window.getContentBounds === 'function') {
                 const b = context.window.getContentBounds();
-                width = b.width;
-                height = b.height;
+                width = width || b?.width || 0;
+                height = height || b?.height || 0;
+            }
+            if ((!width || !height) && context?.window && typeof context.window.getBounds === 'function') {
+                const b = context.window.getBounds();
+                width = width || b?.width || 0;
+                height = height || b?.height || 0;
             }
         } catch (_) {}
+
+        if (!width || !height) {
+            width = width || 1280;
+            height = height || 800;
+        }
 
         let tabIndex = 0;
         if (context && Array.isArray(context.tabOrder) && stringTabId) {
@@ -280,11 +291,20 @@ class TabRegistry {
     }
 
     /**
-     * chrome.tabs.create(createProperties)
+     * chrome.tabs.create(createProperties, senderContext)
      */
     async create(createProperties = {}, senderContext = null) {
         const tabManager = require('../../windows/tabManager');
-        const url = createProperties.url || 'about:blank';
+        let extensionId = senderContext?.extensionId || null;
+        if (!extensionId && senderContext?.senderWebContents && !senderContext.senderWebContents.isDestroyed()) {
+            try {
+                const { getExtensionIdFromUrl } = require('../ExtensionSecurity');
+                extensionId = getExtensionIdFromUrl(senderContext.senderWebContents.getURL());
+            } catch (_) {}
+        }
+
+        const { resolveExtensionNavigationUrl } = require('../ExtensionSecurity');
+        const resolvedUrl = resolveExtensionNavigationUrl(createProperties.url, extensionId);
         const activate = createProperties.active !== false;
 
         let ctx = null;
@@ -312,8 +332,6 @@ class TabRegistry {
 
         const newTabId = tabManager.generateTabId();
         const stealthTab = !!ctx.stealthWindow;
-        const { resolveTabLoadUrl } = require('../../utils/navigation');
-        const resolvedUrl = resolveTabLoadUrl(url);
 
         tabManager.createTab(ctx, newTabId, resolvedUrl, stealthTab, { activate });
 
@@ -330,9 +348,9 @@ class TabRegistry {
     }
 
     /**
-     * chrome.tabs.update(tabId, updateProperties)
+     * chrome.tabs.update(tabId, updateProperties, senderContext)
      */
-    async update(tabId, updateProperties = {}) {
+    async update(tabId, updateProperties = {}, senderContext = null) {
         let resolved = tabId ? this.resolveTab(tabId) : null;
         if (!resolved) {
             const active = this.getActiveTab();
@@ -347,7 +365,16 @@ class TabRegistry {
         const tabManager = require('../../windows/tabManager');
 
         if (updateProperties.url) {
-            wc.loadURL(updateProperties.url).catch(() => {});
+            let extensionId = senderContext?.extensionId || null;
+            if (!extensionId && senderContext?.senderWebContents && !senderContext.senderWebContents.isDestroyed()) {
+                try {
+                    const { getExtensionIdFromUrl } = require('../ExtensionSecurity');
+                    extensionId = getExtensionIdFromUrl(senderContext.senderWebContents.getURL());
+                } catch (_) {}
+            }
+            const { resolveExtensionNavigationUrl } = require('../ExtensionSecurity');
+            const resolvedUrl = resolveExtensionNavigationUrl(updateProperties.url, extensionId);
+            wc.loadURL(resolvedUrl).catch(() => {});
         }
 
         const shouldActivate = updateProperties.active || updateProperties.selected || updateProperties.highlighted;
@@ -417,6 +444,12 @@ class TabRegistry {
      * chrome.tabs.sendMessage(tabId, message, options)
      */
     async sendMessage(tabId, message, options = {}, sender = {}) {
+        if (message && typeof message === 'object') {
+            if (message.msg === 'scrollPage' || message.msg === 'capture' || message.msg === 'checkExists') {
+                this.lastCaptureTime = Date.now();
+            }
+        }
+
         const resolved = this.resolveTab(tabId);
         if (!resolved?.webContents || resolved.webContents.isDestroyed()) {
             throw new Error(`Could not establish connection. Receiving end does not exist (tabId ${tabId}).`);
@@ -432,15 +465,31 @@ class TabRegistry {
                         const msg = ${JSON.stringify(message)};
                         const sender = ${JSON.stringify(sender)};
                         let responded = false;
+                        let safetyTimer = null;
                         const sendResponse = (res) => {
                             if (responded) return;
                             responded = true;
+                            if (safetyTimer) {
+                                clearTimeout(safetyTimer);
+                                safetyTimer = null;
+                            }
                             resolve(res);
                         };
 
-                        if (window.chrome?.runtime?.onMessage?._listeners?.length) {
+                        safetyTimer = setTimeout(() => {
+                            if (!responded) {
+                                responded = true;
+                                resolve(undefined);
+                            }
+                        }, 3000);
+
+                        const targetExtId = sender?.id ? String(sender.id).toLowerCase() : null;
+                        const extListeners = (targetExtId && window.__invisurf_ext_listeners) ? window.__invisurf_ext_listeners[targetExtId] : null;
+                        const activeListeners = (extListeners && extListeners.length > 0) ? extListeners : (window.chrome?.runtime?.onMessage?._listeners || []);
+
+                        if (activeListeners.length) {
                             let asyncWait = false;
-                            for (const fn of window.chrome.runtime.onMessage._listeners) {
+                            for (const fn of activeListeners.slice()) {
                                 try {
                                     const r = fn(msg, sender, sendResponse);
                                     if (r === true || (r && typeof r.then === 'function')) {
@@ -451,8 +500,16 @@ class TabRegistry {
                                     }
                                 } catch (_) {}
                             }
-                            if (!asyncWait) setTimeout(() => resolve(undefined), 50);
+                            if (!asyncWait && !responded) {
+                                setTimeout(() => {
+                                    if (!responded) sendResponse(undefined);
+                                }, 50);
+                            }
                         } else {
+                            if (!window.chrome?.runtime?.onMessage && !extListeners) {
+                                sendResponse(undefined);
+                                return;
+                            }
                             const cbId = 'cb_' + Date.now() + '_' + Math.random().toString(36).slice(2);
                             const onResp = (ev) => {
                                 if (ev.source === window && ev.data && ev.data.source === 'invisurf-ext-response' && ev.data.callbackId === cbId) {
@@ -461,18 +518,19 @@ class TabRegistry {
                                 }
                             };
                             window.addEventListener('message', onResp);
+                            setTimeout(() => {
+                                window.removeEventListener('message', onResp);
+                                if (!responded) sendResponse(undefined);
+                            }, 35);
                             window.postMessage({
                                 source: 'invisurf-ext-event',
                                 payload: {
                                     eventName: 'chrome.runtime.onMessage',
+                                    targetExtId,
                                     args: [msg, sender],
                                     callbackId: cbId
                                 }
                             }, '*');
-                            setTimeout(() => {
-                                window.removeEventListener('message', onResp);
-                                if (!responded) resolve(undefined);
-                            }, 5000);
                         }
                     } catch (e) {
                         resolve(undefined);
@@ -482,6 +540,20 @@ class TabRegistry {
         `;
 
         try {
+            let targetFrame = wc.mainFrame;
+            if (options?.frameId && options.frameId > 0 && targetFrame?.framesInSubtree) {
+                let nextId = 1;
+                for (const f of targetFrame.framesInSubtree) {
+                    const fId = f.routingId || nextId++;
+                    if (fId === options.frameId) {
+                        targetFrame = f;
+                        break;
+                    }
+                }
+            }
+            if (targetFrame && typeof targetFrame.executeJavaScript === 'function') {
+                return await targetFrame.executeJavaScript(dispatchScript);
+            }
             return await wc.executeJavaScript(dispatchScript);
         } catch (err) {
             return undefined;
@@ -489,17 +561,52 @@ class TabRegistry {
     }
 
     /**
+     * Checks if a screen capture operation is currently active or recently performed (within 10s cooldown).
+     */
+    isCapturingActive() {
+        return Boolean(this.isCapturing || (this.lastCaptureTime && (Date.now() - this.lastCaptureTime < 10000)));
+    }
+
+    markCapturingActive(extId = null) {
+        this.lastCaptureTime = Date.now();
+    }
+
+    /**
      * Captures the visible area of the active tab in the specified window context.
      */
-    async captureVisibleTab(context, windowId, options = {}) {
+    async captureVisibleTab(contextOrSender, windowId, options = {}) {
         let wc = null;
-        if (context && context.activeTabId && context.tabs && context.tabs[context.activeTabId]) {
-            wc = context.tabs[context.activeTabId].webContents;
-        } else {
-            for (const ctx of State.windowContextsById.values()) {
-                if (windowId && ctx.window?.id !== windowId) continue;
-                if (ctx.activeTabId && ctx.tabs && ctx.tabs[ctx.activeTabId]) {
-                    wc = ctx.tabs[ctx.activeTabId].webContents;
+        let ctx = null;
+
+        if (contextOrSender) {
+            if (contextOrSender.window && !contextOrSender.window.isDestroyed() && contextOrSender.tabs) {
+                ctx = contextOrSender;
+            } else if (contextOrSender.senderWebContents) {
+                const { getWindowContextByEventSender } = require('../../windows/windowContextUtils');
+                ctx = getWindowContextByEventSender(contextOrSender.senderWebContents);
+            }
+        }
+
+        if (ctx && ctx.activeTabId && ctx.tabs && ctx.tabs[ctx.activeTabId]) {
+            wc = ctx.tabs[ctx.activeTabId].webContents;
+        }
+
+        if (!wc || wc.isDestroyed()) {
+            const hasExplicitWinId = windowId !== null && windowId !== undefined && Number(windowId) > 0;
+            for (const winCtx of State.windowContextsById.values()) {
+                if (hasExplicitWinId && Number(winCtx.window?.id) !== Number(windowId)) continue;
+                if (winCtx.activeTabId && winCtx.tabs && winCtx.tabs[winCtx.activeTabId]) {
+                    wc = winCtx.tabs[winCtx.activeTabId].webContents;
+                    break;
+                }
+            }
+        }
+
+        // Fallback: search all active tabs regardless of windowId
+        if (!wc || wc.isDestroyed()) {
+            for (const winCtx of State.windowContextsById.values()) {
+                if (winCtx.activeTabId && winCtx.tabs && winCtx.tabs[winCtx.activeTabId]) {
+                    wc = winCtx.tabs[winCtx.activeTabId].webContents;
                     break;
                 }
             }
@@ -509,15 +616,32 @@ class TabRegistry {
             throw new Error('No active tab found to capture');
         }
 
-        const format = options.format === 'png' ? 'png' : 'jpeg';
-        const quality = typeof options.quality === 'number' ? Math.min(100, Math.max(0, options.quality)) : 90;
-        const nativeImage = await wc.capturePage();
+        this.isCapturing = true;
+        this.lastCaptureTime = Date.now();
+        // Cancel blur timers on any active extension popups during capture
+        try {
+            for (const ctx of State.windowContextsById.values()) {
+                if (ctx.activeExtensionPopup?.blurTimer) {
+                    clearTimeout(ctx.activeExtensionPopup.blurTimer);
+                    ctx.activeExtensionPopup.blurTimer = null;
+                }
+            }
+        } catch (_) {}
 
-        if (format === 'png') {
-            return nativeImage.toDataURL();
-        } else {
-            const buf = nativeImage.toJPEG(quality);
-            return `data:image/jpeg;base64,${buf.toString('base64')}`;
+        try {
+            const format = options.format === 'png' ? 'png' : 'jpeg';
+            const quality = typeof options.quality === 'number' ? Math.min(100, Math.max(0, options.quality)) : 90;
+            const nativeImage = await wc.capturePage();
+
+            if (format === 'png') {
+                return nativeImage.toDataURL();
+            } else {
+                const buf = nativeImage.toJPEG(quality);
+                return `data:image/jpeg;base64,${buf.toString('base64')}`;
+            }
+        } finally {
+            this.isCapturing = false;
+            this.lastCaptureTime = Date.now();
         }
     }
 
