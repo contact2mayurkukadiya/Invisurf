@@ -14,6 +14,10 @@
             overflow: hidden;
             background: transparent;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            padding: 6px 8px;
+            box-sizing: border-box;
+            width: 100vw;
+            min-height: 100vh;
         }
 
         .tab-tooltip {
@@ -23,14 +27,14 @@
             padding: 10px 12px;
             border-radius: 8px;
             box-shadow: 0 2px 6px rgba(0, 0, 0, 0.20), 0 0 0 1px rgba(0, 0, 0, 0.06);
-            max-width: 300px;
-            min-width: 160px;
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
             pointer-events: none;
-            margin: 0 8px;
         }
 
         .tab-tooltip--visible {
-            display: inline-block;
+            display: block;
         }
 
         .tab-tooltip__title {
@@ -41,9 +45,13 @@
             /* Clamp to two lines, matching Chrome behaviour */
             display: -webkit-box;
             -webkit-line-clamp: 2;
+            line-clamp: 2;
             -webkit-box-orient: vertical;
             overflow: hidden;
+            text-overflow: ellipsis;
             word-break: break-word;
+            overflow-wrap: anywhere;
+            max-width: 100%;
         }
 
         .tab-tooltip__url {
@@ -53,6 +61,24 @@
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            max-width: 100%;
+            display: block;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .tab-tooltip {
+                background: #292a2d;
+                color: #e8eaed;
+                box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.08);
+            }
+
+            .tab-tooltip__title {
+                color: #e8eaed;
+            }
+
+            .tab-tooltip__url {
+                color: #9aa0a6;
+            }
         }
     </style>
 </head>
@@ -70,17 +96,18 @@
 
         function formatDisplayUrl(rawUrl) {
             if (!rawUrl) return '';
+            const trimmed = String(rawUrl).trim();
             // For internal pages, return a friendly label instead of the raw app:// URL
-            if (rawUrl.startsWith('app://') || rawUrl.startsWith('file://')) {
+            if (trimmed.startsWith('app://') || trimmed.startsWith('file://')) {
                 return '';
             }
             try {
-                const parsed = new URL(rawUrl);
+                const parsed = new URL(trimmed);
                 // Show host + path (trim trailing slash on root pages)
                 const path = parsed.pathname === '/' ? '' : parsed.pathname;
                 return parsed.hostname + path;
             } catch {
-                return rawUrl;
+                return trimmed;
             }
         }
 
@@ -92,7 +119,8 @@
                     return;
                 }
 
-                titleEl.textContent = data.title || 'New Tab';
+                const rawTitle = (data.title || '').trim();
+                titleEl.textContent = rawTitle || 'New Tab';
 
                 const displayUrl = formatDisplayUrl(data.url);
                 if (displayUrl) {
