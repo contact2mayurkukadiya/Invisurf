@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import ProfileAvatar from '../components/ProfileAvatar';
 import ProfileEditorModal from '../components/ProfileEditorModal';
+import ProfileDeleteModal from '../components/ProfileDeleteModal';
+import { useChromeTheme } from '../hooks/useChromeTheme';
 import { logoPurpleDarkSvg, logoPurpleLightSvg, menuDotsVerticalSvg, menuEditProfileSvg, trashSvg } from '../constants/appAssetUrls';
 import './ProfilePickerApp.css';
 import { KEYBOARD } from '../constants/conditionStrings.js';
@@ -194,11 +196,14 @@ function ProfileCard({
 }
 
 export default function ProfilePickerApp() {
+  useChromeTheme();
   const [profiles, setProfiles] = useState([]);
   const [error, setError] = useState(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorMode, setEditorMode] = useState('create');
   const [editingProfile, setEditingProfile] = useState(null);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [profileToDelete, setProfileToDelete] = useState(null);
 
   const loadProfiles = useCallback(async () => {
     try {
@@ -241,21 +246,20 @@ export default function ProfilePickerApp() {
     loadProfiles();
   }, [loadProfiles]);
 
-  const handleDeleteProfile = useCallback(
-    async (profile) => {
-      const label = profile.displayName || profile.profileId;
-      const ok = window.confirm(`Delete profile “${label}”? This cannot be undone.`);
-      if (!ok) return;
-      const r = await window.electronAPI.profileDelete?.(profile.profileId);
-      if (!r?.ok) {
-        setError(r?.error || 'Could not delete profile.');
-        return;
-      }
-      setError(null);
-      await loadProfiles();
-    },
-    [loadProfiles],
-  );
+  const openDeleteModal = useCallback((profile) => {
+    setProfileToDelete(profile);
+    setDeleteModalOpen(true);
+  }, []);
+
+  const closeDeleteModal = useCallback(() => {
+    setDeleteModalOpen(false);
+    setProfileToDelete(null);
+  }, []);
+
+  const handleDeleteCompleted = useCallback(() => {
+    closeDeleteModal();
+    loadProfiles();
+  }, [closeDeleteModal, loadProfiles]);
 
   return (
     <div className="pp-page">
@@ -301,7 +305,7 @@ export default function ProfilePickerApp() {
                 profile={profile}
                 onOpen={openProfile}
                 onEdit={openEditEditor}
-                onDelete={handleDeleteProfile}
+                onDelete={openDeleteModal}
                 onRenamed={loadProfiles}
               />
             ))}
@@ -321,6 +325,13 @@ export default function ProfilePickerApp() {
         initialProfile={editingProfile}
         onClose={closeEditor}
         onSaved={handleEditorSaved}
+      />
+
+      <ProfileDeleteModal
+        open={deleteModalOpen}
+        profile={profileToDelete}
+        onClose={closeDeleteModal}
+        onDeleted={handleDeleteCompleted}
       />
     </div>
   );

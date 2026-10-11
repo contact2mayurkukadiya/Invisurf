@@ -64,6 +64,19 @@ class PermissionDatabase {
   }
 
   /**
+   * Completely removes all persisted and ephemeral permissions for a profile.
+   * @param {string} profileId
+   */
+  deleteProfile(profileId) {
+    if (!profileId) return;
+    this.persistentData.delete(profileId);
+    this.ephemeralData.delete(profileId);
+    this.ephemeralProfiles.delete(profileId);
+    this.isDirty = true;
+    this.flushToDisk();
+  }
+
+  /**
    * Loads persisted permissions from disk synchronously during initialization.
    */
   loadFromDisk() {

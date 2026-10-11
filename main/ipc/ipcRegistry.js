@@ -396,7 +396,7 @@ function registerIpcHandlers() {
         return { dataUrl: dataUrl || null };
     });
 
-    ipcMain.handle(C.IPC_INVOKE.PROFILE_DELETE, (event, payload = {}) => {
+    ipcMain.handle(C.IPC_INVOKE.PROFILE_DELETE, async (event, payload = {}) => {
         if (!isSenderTrusted(event)) return { ok: false, error: 'Unauthorized' };
         if (!payload || typeof payload.profileId !== 'string') return { ok: false, error: 'Invalid request' };
         const sid = String(payload.profileId).trim().replace(/[^a-zA-Z0-9-_]/g, '_');
@@ -407,11 +407,42 @@ function registerIpcHandlers() {
             if (ctx.profileId === sid) return { ok: false, error: 'Close all browser windows for this profile first' };
         }
 
-        profileService.removeAvatarFilesForProfile(sid);
+        try {
+            await profileService.deleteProfileDataFromDisk(sid);
+        } catch (err) {
+            console.error(`[PROFILE_DELETE] Error purging profile ${sid} from disk:`, err);
+        }
+
         State.profilesById.delete(sid);
         if (State.defaultProfileId === sid) State.defaultProfileId = Array.from(State.profilesById.keys())[0] || null;
         profileService.saveProfiles();
         return { ok: true };
+    });
+
+    ipcMain.handle(C.IPC_INVOKE.PROFILE_GET_DATA_SUMMARY, async (event, payload = {}) => {
+        if (!isSenderTrusted(event) || !payload || typeof payload.profileId !== 'string') {
+            return { ok: false, error: 'Invalid request', historyCount: 0, bookmarksCount: 0 };
+        }
+        const sid = String(payload.profileId).trim().replace(/[^a-zA-Z0-9-_]/g, '_');
+        let historyCount = 0;
+        let bookmarksCount = 0;
+        try {
+            if (State.historyService) {
+                historyCount = await State.historyService.getHistoryCount(sid);
+            }
+        } catch (e) {
+            console.warn('Failed to get history count:', e);
+        }
+        try {
+            bookmarksCount = bookmarkService.countBookmarks(sid);
+        } catch (e) {
+            console.warn('Failed to get bookmarks count:', e);
+        }
+        return {
+            ok: true,
+            historyCount: Math.max(0, Number(historyCount) || 0),
+            bookmarksCount: Math.max(0, Number(bookmarksCount) || 0),
+        };
     });
 
     ipcMain.handle(C.IPC_INVOKE.PROFILE_OPEN_WINDOW, (event, payload = {}) => {

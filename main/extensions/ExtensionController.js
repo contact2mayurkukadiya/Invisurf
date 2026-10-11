@@ -19,6 +19,24 @@ class ExtensionController extends EventEmitter {
         this.backgroundHosts = new Map();
     }
 
+    unloadProfile(profileId) {
+        if (!profileId) return;
+        const pId = ExtensionStorage.safeProfileId(profileId);
+        for (const [key, view] of Array.from(this.backgroundHosts.entries())) {
+            if (key.startsWith(`${pId}:`)) {
+                try {
+                    if (!view.webContents.isDestroyed()) {
+                        view.webContents.close();
+                    }
+                } catch (_) {}
+                this.backgroundHosts.delete(key);
+            }
+        }
+        this.activeSessions.delete(pId);
+        this.loadedExtensions.delete(pId);
+        this.pendingInstalls.delete(pId);
+    }
+
     /**
      * Associates an Electron session with a profile and loads its enabled extensions.
      */
