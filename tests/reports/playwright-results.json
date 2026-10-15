@@ -1,0 +1,903 @@
+{
+  "config": {
+    "argv": [
+      "/opt/homebrew/Cellar/node/25.6.1_1/bin/node",
+      "/Users/mayurkukadiya/Code/Electron/invisurf/node_modules/.bin/playwright",
+      "test",
+      "--list"
+    ],
+    "configFile": "/Users/mayurkukadiya/Code/Electron/invisurf/playwright.config.js",
+    "rootDir": "/Users/mayurkukadiya/Code/Electron/invisurf/tests/e2e",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {},
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/Users/mayurkukadiya/Code/Electron/invisurf/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {},
+        "id": "",
+        "name": "",
+        "testDir": "/Users/mayurkukadiya/Code/Electron/invisurf/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 45000
+      }
+    ],
+    "filteredProjects": [
+      {
+        "grep": {},
+        "grepInvert": null,
+        "outputDir": "/Users/mayurkukadiya/Code/Electron/invisurf/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {},
+        "name": "",
+        "testDir": "/Users/mayurkukadiya/Code/Electron/invisurf/tests/e2e",
+        "snapshotDir": "/Users/mayurkukadiya/Code/Electron/invisurf/tests/e2e",
+        "testIgnore": [],
+        "testMatch": "**/*.@(spec|test).?(c|m)[jt]s?(x)",
+        "timeout": 45000,
+        "use": {
+          "trace": "retain-on-failure",
+          "screenshot": "only-on-failure",
+          "video": "retain-on-failure"
+        },
+        "dependencies": [],
+        "ignoreSnapshots": false,
+        "__projectId": ""
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "html",
+        {
+          "outputFolder": "tests/reports/playwright-html",
+          "open": "never"
+        }
+      ],
+      [
+        "json",
+        {
+          "outputFile": "tests/reports/playwright-results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "default",
+    "updateSourceMethod": "patch",
+    "version": "1.64.1",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "bookmarks/bookmarks-detailed-scenarios.spec.js",
+      "file": "bookmarks/bookmarks-detailed-scenarios.spec.js",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "InviSurf Bookmarks Detailed Scenarios",
+          "file": "bookmarks/bookmarks-detailed-scenarios.spec.js",
+          "line": 7,
+          "column": 6,
+          "specs": [
+            {
+              "title": "1.1 bookmark-star-availability-and-state: checks star disable on NTP, enable on web, and starred state",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "a5ef5089daac88eee2d3-d7e91eed50bbe665b4e6",
+              "file": "bookmarks/bookmarks-detailed-scenarios.spec.js",
+              "line": 8,
+              "column": 3
+            },
+            {
+              "title": "1.2 bookmark-bar-items-and-navigation: renders bookmark items and triggers navigation",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "a5ef5089daac88eee2d3-e726a67897ea08914aa0",
+              "file": "bookmarks/bookmarks-detailed-scenarios.spec.js",
+              "line": 47,
+              "column": 3
+            },
+            {
+              "title": "2.1 bookmark-folder-prompt-workflow: manages folder creation prompt with cancel and submit",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "a5ef5089daac88eee2d3-2349f0e5fdaa569da9e8",
+              "file": "bookmarks/bookmarks-detailed-scenarios.spec.js",
+              "line": 73,
+              "column": 3
+            },
+            {
+              "title": "3.1 bookmark-bar-overflow-on-resize: toggles overflow button based on available viewport width",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "a5ef5089daac88eee2d3-af1c82885834e6a0606b",
+              "file": "bookmarks/bookmarks-detailed-scenarios.spec.js",
+              "line": 108,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "bookmarks/bookmarks.spec.js",
+      "file": "bookmarks/bookmarks.spec.js",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Bookmarks UI Flow",
+          "file": "bookmarks/bookmarks.spec.js",
+          "line": 5,
+          "column": 6,
+          "specs": [
+            {
+              "title": "bookmark-button-presence: verifies star button and app menu items",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "ba1ebef0d27b2195072d-92d2d7a483910f90d056",
+              "file": "bookmarks/bookmarks.spec.js",
+              "line": 6,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "fixtures/seed.spec.js",
+      "file": "fixtures/seed.spec.js",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "seed: launches InviSurf shell",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [],
+              "status": "skipped"
+            }
+          ],
+          "id": "7273b8fce1f35a1d32b9-297cf088e1c74e996a56",
+          "file": "fixtures/seed.spec.js",
+          "line": 5,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "navigation/navigation.spec.js",
+      "file": "navigation/navigation.spec.js",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Omnibox Navigation Controls",
+          "file": "navigation/navigation.spec.js",
+          "line": 7,
+          "column": 6,
+          "specs": [
+            {
+              "title": "omnibox-url-navigation: should navigate and trigger controls",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "c7f141116f34c3c2c7f4-18ac4d94fcd38e584404",
+              "file": "navigation/navigation.spec.js",
+              "line": 8,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "omnibox/omnibox-detailed-scenarios.spec.js",
+      "file": "omnibox/omnibox-detailed-scenarios.spec.js",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Omnibox Detailed Scenarios",
+          "file": "omnibox/omnibox-detailed-scenarios.spec.js",
+          "line": 7,
+          "column": 6,
+          "specs": [
+            {
+              "title": "1.1 omnibox-typing-and-drafts: handles text entry, selection, draft editing, and clearing",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "37d20016c02c2255284f-33a2c7a6183a846bcba5",
+              "file": "omnibox/omnibox-detailed-scenarios.spec.js",
+              "line": 8,
+              "column": 3
+            },
+            {
+              "title": "1.2 omnibox-navigation-and-history-controls: navigates, reloads, and exercises back/forward controls",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "37d20016c02c2255284f-2e8fae38c107bdcbcd41",
+              "file": "omnibox/omnibox-detailed-scenarios.spec.js",
+              "line": 29,
+              "column": 3
+            },
+            {
+              "title": "2.1 omnibox-site-info-and-permissions-popup: triggers padlock menu and navigates site permissions",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "37d20016c02c2255284f-ce97dc27323394e4465b",
+              "file": "omnibox/omnibox-detailed-scenarios.spec.js",
+              "line": 52,
+              "column": 3
+            },
+            {
+              "title": "2.2 omnibox-cookie-box-popup: opens cookies and on-device site data view",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "37d20016c02c2255284f-d15c751144604ad384a0",
+              "file": "omnibox/omnibox-detailed-scenarios.spec.js",
+              "line": 81,
+              "column": 3
+            },
+            {
+              "title": "3.1 omnibox-responsive-resizing: adapts layout responsively to compact, desktop, and wide dimensions",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "37d20016c02c2255284f-af8a4308603fac98b1e7",
+              "file": "omnibox/omnibox-detailed-scenarios.spec.js",
+              "line": 106,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "profiles/profile-picker.spec.js",
+      "file": "profiles/profile-picker.spec.js",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Profile Picker Flow",
+          "file": "profiles/profile-picker.spec.js",
+          "line": 9,
+          "column": 6,
+          "specs": [
+            {
+              "title": "displays hero branding and profile cards on startup",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "84b4829df132716d42ee-a72e0f1acaf305e1e596",
+              "file": "profiles/profile-picker.spec.js",
+              "line": 39,
+              "column": 3
+            },
+            {
+              "title": "opens profile editor modal when clicking Add button and cancels cleanly",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "84b4829df132716d42ee-eaea21069de260acc450",
+              "file": "profiles/profile-picker.spec.js",
+              "line": 59,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "profiles/profiles-detailed-scenarios.spec.js",
+      "file": "profiles/profiles-detailed-scenarios.spec.js",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "InviSurf Profiles Detailed Scenarios",
+          "file": "profiles/profiles-detailed-scenarios.spec.js",
+          "line": 11,
+          "column": 6,
+          "specs": [
+            {
+              "title": "1.1 profile-picker-landing-and-selection: displays branding, cards, and add button",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "882ee6cec572c66a2b27-e9e094f0f562f3b48447",
+              "file": "profiles/profiles-detailed-scenarios.spec.js",
+              "line": 41,
+              "column": 3
+            },
+            {
+              "title": "1.2 profile-creation-modal-workflow: opens modal, cancels, creates profile, and displays card",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "882ee6cec572c66a2b27-1cd69d3023fafb8351ca",
+              "file": "profiles/profiles-detailed-scenarios.spec.js",
+              "line": 61,
+              "column": 3
+            },
+            {
+              "title": "2.1 profile-menu-toolbar-trigger: opens shell window and validates profile button state",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "882ee6cec572c66a2b27-f5dbd5a080f6d8cd3053",
+              "file": "profiles/profiles-detailed-scenarios.spec.js",
+              "line": 92,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "tabs/tab-detailed-scenarios.spec.js",
+      "file": "tabs/tab-detailed-scenarios.spec.js",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "InviSurf Tab Strip Detailed Scenarios",
+          "file": "tabs/tab-detailed-scenarios.spec.js",
+          "line": 7,
+          "column": 6,
+          "specs": [
+            {
+              "title": "1.1 tab-creation-and-keyboard-shortcuts: creates tabs via button and shortcut",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "1ea3224043296852cb7f-ffef6f66e054a2a815c1",
+              "file": "tabs/tab-detailed-scenarios.spec.js",
+              "line": 8,
+              "column": 3
+            },
+            {
+              "title": "1.2 tab-switching-and-order: switches active tab via mouse click and shortcut navigation",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "1ea3224043296852cb7f-98d1ab853c6b8b38392b",
+              "file": "tabs/tab-detailed-scenarios.spec.js",
+              "line": 46,
+              "column": 3
+            },
+            {
+              "title": "1.3 tab-closing-mechanisms: supports hover close button, middle click, and keyboard shortcut",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "1ea3224043296852cb7f-ff570abc820c97feb5fb",
+              "file": "tabs/tab-detailed-scenarios.spec.js",
+              "line": 86,
+              "column": 3
+            },
+            {
+              "title": "2.1 tab-pinning-and-unpinning: toggles pinned state and compact styling",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "1ea3224043296852cb7f-6749b834f5733ae84e41",
+              "file": "tabs/tab-detailed-scenarios.spec.js",
+              "line": 124,
+              "column": 3
+            },
+            {
+              "title": "2.2 tab-strip-context-menu-actions: duplicate, new tab right, close right, and close others",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "1ea3224043296852cb7f-b21a52f11ae8dc7e8502",
+              "file": "tabs/tab-detailed-scenarios.spec.js",
+              "line": 156,
+              "column": 3
+            },
+            {
+              "title": "3.1 tab-overflow-and-responsive-strip: auto-scales tab widths and adapts on window resize",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "1ea3224043296852cb7f-90ff12b14a5ec92d60c0",
+              "file": "tabs/tab-detailed-scenarios.spec.js",
+              "line": 202,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "tabs/tab-management.spec.js",
+      "file": "tabs/tab-management.spec.js",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Tab Management",
+          "file": "tabs/tab-management.spec.js",
+          "line": 7,
+          "column": 6,
+          "specs": [
+            {
+              "title": "create-and-switch-tabs: should open new tab, switch, and close",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "073f327b7a866933f087-f70519af74f0443b527d",
+              "file": "tabs/tab-management.spec.js",
+              "line": 8,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "window-controls/ghost-transparency-detailed-scenarios.spec.js",
+      "file": "window-controls/ghost-transparency-detailed-scenarios.spec.js",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "InviSurf Window Transparency & Ghost Mode Detailed Scenarios",
+          "file": "window-controls/ghost-transparency-detailed-scenarios.spec.js",
+          "line": 7,
+          "column": 6,
+          "specs": [
+            {
+              "title": "1.1 transparency-toolbar-trigger-and-aria-state: verifies trigger visibility and expanded toggle",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "3d89cbf91ff913c9e564-6546e8b660249da712d0",
+              "file": "window-controls/ghost-transparency-detailed-scenarios.spec.js",
+              "line": 8,
+              "column": 3
+            },
+            {
+              "title": "1.2 transparency-opacity-change-and-bounds: exercises opacity setting and title updates",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "3d89cbf91ff913c9e564-591a7767b1e50097f0d1",
+              "file": "window-controls/ghost-transparency-detailed-scenarios.spec.js",
+              "line": 28,
+              "column": 3
+            },
+            {
+              "title": "2.1 ghost-mode-badge-and-passthrough-toggle: verifies click-through event handling and styling",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "3d89cbf91ff913c9e564-664e68d27ad6e34329c2",
+              "file": "window-controls/ghost-transparency-detailed-scenarios.spec.js",
+              "line": 49,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "window-controls/modals-and-chrome.spec.js",
+      "file": "window-controls/modals-and-chrome.spec.js",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Window Controls & In-Shell Modals",
+          "file": "window-controls/modals-and-chrome.spec.js",
+          "line": 7,
+          "column": 6,
+          "specs": [
+            {
+              "title": "transparency-mode-toggle: toggles opacity button active state",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "6dfa107e4683de8e8502-3ce51efdf278307aef67",
+              "file": "window-controls/modals-and-chrome.spec.js",
+              "line": 8,
+              "column": 3
+            },
+            {
+              "title": "profile-menu-presence: validates profile menu button in chrome",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "6dfa107e4683de8e8502-c1a834bc3c4e5919b775",
+              "file": "window-controls/modals-and-chrome.spec.js",
+              "line": 24,
+              "column": 3
+            },
+            {
+              "title": "command-palette-search: triggers command palette, filters commands, and closes on Escape",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "6dfa107e4683de8e8502-6ac39eb646565b921579",
+              "file": "window-controls/modals-and-chrome.spec.js",
+              "line": 32,
+              "column": 3
+            },
+            {
+              "title": "tab-search-modal: triggers tab search, displays current tab, and dismisses on Escape",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "6dfa107e4683de8e8502-95edecafdab8972a5d54",
+              "file": "window-controls/modals-and-chrome.spec.js",
+              "line": 57,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-10-15T15:41:07.058Z",
+    "duration": 43.03499999999997,
+    "expected": 0,
+    "skipped": 31,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

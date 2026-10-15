@@ -12,13 +12,8 @@ const {
 } = require('../utils/navigation');
 const { getWindowContextForShellFallback } = require('../windows/windowContextUtils');
 
-let sessionPath;
-
 function getSessionPath() {
-    if (!sessionPath) {
-        sessionPath = path.join(app.getPath('userData'), 'session.json');
-    }
-    return sessionPath;
+    return path.join(app.getPath('userData'), 'session.json');
 }
 
 function clearSessionSnapshot() {

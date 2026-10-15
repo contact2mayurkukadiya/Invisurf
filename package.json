@@ -14,7 +14,14 @@
     "dist": "npm run build:renderer && electron-builder --mac",
     "dist:win": "npm run build:renderer && electron-builder --win --x64",
     "generate-icons": "node scripts/generate-windows-icon.cjs",
-    "generate-icon-win": "node scripts/generate-windows-icon.cjs"
+    "generate-icon-win": "node scripts/generate-windows-icon.cjs",
+    "test": "node tests/scripts/run-all-tests.js",
+    "test:unit": "node tests/scripts/run-all-tests.js --unit",
+    "test:regression": "node tests/scripts/run-all-tests.js --regression",
+    "test:coverage": "node tests/scripts/run-all-tests.js --coverage",
+    "test:e2e": "node tests/scripts/run-all-tests.js --e2e",
+    "test:all": "node tests/scripts/run-all-tests.js --with-e2e",
+    "test:report": "npx playwright show-report tests/reports/playwright-html"
   },
   "build": {
     "appId": "com.invisurf.browser",
@@ -61,6 +68,7 @@
   "type": "commonjs",
   "devDependencies": {
     "@electron/rebuild": "^3.7.2",
+    "@playwright/test": "^1.64.1",
     "@reduxjs/toolkit": "^2.5.1",
     "@vitejs/plugin-react": "^4.3.4",
     "chokidar": "^3.6.0",

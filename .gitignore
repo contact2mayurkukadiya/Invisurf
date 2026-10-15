@@ -3,7 +3,9 @@ dist
 .stealth-renderer-reload
 graphify-out
 .agent
-.agents/rules
+.agents/*
 Backups/*
 Prompts/*
 Testing-Extensions/*
+# Playwright CLI output (may contain credentials)
+.playwright-cli/

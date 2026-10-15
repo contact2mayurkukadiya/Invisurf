@@ -16,6 +16,10 @@ const APP_DISPLAY_NAME = 'InviSurf';
  * Linux:   ~/.config/InviSurf (via Electron appData)
  */
 function resolveInviSurfRootDir(app) {
+    if (app && app.commandLine && app.commandLine.hasSwitch('user-data-dir')) {
+        const custom = app.commandLine.getSwitchValue('user-data-dir');
+        if (custom) return custom;
+    }
     const appData = app.getPath('appData');
     return path.join(appData, APP_DISPLAY_NAME);
 }
@@ -32,13 +36,16 @@ function configureAppPaths(app) {
 
     app.name = APP_DISPLAY_NAME;
 
+    const hasCustomUserData = app.commandLine && app.commandLine.hasSwitch('user-data-dir');
     const rootDir = resolveInviSurfRootDir(app);
-    const userData = path.join(rootDir, 'User Data');
+    const userData = hasCustomUserData ? rootDir : path.join(rootDir, 'User Data');
     const sessionData = path.join(rootDir, 'Session Data');
     const logs = path.join(rootDir, 'Logs');
     const crashDumps = path.join(rootDir, 'Crashpad');
 
-    app.setPath('userData', userData);
+    if (!hasCustomUserData) {
+        app.setPath('userData', userData);
+    }
     app.setPath('sessionData', sessionData);
     app.setPath('logs', logs);
 
