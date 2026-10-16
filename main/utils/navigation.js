@@ -109,6 +109,7 @@ function normalizeInternalSchemeUrl(displayUrl) {
     if (t === C.URL.STEALTH_HISTORY || t === C.URL.HISTORY_DISPLAY) return C.URL.HISTORY_DISPLAY;
     if (t === C.URL.STEALTH_BOOKMARK || t === C.URL.BOOKMARK_DISPLAY) return C.URL.BOOKMARK_DISPLAY;
     if (t === C.URL.STEALTH_SETTINGS || t === C.URL.SETTINGS_DISPLAY) return C.URL.SETTINGS_DISPLAY;
+    if (t === C.URL.STEALTH_DOWNLOADS || t === C.URL.DOWNLOADS_DISPLAY || t === 'invisurf://download' || t === 'stealth://download') return C.URL.DOWNLOADS_DISPLAY;
     return displayUrl.trim();
 }
 
@@ -120,6 +121,7 @@ function resolveInternalPageUrl(rawUrl) {
     if (normalizedUrl === C.URL.STEALTH_HISTORY || normalizedUrl === C.URL.HISTORY_DISPLAY) return C.URL.HISTORY_LOAD;
     if (normalizedUrl === C.URL.STEALTH_BOOKMARK || normalizedUrl === C.URL.BOOKMARK_DISPLAY) return C.URL.BOOKMARK_LOAD;
     if (normalizedUrl === C.URL.STEALTH_SETTINGS || normalizedUrl === C.URL.SETTINGS_DISPLAY) return C.URL.SETTINGS_LOAD;
+    if (normalizedUrl === C.URL.STEALTH_DOWNLOADS || normalizedUrl === C.URL.DOWNLOADS_DISPLAY || normalizedUrl === 'invisurf://download' || normalizedUrl === 'stealth://download') return C.URL.DOWNLOADS_LOAD;
     if (normalizedUrl === C.URL.NTP_DISPLAY) return CANONICAL_NTP_HTML;
     return trimmed;
 }
@@ -179,6 +181,7 @@ function toDisplayUrl(rawUrl) {
     if (rawUrl.startsWith(C.URL.SCHEME_APP) && rawUrl.includes(C.URL.FRAGMENT_HISTORY)) return C.URL.HISTORY_DISPLAY;
     if (rawUrl.startsWith(C.URL.SCHEME_APP) && rawUrl.includes(C.URL.FRAGMENT_BOOKMARK)) return C.URL.BOOKMARK_DISPLAY;
     if (rawUrl.startsWith(C.URL.SCHEME_APP) && rawUrl.includes(C.URL.FRAGMENT_SETTINGS)) return C.URL.SETTINGS_DISPLAY;
+    if (rawUrl.startsWith(C.URL.SCHEME_APP) && rawUrl.includes(C.URL.FRAGMENT_DOWNLOADS)) return C.URL.DOWNLOADS_DISPLAY;
     if (rawUrl.startsWith(C.URL.SCHEME_APP) && rawUrl.includes(C.URL.FRAGMENT_NEWTAB)) return '';
     return rawUrl;
 }
@@ -220,6 +223,7 @@ function isInternalPageUrl(url) {
     if (url.startsWith(C.URL.SCHEME_APP) && url.includes(C.URL.PATH_HISTORY_HTML)) return true;
     if (url.startsWith(C.URL.SCHEME_APP) && url.includes(C.URL.PATH_BOOKMARK_HTML)) return true;
     if (url.startsWith(C.URL.SCHEME_APP) && url.includes(C.URL.PATH_SETTINGS_HTML)) return true;
+    if (url.startsWith(C.URL.SCHEME_APP) && url.includes(C.URL.PATH_DOWNLOADS_HTML)) return true;
     if (url.startsWith(C.URL.SCHEME_APP) && url.includes(C.URL.FRAGMENT_NEWTAB)) return true;
     return false;
 }

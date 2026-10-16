@@ -215,6 +215,7 @@ function activateTabInContext(context, id) {
     if (context.activeTabId !== id) {
         lensManager.suspendLensSessionPresentation(context, context.activeTabId);
         overlayManager.dismissChromeShellMenuOverlay(context, 'browser-action');
+        overlayManager.hideStatusBubble(context);
     }
     const skipSameTab =
         context.activeTabId === id &&
@@ -735,6 +736,7 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
     // renderer or losing its existing WebContents event listeners.
     view._invisurfSetTabId = (nextId) => {
         id = nextId;
+        view._invisurfCurrentId = nextId;
         view._invisurfPromoted = true;
     };
     resetTabWebContentsScale(view);
@@ -942,6 +944,12 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
     const { handleShortcuts } = require('../ui/shortcuts');
     view.webContents.on('before-input-event', handleShortcuts);
 
+    view.webContents.on('update-target-url', (event, targetUrl) => {
+        if (context.activeTabId !== id && context.activeTabId !== view._invisurfCurrentId) return;
+        const { updateStatusBubble } = require('./overlayManager');
+        updateStatusBubble(context, targetUrl);
+    });
+
     view.webContents.on('page-title-updated', (e, title) => {
         if (!context.window || context.window.isDestroyed() || context.window.webContents.isDestroyed()) return;
         const { toDisplayUrl, isInternalPageUrl } = require('../utils/navigation');
@@ -964,6 +972,10 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
 
     view.webContents.on('did-start-loading', () => {
         if (!context.window || context.window.isDestroyed() || context.window.webContents.isDestroyed()) return;
+        if (context.activeTabId === id) {
+            const { hideStatusBubble } = require('./overlayManager');
+            hideStatusBubble(context);
+        }
         resetTabWebContentsScale(view);
         const { toDisplayUrl } = require('../utils/navigation');
         sendTabEvent(C.IPC_EVENT.TAB_UPDATE, { id, isLoading: true, url: toDisplayUrl(view.webContents.getURL()) });

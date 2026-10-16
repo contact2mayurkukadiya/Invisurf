@@ -12,6 +12,8 @@ export function useElectronIPC({
   onReload,
   onSwitchTabDir,
   onHistory,
+  onBookmark,
+  onDownloads,
   onSettings,
   onTabNewToRight,
   onTabDuplicate,
@@ -60,6 +62,7 @@ export function useElectronIPC({
     // ── Keyboard shortcut IPC ────────────────────────────────────────────
     api.onShortcutNewTab(withShortcutNotify(() => onNewTab()));
     api.onShortcutHistory(withShortcutNotify(onHistory));
+    if (api.onShortcutDownloads) api.onShortcutDownloads(withShortcutNotify(onDownloads));
     if (api.onShortcutSettings) api.onShortcutSettings(withShortcutNotify(onSettings));
     api.onShortcutCloseTab(withShortcutNotify(onCloseTab));
     api.onShortcutReload(withShortcutNotify(onReload));

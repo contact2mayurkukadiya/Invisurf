@@ -13,6 +13,7 @@ const sessionService = require('../services/sessionService');
 const bookmarkService = require('../services/bookmarkService');
 const cookieService = require('../services/cookieService');
 const siteSettingsService = require('../services/siteSettingsService');
+const downloadService = require('../services/downloadService');
 
 // Managers
 const windowManager = require('../windows/windowManager');
@@ -508,6 +509,21 @@ function registerIpcHandlers() {
         }
     });
 
+    // === STATUS BUBBLE (LINK HOVER PREVIEW) ===
+    ipcMain.on(C.IPC_SEND.STATUS_BUBBLE_FLIP, (e) => {
+        if (!isSenderTrusted(e)) return;
+        const context = getWindowContextByEventSender(e.sender);
+        if (!context) return;
+        overlayManager.flipStatusBubbleSide(context);
+    });
+
+    ipcMain.on(C.IPC_SEND.STATUS_BUBBLE_RESIZE, (e, size) => {
+        if (!isSenderTrusted(e)) return;
+        const context = getWindowContextByEventSender(e.sender);
+        if (!context) return;
+        overlayManager.resizeStatusBubble(context, size);
+    });
+
     // === OVERLAYS ===
     ipcMain.handle(C.IPC_INVOKE.CHROME_OVERLAY_RESET, (e) => {
         if (!isSenderTrusted(e)) return { ok: false };
@@ -703,6 +719,21 @@ function registerIpcHandlers() {
             lensManager.copyLensSelectionText(context).catch((err) => { console.error('lensCopyText', err?.message || err); });
             return;
         }
+
+        if (data?.type === 'dismiss') {
+            overlayManager.dismissChromeShellMenuOverlay(context, data.reason || 'overlay-request');
+            return;
+        }
+
+        if (data?.type === 'downloadAction') {
+            if (data.action === 'openFile' && data.savePath) {
+                downloadService.openFile(data.savePath);
+                overlayManager.dismissChromeShellMenuOverlay(context, 'open-file');
+            } else if (data.action === 'showInFolder' && data.savePath) {
+                downloadService.showInFolder(data.savePath);
+            }
+        }
+
         try {
             context.window.webContents.send(C.IPC_EVENT.CHROME_OVERLAY_HOST, data ?? {});
         } catch (err) {
@@ -1683,6 +1714,72 @@ function registerIpcHandlers() {
             bookmarkService.broadcastBookmarks(context.profileId);
         }
         return data;
+    });
+
+    // === DOWNLOADS ===
+    ipcMain.handle(C.IPC_INVOKE.DOWNLOADS_GET_ALL, (event) => {
+        if (!isSenderTrusted(event)) return { active: [], history: [] };
+        const context = getWindowContextByEventSender(event.sender) || getWindowContextForShellFallback();
+        return downloadService.getAll(context?.profileId);
+    });
+
+    ipcMain.handle(C.IPC_INVOKE.DOWNLOADS_CANCEL, (event, payload = {}) => {
+        if (!isSenderTrusted(event) || !payload.id) return { success: false };
+        return downloadService.cancelDownload(payload.id);
+    });
+
+    ipcMain.handle(C.IPC_INVOKE.DOWNLOADS_PAUSE, (event, payload = {}) => {
+        if (!isSenderTrusted(event) || !payload.id) return { success: false };
+        return downloadService.pauseDownload(payload.id);
+    });
+
+    ipcMain.handle(C.IPC_INVOKE.DOWNLOADS_RESUME, (event, payload = {}) => {
+        if (!isSenderTrusted(event) || !payload.id) return { success: false };
+        return downloadService.resumeDownload(payload.id);
+    });
+
+    ipcMain.handle(C.IPC_INVOKE.DOWNLOADS_RETRY, (event, payload = {}) => {
+        if (!isSenderTrusted(event) || !payload.id) return { success: false };
+        const context = getWindowContextByEventSender(event.sender) || getWindowContextForShellFallback();
+        return downloadService.retryDownload(payload.id, context?.profileId);
+    });
+
+    ipcMain.handle(C.IPC_INVOKE.DOWNLOADS_SHOW_IN_FOLDER, (event, payload = {}) => {
+        if (!isSenderTrusted(event)) return { success: false };
+        return downloadService.showInFolder(payload.filePath);
+    });
+
+    ipcMain.handle(C.IPC_INVOKE.DOWNLOADS_OPEN_FILE, (event, payload = {}) => {
+        if (!isSenderTrusted(event)) return { success: false };
+        return downloadService.openFile(payload.filePath);
+    });
+
+    ipcMain.handle(C.IPC_INVOKE.DOWNLOADS_REMOVE, (event, payload = {}) => {
+        if (!isSenderTrusted(event) || !payload.id) return { success: false };
+        const context = getWindowContextByEventSender(event.sender) || getWindowContextForShellFallback();
+        return downloadService.removeFromHistory(context?.profileId, payload.id);
+    });
+
+    ipcMain.handle(C.IPC_INVOKE.DOWNLOADS_CLEAR_ALL, (event) => {
+        if (!isSenderTrusted(event)) return { success: false };
+        const context = getWindowContextByEventSender(event.sender) || getWindowContextForShellFallback();
+        return downloadService.clearAllHistory(context?.profileId);
+    });
+
+    ipcMain.handle(C.IPC_INVOKE.DOWNLOADS_OPEN_FOLDER, (event) => {
+        if (!isSenderTrusted(event)) return { success: false };
+        return downloadService.openDownloadsFolder();
+    });
+
+    ipcMain.handle(C.IPC_INVOKE.DOWNLOADS_SHOW_ATTENTION, (event, rect) => {
+        if (!isSenderTrusted(event)) return { success: false };
+        const context = getWindowContextByEventSender(event.sender) || getWindowContextForShellFallback();
+        if (context) {
+            const overlayManager = require('../windows/overlayManager');
+            overlayManager.showDownloadAttentionOverlay(context, rect);
+            return { success: true };
+        }
+        return { success: false };
     });
 }
 

@@ -92,11 +92,14 @@ describe('Navigation Utils', () => {
       assert.equal(navUtils.normalizeInternalSchemeUrl('stealth://history'), C.URL.HISTORY_DISPLAY);
       assert.equal(navUtils.normalizeInternalSchemeUrl('invisurf://history'), C.URL.HISTORY_DISPLAY);
       assert.equal(navUtils.normalizeInternalSchemeUrl('stealth://settings'), C.URL.SETTINGS_DISPLAY);
+      assert.equal(navUtils.normalizeInternalSchemeUrl('invisurf://downloads'), C.URL.DOWNLOADS_DISPLAY);
+      assert.equal(navUtils.normalizeInternalSchemeUrl('stealth://downloads'), C.URL.DOWNLOADS_DISPLAY);
     });
 
     test('resolves internal URLs to local application assets', () => {
       assert.equal(navUtils.resolveInternalPageUrl('invisurf://history'), C.URL.HISTORY_LOAD);
       assert.equal(navUtils.resolveInternalPageUrl('invisurf://settings'), C.URL.SETTINGS_LOAD);
+      assert.equal(navUtils.resolveInternalPageUrl('invisurf://downloads'), C.URL.DOWNLOADS_LOAD);
       assert.equal(navUtils.resolveInternalPageUrl(C.URL.NTP_DISPLAY), C.URL.NTP_CANONICAL_HTML);
     });
 
@@ -104,6 +107,7 @@ describe('Navigation Utils', () => {
       assert.equal(navUtils.toDisplayUrl('app://dist/history.html'), C.URL.HISTORY_DISPLAY);
       assert.equal(navUtils.toDisplayUrl('app://dist/bookmarks.html'), C.URL.BOOKMARK_DISPLAY);
       assert.equal(navUtils.toDisplayUrl('app://dist/settings.html'), C.URL.SETTINGS_DISPLAY);
+      assert.equal(navUtils.toDisplayUrl('app://dist/downloads.html'), C.URL.DOWNLOADS_DISPLAY);
       assert.equal(navUtils.toDisplayUrl('app://dist/newtab.html'), '');
       assert.equal(navUtils.toDisplayUrl('https://example.com'), 'https://example.com');
       assert.equal(navUtils.toDisplayUrl(null), '');

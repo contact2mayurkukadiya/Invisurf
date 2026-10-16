@@ -1,0 +1,432 @@
+/* ── DownloadsApp.css ── */
+
+:root {
+  --dl-bg-page: #f7f8f9;
+  --dl-bg-header: #ffffff;
+  --dl-bg-card: #f0f2f5;
+  --dl-text-primary: #1e2025;
+  --dl-text-secondary: #5f6368;
+  --dl-text-muted: #80868b;
+  --dl-border: #e2e8f0;
+  --dl-accent: #315cf5;
+  --dl-accent-hover: #1e4ad6;
+  --dl-accent-subtle: rgba(49, 92, 245, 0.1);
+  --dl-warning: #f59e0b;
+  --dl-btn-hover: rgba(0, 0, 0, 0.05);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --dl-bg-page: #121316;
+    --dl-bg-header: #18191d;
+    --dl-bg-card: #202228;
+    --dl-text-primary: #f3f4f6;
+    --dl-text-secondary: #9ca3af;
+    --dl-text-muted: #6b7280;
+    --dl-border: #2d3039;
+    --dl-accent: #4f75ff;
+    --dl-accent-hover: #3b63f6;
+    --dl-accent-subtle: rgba(79, 117, 255, 0.15);
+    --dl-warning: #fbbf24;
+    --dl-btn-hover: rgba(255, 255, 255, 0.08);
+  }
+}
+
+html[data-forced-appearance="dark"],
+body.dark {
+  --dl-bg-page: #121316;
+  --dl-bg-header: #18191d;
+  --dl-bg-card: #202228;
+  --dl-text-primary: #f3f4f6;
+  --dl-text-secondary: #9ca3af;
+  --dl-text-muted: #6b7280;
+  --dl-border: #2d3039;
+  --dl-accent: #4f75ff;
+  --dl-accent-hover: #3b63f6;
+  --dl-accent-subtle: rgba(79, 117, 255, 0.15);
+  --dl-warning: #fbbf24;
+  --dl-btn-hover: rgba(255, 255, 255, 0.08);
+}
+
+html[data-forced-appearance="light"],
+body.light {
+  --dl-bg-page: #f7f8f9;
+  --dl-bg-header: #ffffff;
+  --dl-bg-card: #f0f2f5;
+  --dl-text-primary: #1e2025;
+  --dl-text-secondary: #5f6368;
+  --dl-text-muted: #80868b;
+  --dl-border: #e2e8f0;
+  --dl-accent: #315cf5;
+  --dl-accent-hover: #1e4ad6;
+  --dl-accent-subtle: rgba(49, 92, 245, 0.1);
+  --dl-warning: #f59e0b;
+  --dl-btn-hover: rgba(0, 0, 0, 0.05);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--dl-bg-page);
+  color: var(--dl-text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+.dl-page-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Top Header ────────────────────────────────────────────────────────── */
+.dl-header {
+  height: 56px;
+  background-color: var(--dl-bg-header);
+  border-bottom: 1px solid var(--dl-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.dl-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.dl-invisurf-logo {
+  display: block;
+}
+
+.dl-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--dl-text-primary);
+  letter-spacing: -0.2px;
+}
+
+.dl-header-center {
+  flex: 1 1 auto;
+  max-width: 580px;
+  margin: 0 20px;
+}
+
+.dl-search-box {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.dl-search-icon {
+  position: absolute;
+  left: 12px;
+  color: var(--dl-text-muted);
+  pointer-events: none;
+}
+
+.dl-search-input {
+  width: 100%;
+  height: 36px;
+  background-color: transparent;
+  border: 1px solid var(--dl-border);
+  border-radius: 6px;
+  padding: 0 36px 0 36px;
+  font-size: 13.5px;
+  color: var(--dl-text-primary);
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.dl-search-input:focus {
+  border-color: var(--dl-accent);
+  box-shadow: 0 0 0 2px var(--dl-accent-subtle);
+}
+
+.dl-search-input::placeholder {
+  color: var(--dl-text-muted);
+}
+
+.dl-search-clear-btn {
+  position: absolute;
+  right: 8px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--dl-text-muted);
+  border-radius: 50%;
+}
+
+.dl-search-clear-btn:hover {
+  color: var(--dl-text-primary);
+  background-color: var(--dl-btn-hover);
+}
+
+.dl-header-right {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.dl-clear-all-btn {
+  background: transparent;
+  border: 1px solid var(--dl-accent);
+  color: var(--dl-accent);
+  border-radius: 9999px;
+  padding: 5px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.dl-clear-all-btn:hover {
+  background-color: var(--dl-accent-subtle);
+}
+
+/* ── Main Content Area ─────────────────────────────────────────────────── */
+.dl-main-content {
+  flex: 1 1 auto;
+  max-width: 780px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 24px 20px 48px 20px;
+}
+
+.dl-date-group {
+  margin-bottom: 24px;
+}
+
+.dl-date-heading {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--dl-text-secondary);
+  margin: 0 0 10px 0;
+}
+
+.dl-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ── Download Card ─────────────────────────────────────────────────────── */
+.dl-card {
+  background-color: var(--dl-bg-card);
+  border-radius: 8px;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  transition: background-color 0.15s ease;
+}
+
+.dl-card--active {
+  border-left: 3px solid var(--dl-accent);
+}
+
+.dl-card--active.is-paused {
+  border-left-color: var(--dl-warning);
+}
+
+.dl-card-file-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--dl-text-muted);
+}
+
+.dl-card-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dl-card-top-line {
+  display: flex;
+  align-items: center;
+}
+
+.dl-filename-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.dl-file-name {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--dl-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dl-file-name.is-strikethrough {
+  text-decoration: line-through;
+  color: var(--dl-text-muted);
+}
+
+.dl-file-link-btn {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--dl-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dl-file-link-btn:hover {
+  color: var(--dl-accent-hover);
+}
+
+.dl-status-badge {
+  font-size: 12px;
+  font-weight: 400;
+  flex-shrink: 0;
+}
+
+.dl-badge-deleted,
+.dl-badge-cancelled,
+.dl-badge-failed {
+  color: var(--dl-text-secondary);
+}
+
+.dl-card-subline {
+  font-size: 12px;
+  color: var(--dl-text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dl-source-url {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--dl-text-muted);
+}
+
+.dl-paused-text {
+  color: var(--dl-warning);
+}
+
+/* Linear Progress Track */
+.dl-progress-track {
+  width: 100%;
+  max-width: 480px;
+  height: 4px;
+  background-color: var(--dl-border);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 6px;
+}
+
+.dl-progress-fill {
+  height: 100%;
+  background-color: var(--dl-accent);
+  border-radius: 2px;
+  transition: width 0.2s ease;
+}
+
+.dl-progress-fill.is-paused {
+  background-color: var(--dl-warning);
+}
+
+/* ── Card Action Buttons ───────────────────────────────────────────────── */
+.dl-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.dl-icon-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--dl-text-secondary);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.dl-icon-btn:hover {
+  background-color: var(--dl-btn-hover);
+  color: var(--dl-text-primary);
+}
+
+.dl-icon-btn.is-copied {
+  color: var(--dl-accent);
+  background-color: var(--dl-accent-subtle);
+}
+
+.dl-icon-btn--folder {
+  border-radius: 6px;
+}
+
+/* ── Empty State ───────────────────────────────────────────────────────── */
+.dl-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 20px;
+  text-align: center;
+}
+
+.dl-empty-icon {
+  color: var(--dl-text-muted);
+  margin-bottom: 16px;
+}
+
+.dl-empty-title {
+  font-size: 18px;
+  font-weight: 500;
+  margin: 0 0 8px 0;
+  color: var(--dl-text-primary);
+}
+
+.dl-empty-desc {
+  font-size: 13.5px;
+  color: var(--dl-text-secondary);
+  margin: 0;
+  max-width: 320px;
+}

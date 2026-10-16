@@ -10,6 +10,7 @@ const { loadSettings, getTitleBarOverlayOptionsForNativeTheme } = require('../se
 const { pushRecentlyClosedEntry, captureClosedWindowSnapshot } = require('../services/sessionService');
 const { registerAppProtocolForSession, installSessionNetworkGuards, prewarmNewTabAssets } = require('../services/networkService');
 const { cleanupStealthCookiesForContext, cleanupSessionOnlyCookiesForProfile } = require('../services/cookieService');
+const downloadService = require('../services/downloadService');
 
 const { applyIdentityToWebContents } = require('../../runtime/browserIdentity');
 const { buildSecureWebPreferences } = require('../../runtime/webPreferences');
@@ -20,9 +21,12 @@ const {
     createChromeShellMenuOverlayLayer,
     createChromeOmniboxOverlayLayer,
     createTooltipOverlay,
+    createDownloadAttentionOverlay,
+    createStatusBubbleOverlay,
     ensureChromeOverlayOnTop,
     layoutChromeOverlayBounds,
-    layoutOmniboxOverlayBounds
+    layoutOmniboxOverlayBounds,
+    layoutStatusBubble
 } = require('./overlayManager');
 
 /** Usable screen rectangle (excludes dock/taskbar); keeps custom title bar — not OS fullscreen. */
@@ -54,6 +58,7 @@ function createWindow({
     const { getPermissionController } = require('../permissions/PermissionController');
     const permController = getPermissionController();
     permController.registerSession(mappedSession, { profileId: resolvedProfileId, isIncognito: false });
+    downloadService.registerSession(mappedSession, { profileId: resolvedProfileId, isStealth: false });
 
     // This is deliberately best-effort and is shared safely across all
     // partitions: these are packaged, profile-independent renderer assets.
@@ -67,6 +72,7 @@ function createWindow({
         registerAppProtocolForSession(stealthTabSession, stealthTabsPartition);
         installSessionNetworkGuards(stealthTabSession, { profileId: resolvedProfileId, isStealthSession: true });
         permController.registerSession(stealthTabSession, { profileId: stealthTabsPartition, isIncognito: true });
+        downloadService.registerSession(stealthTabSession, { profileId: resolvedProfileId, isStealth: true });
     }
 
     const isMac = process.platform === C.PLATFORM.DARWIN;
@@ -171,6 +177,8 @@ function createWindow({
         lensSessions: new Map(),
         lensOverlayBounds: null,
         chromeOverlayFullWindowMode: false,
+        statusBubbleView: null,
+        statusBubbleState: null,
     };
     State.windowContextsById.set(window.id, context);
 
@@ -203,20 +211,6 @@ function createWindow({
             State.mainWindow = window;
         }
         menuUI.rebuildApplicationMenu();
-
-        const currentSettings = loadSettings();
-        if (currentSettings.autoFadeOnBlur) {
-            const activeOpacity = Math.max(0.02, Math.min(1.0, Number(currentSettings.windowOpacity) || 1.0));
-            try { window.setOpacity(activeOpacity); } catch (_) { }
-        }
-    });
-
-    window.on('blur', () => {
-        const currentSettings = loadSettings();
-        if (currentSettings.autoFadeOnBlur) {
-            const blurOpacity = Math.max(0.02, Math.min(1.0, Number(currentSettings.autoFadeBlurOpacity) || 0.30));
-            try { window.setOpacity(blurOpacity); } catch (_) { }
-        }
     });
 
     const { createTabContentContainer, layoutTabContentContainer, removeTabContentChildView, layoutActiveTabView, prewarmNewTabView } = require('./tabManager');
@@ -290,6 +284,7 @@ function createWindow({
         if ((context.chromeOmniboxOverlayAcquireCount || 0) > 0 && context.lastOmniboxOverlayPatch) {
             layoutOmniboxOverlayBounds(context, context.lastOmniboxOverlayPatch);
         }
+        layoutStatusBubble(context);
         ensureChromeOverlayOnTop(context);
     });
 
@@ -326,6 +321,17 @@ function createWindow({
             try { context.window.contentView.removeChildView(context.tooltipView); } catch (_) { }
             try { if (!context.tooltipView.webContents.isDestroyed()) context.tooltipView.webContents.destroy(); } catch (_) { }
             context.tooltipView = null;
+        }
+        if (context.downloadAttentionView) {
+            try { context.window.contentView.removeChildView(context.downloadAttentionView); } catch (_) { }
+            try { if (!context.downloadAttentionView.webContents.isDestroyed()) context.downloadAttentionView.webContents.destroy(); } catch (_) { }
+            context.downloadAttentionView = null;
+        }
+        if (context.statusBubbleView) {
+            try { context.window.contentView.removeChildView(context.statusBubbleView); } catch (_) { }
+            try { if (!context.statusBubbleView.webContents.isDestroyed()) context.statusBubbleView.webContents.destroy(); } catch (_) { }
+            context.statusBubbleView = null;
+            context.statusBubbleState = null;
         }
         if (context.chromeOverlayView) {
             try { context.window.contentView.removeChildView(context.chromeOverlayView); } catch (_) { }
@@ -426,6 +432,8 @@ function createWindow({
     createChromeShellMenuOverlayLayer(context);
     createChromeOmniboxOverlayLayer(context);
     createTooltipOverlay(context);
+    createDownloadAttentionOverlay(context);
+    createStatusBubbleOverlay(context);
     ensureChromeOverlayOnTop(context);
     // Start this after the shell/overlay setup.  It stays detached and is only
     // promoted for a foreground blank NTP in this exact window context.

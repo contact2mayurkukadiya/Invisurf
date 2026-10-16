@@ -86,6 +86,255 @@ function createTooltipOverlay(context) {
     context.tooltipView = tooltipView;
 }
 
+function createStatusBubbleOverlay(context) {
+    if (context.statusBubbleView) return;
+    const view = new WebContentsView({
+        webPreferences: buildSecureWebPreferences(),
+    });
+    applyIdentityToWebContents(view.webContents);
+    view.setBackgroundColor('#00000000');
+    view.webContents.loadURL('app://localhost/status-bubble.html').catch((err) => {
+        console.error('status-bubble load', err);
+    });
+    context.window.contentView.addChildView(view);
+    view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+    context.statusBubbleView = view;
+    context.statusBubbleState = {
+        url: '',
+        side: 'left',
+        width: 0,
+        height: 24,
+        isLoaded: false,
+    };
+    view.webContents.once('did-finish-load', () => {
+        if (context.statusBubbleState) {
+            context.statusBubbleState.isLoaded = true;
+            try {
+                const settingsService = require('../services/settingsService');
+                const themePatch = settingsService.getChromeOverlayThemePatchForContext(context);
+                view.webContents.send(C.IPC_EVENT.STATUS_BUBBLE_THEME, themePatch);
+            } catch (_) {}
+            if (context.statusBubbleState.url) {
+                updateStatusBubble(context, context.statusBubbleState.url);
+            }
+        }
+    });
+}
+
+function getStatusBubbleBounds(context) {
+    if (!context?.window || context.window.isDestroyed()) return { x: 0, y: 0, width: 0, height: 0 };
+    const state = context.statusBubbleState;
+    if (!state || !state.url) return { x: 0, y: 0, width: 0, height: 0 };
+
+    const winBounds = context.window.getContentBounds();
+    const windowW = Math.max(1, winBounds.width);
+    const windowH = Math.max(1, winBounds.height);
+    const maxBubbleWidth = Math.max(100, Math.floor(windowW * 0.5));
+    const bubbleHeight = 24;
+
+    const baseWidth = state.width > 0
+        ? state.width
+        : Math.max(120, Math.ceil(state.url.length * 7.2) + 20);
+    const bubbleWidth = Math.min(maxBubbleWidth, Math.max(60, baseWidth));
+
+    const x = state.side === 'left' ? 0 : Math.max(0, windowW - bubbleWidth);
+    const y = Math.max(0, windowH - bubbleHeight);
+
+    return { x, y, width: bubbleWidth, height: bubbleHeight };
+}
+
+function updateStatusBubble(context, targetUrl) {
+    if (!context?.window || context.window.isDestroyed()) return;
+    if (!context.statusBubbleView || context.statusBubbleView.webContents.isDestroyed()) {
+        createStatusBubbleOverlay(context);
+    }
+    if (!context.statusBubbleView || context.statusBubbleView.webContents.isDestroyed()) return;
+
+    if (!context.statusBubbleState) {
+        context.statusBubbleState = { url: '', side: 'left', width: 0, height: 24, isLoaded: false };
+    }
+
+    const cleanUrl = typeof targetUrl === 'string' ? targetUrl.trim() : '';
+    if (!cleanUrl) {
+        context.statusBubbleState.url = '';
+        context.statusBubbleState.side = 'left';
+        context.statusBubbleState.width = 0;
+        try {
+            context.statusBubbleView.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+            if (context.statusBubbleState.isLoaded) {
+                context.statusBubbleView.webContents.send(C.IPC_EVENT.STATUS_BUBBLE_UPDATE, { url: '' });
+            }
+        } catch (_) {}
+        return;
+    }
+
+    if (context.statusBubbleState.url !== cleanUrl) {
+        context.statusBubbleState.width = 0;
+    }
+    context.statusBubbleState.url = cleanUrl;
+    const bounds = getStatusBubbleBounds(context);
+
+    try {
+        const cv = context.window.contentView;
+        cv.addChildView(context.statusBubbleView);
+        if (context.chromeOmniboxOverlayView && !context.chromeOmniboxOverlayView.webContents.isDestroyed()) {
+            cv.addChildView(context.chromeOmniboxOverlayView);
+        }
+        if (context.chromeShellMenuOverlayView && !context.chromeShellMenuOverlayView.webContents.isDestroyed()) {
+            cv.addChildView(context.chromeShellMenuOverlayView);
+        }
+        if (context.tooltipView && !context.tooltipView.webContents.isDestroyed()) {
+            cv.addChildView(context.tooltipView);
+        }
+        context.statusBubbleView.setBounds(bounds);
+
+        const sendUpdate = () => {
+            if (!context.statusBubbleView || context.statusBubbleView.webContents.isDestroyed()) return;
+            try {
+                const settingsService = require('../services/settingsService');
+                const themePatch = settingsService.getChromeOverlayThemePatchForContext(context);
+
+                context.statusBubbleView.webContents.send(C.IPC_EVENT.STATUS_BUBBLE_UPDATE, {
+                    url: cleanUrl,
+                    side: context.statusBubbleState.side,
+                    theme: themePatch,
+                });
+            } catch (_) {}
+        };
+
+        if (context.statusBubbleView.webContents.isLoading()) {
+            context.statusBubbleView.webContents.once('did-finish-load', sendUpdate);
+        } else {
+            sendUpdate();
+        }
+    } catch (_) {}
+}
+
+function flipStatusBubbleSide(context) {
+    if (!context?.statusBubbleState || !context.statusBubbleState.url) return;
+    context.statusBubbleState.side = context.statusBubbleState.side === 'left' ? 'right' : 'left';
+    const bounds = getStatusBubbleBounds(context);
+    try {
+        if (context.statusBubbleView && !context.statusBubbleView.webContents.isDestroyed()) {
+            context.statusBubbleView.setBounds(bounds);
+            const settingsService = require('../services/settingsService');
+            const themePatch = settingsService.getChromeOverlayThemePatchForContext(context);
+            context.statusBubbleView.webContents.send(C.IPC_EVENT.STATUS_BUBBLE_UPDATE, {
+                url: context.statusBubbleState.url,
+                side: context.statusBubbleState.side,
+                theme: themePatch,
+            });
+        }
+    } catch (_) {}
+}
+
+function resizeStatusBubble(context, size) {
+    if (!context?.statusBubbleState || !context.statusBubbleState.url) return;
+    const reportedWidth = Number(size?.width);
+    if (reportedWidth > 0 && Math.abs(reportedWidth - context.statusBubbleState.width) > 3) {
+        context.statusBubbleState.width = reportedWidth;
+        const bounds = getStatusBubbleBounds(context);
+        try {
+            if (context.statusBubbleView && !context.statusBubbleView.webContents.isDestroyed()) {
+                context.statusBubbleView.setBounds(bounds);
+            }
+        } catch (_) {}
+    }
+}
+
+function hideStatusBubble(context) {
+    if (!context?.statusBubbleView || context.statusBubbleView.webContents.isDestroyed()) return;
+    if (context.statusBubbleState) {
+        context.statusBubbleState.url = '';
+        context.statusBubbleState.side = 'left';
+        context.statusBubbleState.width = 0;
+    }
+    try {
+        context.statusBubbleView.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+        context.statusBubbleView.webContents.send(C.IPC_EVENT.STATUS_BUBBLE_UPDATE, { url: '' });
+    } catch (_) {}
+}
+
+function layoutStatusBubble(context) {
+    if (!context?.statusBubbleState?.url) return;
+    const bounds = getStatusBubbleBounds(context);
+    try {
+        if (context.statusBubbleView && !context.statusBubbleView.webContents.isDestroyed()) {
+            context.statusBubbleView.setBounds(bounds);
+        }
+    } catch (_) {}
+}
+
+function sendStatusBubbleThemePatch(context) {
+    if (!context?.statusBubbleView || context.statusBubbleView.webContents.isDestroyed()) return;
+    try {
+        const settingsService = require('../services/settingsService');
+        const themePatch = settingsService.getChromeOverlayThemePatchForContext(context);
+        context.statusBubbleView.webContents.send(C.IPC_EVENT.STATUS_BUBBLE_THEME, themePatch);
+    } catch (_) {}
+}
+
+function createDownloadAttentionOverlay(context) {
+    if (context.downloadAttentionView) return;
+    const view = new WebContentsView({
+        webPreferences: buildSecureWebPreferences(),
+    });
+    applyIdentityToWebContents(view.webContents);
+    view.setBackgroundColor('#00000000');
+    view.webContents.loadURL('app://localhost/download-attention.html').catch((err) => {
+        console.error('download-attention load', err);
+    });
+    context.window.contentView.addChildView(view);
+    view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+    context.downloadAttentionView = view;
+}
+
+function showDownloadAttentionOverlay(context, rect) {
+    if (!context?.window || context.window.isDestroyed()) return;
+    if (!context.downloadAttentionView || context.downloadAttentionView.webContents.isDestroyed()) {
+        createDownloadAttentionOverlay(context);
+    }
+    const cv = context.window.contentView;
+    if (context.downloadAttentionView) {
+        // Guarantee attention overlay is physically at the top of contentView (above tab content)
+        try {
+            cv.addChildView(context.downloadAttentionView);
+        } catch (_) {}
+
+        const w = 180;
+        const h = 280;
+        let x = Math.round((rect?.x || 0) + (rect?.width || 30) / 2 - w / 2);
+        try {
+            const winBounds = context.window.getContentBounds();
+            x = Math.max(0, Math.min(x, winBounds.width - w));
+        } catch (_) {}
+        const y = Math.round(rect?.y || 0);
+
+        context.downloadAttentionView.setBounds({ x, y, width: w, height: h });
+
+        const sendPlay = () => {
+            if (context.downloadAttentionView && !context.downloadAttentionView.webContents.isDestroyed()) {
+                try {
+                    context.downloadAttentionView.webContents.send('download-attention:play');
+                } catch (_) {}
+            }
+        };
+
+        if (context.downloadAttentionView.webContents.isLoading()) {
+            context.downloadAttentionView.webContents.once('did-finish-load', sendPlay);
+        } else {
+            sendPlay();
+        }
+
+        if (context.downloadAttentionTimer) clearTimeout(context.downloadAttentionTimer);
+        context.downloadAttentionTimer = setTimeout(() => {
+            if (context.downloadAttentionView && !context.downloadAttentionView.webContents.isDestroyed()) {
+                context.downloadAttentionView.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+            }
+        }, 1900);
+    }
+}
+
 function ensureChromeOverlayOnTop(context) {
     if (!context?.window?.contentView) return;
     const cv = context.window.contentView;
@@ -111,6 +360,12 @@ function ensureChromeOverlayOnTop(context) {
         if (context.chromeOverlayView && !context.chromeOverlayView.webContents.isDestroyed()) {
             cv.addChildView(context.chromeOverlayView);
         }
+        if (context.statusBubbleView && !context.statusBubbleView.webContents.isDestroyed()) {
+            cv.addChildView(context.statusBubbleView);
+            if (context.statusBubbleState?.url) {
+                context.statusBubbleView.setBounds(getStatusBubbleBounds(context));
+            }
+        }
         if (context.chromeOmniboxOverlayView && !context.chromeOmniboxOverlayView.webContents.isDestroyed()) {
             cv.addChildView(context.chromeOmniboxOverlayView);
         }
@@ -123,10 +378,12 @@ function ensureChromeOverlayOnTop(context) {
         if (context.tooltipView && !context.tooltipView.webContents.isDestroyed()) {
             cv.addChildView(context.tooltipView);
         }
+        if (context.downloadAttentionView && !context.downloadAttentionView.webContents.isDestroyed()) {
+            cv.addChildView(context.downloadAttentionView);
+        }
     } catch (err) {
         console.error('ensureChromeOverlayOnTop', err?.message || err);
     }
-
 }
 
 function clampNumber(value, min, max) {
@@ -263,9 +520,27 @@ function computeMenuOverlayBounds(context, patch) {
         return menuOverlayBoundsFromPanel(context, { left, top, width: panelWidth, height });
     }
 
-    if (kind === 'cookieControls' || kind === 'downloadPanel') {
+    if (kind === 'downloadPanel') {
         const ar = patch.anchorRect || {};
-        const panelWidth = kind === 'cookieControls' ? 340 : 300;
+        const panelWidth = 360;
+        const left0 = Math.round(Number(ar.left) || 0);
+        const w0 = Math.max(1, Math.round(Number(ar.width) || 32));
+        const top0 = Math.round(Number(ar.top) || 0);
+        const h0 = Math.max(1, Math.round(Number(ar.height) || 32));
+        const left = clampNumber(left0 + w0 - panelWidth, pad, windowW - panelWidth - pad);
+        const top = clampNumber(top0 + h0 + 6, pad, windowH - 220 - pad);
+        const height = Math.max(180, Math.min(440, windowH - top - pad));
+        return menuOverlayBoundsFromPanel(context, { left, top, width: panelWidth, height }, {
+            shadowMarginTop: 6,
+            shadowMarginBottom: 28,
+            shadowMarginLeft: 28,
+            shadowMarginRight: 28,
+        });
+    }
+
+    if (kind === 'cookieControls') {
+        const ar = patch.anchorRect || {};
+        const panelWidth = 340;
         const left0 = Math.round(Number(ar.left) || 0);
         const top0 = Math.round(Number(ar.top) || 0);
         const h0 = Math.max(1, Math.round(Number(ar.height) || 32));
@@ -634,5 +909,14 @@ module.exports = {
     layoutChromeOverlayBounds,
     layoutChromeOverlayFullWindowBounds,
     showPermissionPromptOverlay,
-    hidePermissionPromptOverlay
+    hidePermissionPromptOverlay,
+    createDownloadAttentionOverlay,
+    showDownloadAttentionOverlay,
+    createStatusBubbleOverlay,
+    updateStatusBubble,
+    flipStatusBubbleSide,
+    resizeStatusBubble,
+    hideStatusBubble,
+    layoutStatusBubble,
+    sendStatusBubbleThemePatch,
 };

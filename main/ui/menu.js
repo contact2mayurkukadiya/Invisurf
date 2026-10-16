@@ -407,8 +407,14 @@ function runMenuCommandFromPalette(commandId) {
             if (focused && !focused.isDestroyed()) focused.selectAll();
             return true;
         }
-        case C.MENU_COMMAND.OPEN_DOWNLOADS:
+        case C.MENU_COMMAND.OPEN_DOWNLOADS: {
+            const shellWebContents = focusedShellWebContents();
+            if (shellWebContents && !shellWebContents.isDestroyed()) {
+                shellWebContents.send(C.IPC_EVENT.SHORTCUT_DOWNLOADS || 'shortcut-downloads');
+                return true;
+            }
             return openDownloadsFolder();
+        }
         case C.MENU_COMMAND.PRINT_ACTIVE_TAB:
             return tabManager.printActiveTab();
         case C.MENU_COMMAND.FIND_IN_PAGE:

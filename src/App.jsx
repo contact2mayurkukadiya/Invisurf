@@ -410,6 +410,10 @@ function AppShell() {
     openSingletonTab(URL_C.BOOKMARK_NAVIGATE, URL_C.BOOKMARK_DISPLAY);
   }, [openSingletonTab]);
 
+  const handleOpenDownloads = useCallback(() => {
+    openSingletonTab(URL_C.DOWNLOADS_NAVIGATE, URL_C.DOWNLOADS_DISPLAY);
+  }, [openSingletonTab]);
+
   const handleDeleteBrowsingData = useCallback(() => {
     const { tabs, tabOrder } = stateRef.current;
     const existingId = tabOrder.find(id => tabs[id]?.url === URL_C.HISTORY_DISPLAY);
@@ -442,6 +446,7 @@ function AppShell() {
         },
         openHistory: handleOpenHistory,
         openBookmark: handleOpenBookmark,
+        openDownloads: handleOpenDownloads,
         switchTabDir: handleSwitchTabDir,
         newTabToRight,
         duplicateTab,
@@ -530,6 +535,7 @@ function AppShell() {
     onSwitchTabDir: handleSwitchTabDir,
     onHistory: handleOpenHistory,
     onBookmark: handleOpenBookmark,
+    onDownloads: handleOpenDownloads,
     onSettings: handleOpenSettings,
     onTabNewToRight: newTabToRight,
     onTabDuplicate: duplicateTab,
@@ -726,6 +732,7 @@ function AppShell() {
         onNewTab={createTab}
         onOpenHistory={handleOpenHistory}
         onOpenBookmark={handleOpenBookmark}
+        onOpenDownloads={handleOpenDownloads}
         onDeleteBrowsingData={handleDeleteBrowsingData}
         onOpenSettings={handleOpenSettings}
         searchEngine={searchEngine}

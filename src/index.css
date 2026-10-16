@@ -1901,3 +1901,169 @@ body:has(.header--stealth-window) .tab-content-snapshot {
         caret-color: var(--chrome-accent, #8ab4f8);
     }
 }
+
+/* ── Download Toolbar Button & Attention Arrow ────────────────────────────── */
+.download-btn-container {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.download-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.download-btn.is-downloading {
+    color: var(--chrome-accent, #1a73e8);
+}
+
+.download-btn.is-paused {
+    color: #fbbc05 !important;
+}
+
+.download-progress-ring-wrapper {
+    position: relative;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.download-progress-ring {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 30px;
+    height: 30px;
+    pointer-events: none;
+}
+
+.download-progress-ring .ring-bg {
+    stroke: var(--chrome-close-hover, rgba(128, 128, 128, 0.3));
+}
+
+.download-progress-ring .ring-bar {
+    stroke: var(--chrome-accent, #1a73e8);
+    transition: stroke-dashoffset 0.25s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.2s ease;
+}
+
+.download-progress-ring.is-paused .ring-bar {
+    stroke: #fbbc05 !important;
+}
+
+/* 3 spinning lines ONLY during loading state (before download starts) */
+.download-progress-ring.is-loading .ring-bar,
+.download-progress-ring.is-indeterminate .ring-bar {
+    stroke-dasharray: 14.9 14.9 !important;
+    stroke-dashoffset: 0 !important;
+    stroke-linecap: round;
+}
+
+.download-progress-ring.is-loading,
+.download-progress-ring.is-indeterminate {
+    animation: downloadRingSpin 1.4s linear infinite;
+}
+
+/* Single rotating arc when actively downloading but total size is unknown */
+.download-progress-ring.is-streaming .ring-bar {
+    stroke-dasharray: 24 65.5 !important;
+    stroke-dashoffset: 0 !important;
+    stroke-linecap: round;
+}
+
+.download-progress-ring.is-streaming {
+    animation: downloadRingSpin 1.8s linear infinite;
+}
+
+@keyframes downloadRingSpin {
+    from {
+        transform: rotate(-90deg);
+    }
+    to {
+        transform: rotate(270deg);
+    }
+}
+
+.download-icon-centered {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--chrome-accent, #1a73e8);
+}
+
+.download-icon-centered.is-paused {
+    color: #fbbc05 !important;
+}
+
+/* ── Floating ~100px attention overlay fading up towards the download button ── */
+.download-attention-indicator {
+    position: absolute;
+    top: 48px;
+    left: 50%;
+    width: 96px;
+    height: 96px;
+    margin-left: -48px;
+    z-index: 99999;
+    cursor: pointer;
+    pointer-events: auto;
+    animation: downloadBubbleFlyUp 1.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.download-attention-bubble {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(26, 115, 232, 0.42) 0%, rgba(26, 115, 232, 0.22) 65%, rgba(26, 115, 232, 0.08) 100%);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 2px solid rgba(255, 255, 255, 0.7);
+    box-shadow: 0 12px 36px rgba(26, 115, 232, 0.45), 0 0 24px rgba(26, 115, 232, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+    transition: transform 0.2s ease;
+}
+
+.download-attention-bubble svg {
+    width: 44px;
+    height: 44px;
+    color: #ffffff;
+    filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.4));
+}
+
+@keyframes downloadBubbleFlyUp {
+    0% {
+        opacity: 0;
+        transform: translateY(70px) scale(0.6);
+    }
+    18% {
+        opacity: 1;
+        transform: translateY(20px) scale(1.08);
+    }
+    38% {
+        opacity: 1;
+        transform: translateY(0px) scale(1.0);
+    }
+    68% {
+        opacity: 0.95;
+        transform: translateY(-25px) scale(0.65);
+    }
+    100% {
+        opacity: 0;
+        transform: translateY(-50px) scale(0.25);
+        pointer-events: none;
+    }
+}

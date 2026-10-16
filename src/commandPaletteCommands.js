@@ -177,6 +177,13 @@ export function buildCommandPaletteCommands(ctx) {
     },
     {
       category: 'History',
+      label: 'Downloads page',
+      shortcut: mac ? '⌥⌘L' : 'Ctrl+J',
+      keywords: 'downloads files downloaded saved',
+      run: () => ctx.openDownloads?.(),
+    },
+    {
+      category: 'History',
       label: 'Reopen Closed Tab / Window',
       shortcut: S.historyReopen,
       keywords: 'restore reopen closed ghost tab window',
