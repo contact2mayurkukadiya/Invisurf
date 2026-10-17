@@ -301,8 +301,8 @@ function showDownloadAttentionOverlay(context, rect) {
             cv.addChildView(context.downloadAttentionView);
         } catch (_) {}
 
-        const w = 180;
-        const h = 280;
+        const w = 80;
+        const h = 180;
         let x = Math.round((rect?.x || 0) + (rect?.width || 30) / 2 - w / 2);
         try {
             const winBounds = context.window.getContentBounds();
@@ -315,7 +315,9 @@ function showDownloadAttentionOverlay(context, rect) {
         const sendPlay = () => {
             if (context.downloadAttentionView && !context.downloadAttentionView.webContents.isDestroyed()) {
                 try {
-                    context.downloadAttentionView.webContents.send('download-attention:play');
+                    const settingsService = require('../services/settingsService');
+                    const themePatch = settingsService.getChromeOverlayThemePatchForContext(context);
+                    context.downloadAttentionView.webContents.send('download-attention:play', themePatch);
                 } catch (_) {}
             }
         };
@@ -331,7 +333,7 @@ function showDownloadAttentionOverlay(context, rect) {
             if (context.downloadAttentionView && !context.downloadAttentionView.webContents.isDestroyed()) {
                 context.downloadAttentionView.setBounds({ x: 0, y: 0, width: 0, height: 0 });
             }
-        }, 1900);
+        }, 1300);
     }
 }
 

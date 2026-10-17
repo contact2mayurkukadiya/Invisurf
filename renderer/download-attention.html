@@ -1,91 +1,142 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <style>
+        :root {
+            --dl-bubble-bg: #ffffff;
+            --dl-bubble-border: rgba(0, 0, 0, 0.08);
+            --dl-bubble-shadow: 0 4px 16px rgba(0, 0, 0, 0.16), 0 1px 3px rgba(0, 0, 0, 0.08);
+            --dl-arrow-color: #1a73e8;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --dl-bubble-bg: #28292a;
+                --dl-bubble-border: rgba(255, 255, 255, 0.14);
+                --dl-bubble-shadow: 0 4px 20px rgba(0, 0, 0, 0.55), 0 1px 4px rgba(0, 0, 0, 0.35);
+                --dl-arrow-color: #8ab4f8;
+            }
+        }
+
+        html[data-forced-appearance="dark"],
+        body.dark {
+            --dl-bubble-bg: #28292a;
+            --dl-bubble-border: rgba(255, 255, 255, 0.14);
+            --dl-bubble-shadow: 0 4px 20px rgba(0, 0, 0, 0.55), 0 1px 4px rgba(0, 0, 0, 0.35);
+            --dl-arrow-color: #8ab4f8;
+        }
+
+        html[data-forced-appearance="light"],
+        body.light {
+            --dl-bubble-bg: #ffffff;
+            --dl-bubble-border: rgba(0, 0, 0, 0.08);
+            --dl-bubble-shadow: 0 4px 16px rgba(0, 0, 0, 0.16), 0 1px 3px rgba(0, 0, 0, 0.08);
+            --dl-arrow-color: #1a73e8;
+        }
+
         * {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
         }
+
         html, body {
             width: 100%;
             height: 100%;
             overflow: hidden;
-            background: transparent;
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
+            background: transparent !important;
             pointer-events: none;
+            user-select: none;
+            -webkit-user-select: none;
         }
-        .dl-arrow-container {
-            display: none;
-            width: 64px;
-            height: 64px;
+
+        .dl-bubble {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            background-color: var(--dl-bubble-bg);
+            border: 1px solid var(--dl-bubble-border);
+            box-shadow: var(--dl-bubble-shadow);
+            display: flex;
+            align-items: center;
+            justify-content: center;
             position: absolute;
             left: 50%;
-            margin-left: -32px;
-            top: 10px;
-            align-items: center;
-            justify-content: center;
+            top: 0;
+            opacity: 0;
+            transform: translate3d(-50%, 140px, 0) scale(0.6);
+            will-change: transform, opacity;
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
+            color: var(--dl-arrow-color);
+            pointer-events: none;
         }
-        .dl-arrow-container.animating {
-            display: flex;
-            animation: arrowFlyUp 1.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-        }
-        .dl-arrow-icon {
-            width: 100%;
-            height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #1a73e8;
-            filter: drop-shadow(0 0 2px #ffffff) drop-shadow(0 4px 14px rgba(26, 115, 232, 0.75)) drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35));
-        }
-        .dl-arrow-icon svg {
-            width: 56px;
-            height: 56px;
-        }
-        @keyframes arrowFlyUp {
-            0% {
-                opacity: 0;
-                transform: translateY(160px) scale(0.6);
-            }
-            18% {
-                opacity: 1;
-                transform: translateY(70px) scale(1.15);
-            }
-            38% {
-                opacity: 1;
-                transform: translateY(28px) scale(1.0);
-            }
-            68% {
-                opacity: 0.95;
-                transform: translateY(2px) scale(0.65);
-            }
-            100% {
-                opacity: 0;
-                transform: translateY(-16px) scale(0.2);
-            }
+
+        .dl-bubble svg {
+            width: 20px;
+            height: 20px;
+            display: block;
         }
     </style>
 </head>
 <body>
-    <div id="arrow-container" class="dl-arrow-container">
-        <div class="dl-arrow-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="12" y1="19" x2="12" y2="5" />
-                <polyline points="5 12 12 5 19 12" />
-            </svg>
-        </div>
+    <div id="dl-bubble" class="dl-bubble">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="19" x2="12" y2="5" />
+            <polyline points="5 12 12 5 19 12" />
+        </svg>
     </div>
+
     <script>
-        const container = document.getElementById('arrow-container');
-        function triggerAnim() {
-            container.classList.remove('animating');
-            void container.offsetWidth;
-            container.classList.add('animating');
+        const bubble = document.getElementById('dl-bubble');
+        let currentAnim = null;
+
+        const KEYFRAMES = [
+            { opacity: 0, transform: 'translate3d(-50%, 140px, 0) scale(0.6)' },
+            { opacity: 1, transform: 'translate3d(-50%, 95px, 0) scale(1.08)', offset: 0.18 },
+            { opacity: 1, transform: 'translate3d(-50%, 55px, 0) scale(1.0)', offset: 0.40 },
+            { opacity: 1, transform: 'translate3d(-50%, 16px, 0) scale(0.96)', offset: 0.74 },
+            { opacity: 0.6, transform: 'translate3d(-50%, 2px, 0) scale(0.72)', offset: 0.90 },
+            { opacity: 0, transform: 'translate3d(-50%, -8px, 0) scale(0.35)', offset: 1.0 },
+        ];
+
+        function applyTheme(themeData) {
+            if (!themeData) return;
+            const root = document.documentElement;
+            const tokens = themeData.tokens && typeof themeData.tokens === 'object' ? themeData.tokens : {};
+            Object.keys(tokens).forEach((k) => {
+                const v = tokens[k];
+                if (v !== undefined && v !== null && v !== '') {
+                    root.style.setProperty(k, String(v));
+                }
+            });
+            if (typeof themeData.effectiveDark === 'boolean') {
+                root.style.colorScheme = themeData.effectiveDark ? 'dark' : 'light';
+            }
+            const fa = themeData.forcedAppearance;
+            if (fa === 'light' || fa === 'dark') {
+                root.setAttribute('data-forced-appearance', fa);
+            } else {
+                root.removeAttribute('data-forced-appearance');
+            }
         }
+
+        function triggerAnim(themeData) {
+            if (themeData) {
+                applyTheme(themeData);
+            }
+            if (currentAnim) {
+                try { currentAnim.cancel(); } catch (_) {}
+            }
+            currentAnim = bubble.animate(KEYFRAMES, {
+                duration: 1200,
+                easing: 'cubic-bezier(0.2, 0.9, 0.25, 1)',
+                fill: 'forwards',
+            });
+        }
+
         if (window.electronAPI && window.electronAPI.onDownloadAttentionPlay) {
             window.electronAPI.onDownloadAttentionPlay(triggerAnim);
         }

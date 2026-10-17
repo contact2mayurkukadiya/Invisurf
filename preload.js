@@ -774,7 +774,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     downloadsOpenFolder: () => ipcRenderer.invoke(C.IPC_INVOKE.DOWNLOADS_OPEN_FOLDER),
     downloadsShowAttention: (rect) => ipcRenderer.invoke(C.IPC_INVOKE.DOWNLOADS_SHOW_ATTENTION, rect),
     onDownloadAttentionPlay: (callback) => {
-        const handler = () => callback();
+        const handler = (_event, data) => callback(data);
         ipcRenderer.on('download-attention:play', handler);
         return () => ipcRenderer.removeListener('download-attention:play', handler);
     },
