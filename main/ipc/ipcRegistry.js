@@ -888,6 +888,43 @@ function registerIpcHandlers() {
         if (context.tabs[targetId]) context.tabs[targetId].webContents.navigationHistory.goForward();
     });
 
+    ipcMain.on(C.IPC_SEND.OVERSCROLL_TRIGGER_NAVIGATION, (e, direction) => {
+        const tabId = State.webContentsIdToTabId.get(e.sender.id);
+        if (!tabId) return;
+        const context = getWindowContextByEventSender(e.sender);
+        if (!context) return;
+        overlayManager.dismissChromeShellMenuOverlay(context, 'browser-action');
+        const targetView = context.tabs[tabId];
+        if (!targetView || targetView.webContents.isDestroyed()) return;
+
+        const nav = targetView.webContents.navigationHistory || targetView.webContents;
+        if (direction === 'back' && nav.canGoBack()) {
+            if (State.appLogger) State.appLogger.info('overscroll:go-back', { windowId: context.windowId, tabId });
+            nav.goBack();
+        } else if (direction === 'forward' && nav.canGoForward()) {
+            if (State.appLogger) State.appLogger.info('overscroll:go-forward', { windowId: context.windowId, tabId });
+            nav.goForward();
+        }
+    });
+
+    ipcMain.on(C.IPC_SEND.OVERSCROLL_REQUEST_SYNC, (e) => {
+        const tabId = State.webContentsIdToTabId.get(e.sender.id);
+        if (!tabId) return;
+        const context = getWindowContextByEventSender(e.sender);
+        const targetView = context?.tabs[tabId];
+        if (targetView && typeof targetView._invisurfSyncOverscrollHistoryState === 'function') {
+            targetView._invisurfSyncOverscrollHistoryState();
+        } else if (!e.sender.isDestroyed()) {
+            const nav = e.sender.navigationHistory || e.sender;
+            try {
+                e.sender.send(C.IPC_EVENT.OVERSCROLL_SYNC_STATE, {
+                    canGoBack: typeof nav.canGoBack === 'function' ? nav.canGoBack() : false,
+                    canGoForward: typeof nav.canGoForward === 'function' ? nav.canGoForward() : false,
+                });
+            } catch (_) {}
+        }
+    });
+
     ipcMain.on(C.IPC_SEND.RELOAD, (e, { id }) => {
         if (!isSenderTrusted(e)) return;
         const context = getWindowContextByEventSender(e.sender);

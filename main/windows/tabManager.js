@@ -137,8 +137,16 @@ function restoreActiveTabViewFromShellOverlay(context) {
 function resetTabWebContentsScale(view) {
     const webContents = view?.webContents;
     if (!webContents || webContents.isDestroyed()) return;
-    try { webContents.setZoomFactor(1); } catch (_) { }
-    try { webContents.setZoomLevel(0); } catch (_) { }
+    try {
+        if (typeof webContents.getZoomFactor === 'function' && webContents.getZoomFactor() !== 1) {
+            webContents.setZoomFactor(1);
+        }
+    } catch (_) { }
+    try {
+        if (typeof webContents.getZoomLevel === 'function' && webContents.getZoomLevel() !== 0) {
+            webContents.setZoomLevel(0);
+        }
+    } catch (_) { }
     if (typeof webContents.setVisualZoomLevelLimits === 'function') {
         try {
             const result = webContents.setVisualZoomLevelLimits(1, 1);
@@ -225,6 +233,9 @@ function activateTabInContext(context, id) {
     if (skipSameTab) {
         layoutActiveTabView(context, id);
         overlayManager.ensureChromeOverlayOnTop(context);
+        if (typeof context.tabs[id]?._invisurfSyncOverscrollHistoryState === 'function') {
+            context.tabs[id]._invisurfSyncOverscrollHistoryState();
+        }
         return true;
     }
     if (State.detachedTabWindows.has(id)) {
@@ -247,6 +258,9 @@ function activateTabInContext(context, id) {
     addTabContentChildView(context, context.tabs[id]);
     context.activeTabId = id;
     layoutActiveTabView(context, id);
+    if (typeof context.tabs[id]?._invisurfSyncOverscrollHistoryState === 'function') {
+        context.tabs[id]._invisurfSyncOverscrollHistoryState();
+    }
 
     const activeUrl = context.tabs[id]?.webContents.getURL() ?? '';
     const blankActive = isBlankTab(activeUrl);
@@ -944,6 +958,42 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
     const { handleShortcuts } = require('../ui/shortcuts');
     view.webContents.on('before-input-event', handleShortcuts);
 
+    const syncOverscrollHistoryState = () => {
+        if (!view?.webContents || view.webContents.isDestroyed()) return;
+        const nav = view.webContents.navigationHistory || view.webContents;
+        try {
+            view.webContents.send(C.IPC_EVENT.OVERSCROLL_SYNC_STATE, {
+                canGoBack: typeof nav.canGoBack === 'function' ? nav.canGoBack() : false,
+                canGoForward: typeof nav.canGoForward === 'function' ? nav.canGoForward() : false,
+            });
+        } catch (_) {}
+    };
+    view._invisurfSyncOverscrollHistoryState = syncOverscrollHistoryState;
+
+    let lastFingerLiftTime = 0;
+    let lastGestureBeginTime = 0;
+    view.webContents.on('input-event', (_, input) => {
+        if (input.type === 'gestureScrollBegin') {
+            const now = Date.now();
+            if (now - lastGestureBeginTime < 50) return;
+            lastGestureBeginTime = now;
+            try {
+                if (!view.webContents.isDestroyed()) {
+                    view.webContents.send(C.IPC_EVENT.OVERSCROLL_GESTURE_BEGIN);
+                }
+            } catch (_) {}
+        } else if (input.type === 'gestureScrollEnd' || input.type === 'gestureFlingStart') {
+            const now = Date.now();
+            if (now - lastFingerLiftTime < 50) return;
+            lastFingerLiftTime = now;
+            try {
+                if (!view.webContents.isDestroyed()) {
+                    view.webContents.send(C.IPC_EVENT.OVERSCROLL_FINGER_LIFTED);
+                }
+            } catch (_) {}
+        }
+    });
+
     view.webContents.on('update-target-url', (event, targetUrl) => {
         if (context.activeTabId !== id && context.activeTabId !== view._invisurfCurrentId) return;
         const { updateStatusBubble } = require('./overlayManager');
@@ -989,6 +1039,7 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
 
     view.webContents.on('did-finish-load', () => {
         resetTabWebContentsScale(view);
+        syncOverscrollHistoryState();
         const loadedUrl = view.webContents.getURL();
         if (context.activeTabId !== id) return;
 
@@ -1009,6 +1060,7 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
 
     view.webContents.on('did-navigate', (event, targetUrl) => {
         resetTabWebContentsScale(view);
+        syncOverscrollHistoryState();
         const { toDisplayUrl } = require('../utils/navigation');
         let displayUrl = toDisplayUrl(targetUrl);
         if (State.appLogger) {
@@ -1037,6 +1089,7 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
 
     view.webContents.on('did-navigate-in-page', (event, targetUrl) => {
         resetTabWebContentsScale(view);
+        syncOverscrollHistoryState();
         const { toDisplayUrl } = require('../utils/navigation');
         let displayUrl = toDisplayUrl(targetUrl);
         if (State.appLogger) {

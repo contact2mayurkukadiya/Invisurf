@@ -403,6 +403,8 @@ export const IPC_SEND = freeze({
   GHOST_DRAG: 'ghost:drag',
   STATUS_BUBBLE_FLIP: 'status-bubble:flip',
   STATUS_BUBBLE_RESIZE: 'status-bubble:resize',
+  OVERSCROLL_TRIGGER_NAVIGATION: 'overscroll:trigger-navigation',
+  OVERSCROLL_REQUEST_SYNC: 'overscroll:request-sync',
 });
 
 /** IPC event channels (main → renderer) */
@@ -447,6 +449,9 @@ export const IPC_EVENT = freeze({
   DOWNLOAD_DONE: 'downloads:done',
   DOWNLOAD_UPDATED: 'downloads:updated',
   SHORTCUT_DOWNLOADS: 'shortcut-downloads',
+  OVERSCROLL_SYNC_STATE: 'overscroll:sync-state',
+  OVERSCROLL_FINGER_LIFTED: 'overscroll:finger-lifted',
+  OVERSCROLL_GESTURE_BEGIN: 'overscroll:gesture-begin',
 });
 
 /** Custom DOM events (renderer-only) */

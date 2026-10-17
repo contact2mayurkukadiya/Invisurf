@@ -439,7 +439,9 @@ const C = Object.freeze({
         "APP_LOG": "app:log",
         "GHOST_DRAG": "ghost:drag",
         "STATUS_BUBBLE_FLIP": "status-bubble:flip",
-        "STATUS_BUBBLE_RESIZE": "status-bubble:resize"
+        "STATUS_BUBBLE_RESIZE": "status-bubble:resize",
+        "OVERSCROLL_TRIGGER_NAVIGATION": "overscroll:trigger-navigation",
+        "OVERSCROLL_REQUEST_SYNC": "overscroll:request-sync"
     },
     "IPC_EVENT": {
         "URL_CHANGED": "url-changed",
@@ -481,7 +483,10 @@ const C = Object.freeze({
         "DOWNLOAD_PROGRESS": "downloads:progress",
         "DOWNLOAD_DONE": "downloads:done",
         "DOWNLOAD_UPDATED": "downloads:updated",
-        "SHORTCUT_DOWNLOADS": "shortcut-downloads"
+        "SHORTCUT_DOWNLOADS": "shortcut-downloads",
+        "OVERSCROLL_SYNC_STATE": "overscroll:sync-state",
+        "OVERSCROLL_FINGER_LIFTED": "overscroll:finger-lifted",
+        "OVERSCROLL_GESTURE_BEGIN": "overscroll:gesture-begin"
     }
 });
 
@@ -835,4 +840,560 @@ contextBridge.exposeInMainWorld('cookieAPI', {
     updateSettings: (config) => ipcRenderer.invoke(C.IPC_INVOKE.COOKIE_SETTINGS_UPDATE, { config }),
     updateConfig: (profileId, config) => ipcRenderer.invoke(C.IPC_INVOKE.COOKIE_SETTINGS_UPDATE, { profileId, config }),
 });
+
+// =========================================================================
+// OVERSCROLL HISTORY NAVIGATION ENGINE (0ms Compositor Smoothness)
+// =========================================================================
+function setupOverscrollEngine() {
+    if (typeof window === 'undefined' || window.top !== window) return;
+
+    let canGoBack = false;
+    let canGoForward = false;
+    let isTabReady = false;
+    let isNavigating = false;
+    let isCooldown = false;
+    let cooldownTimer = null;
+
+    // Synchronize history capabilities with the main process
+    ipcRenderer.on(C.IPC_EVENT.OVERSCROLL_SYNC_STATE, (_event, state) => {
+        isTabReady = true;
+        canGoBack = Boolean(state?.canGoBack);
+        canGoForward = Boolean(state?.canGoForward);
+        isNavigating = false;
+        isCooldown = false;
+        if (cooldownTimer) {
+            clearTimeout(cooldownTimer);
+            cooldownTimer = null;
+        }
+        cancelGesture();
+    });
+
+    // Request initial state from main process
+    try {
+        ipcRenderer.send(C.IPC_SEND.OVERSCROLL_REQUEST_SYNC);
+    } catch (_) {}
+
+    // -------------------------------------------------------------
+    // 1. PRE-HOT SHADOW DOM & GPU COMPOSITOR LAYERS
+    // -------------------------------------------------------------
+    const host = document.createElement('div');
+    host.id = '__invisurf_overscroll_host__';
+    host.style.cssText = [
+        'position: fixed !important',
+        'top: 0 !important',
+        'left: 0 !important',
+        'width: 100vw !important',
+        'height: 100vh !important',
+        'pointer-events: none !important',
+        'z-index: 2147483647 !important',
+        'overflow: hidden !important',
+        'contain: strict !important',
+        'margin: 0 !important',
+        'padding: 0 !important',
+        'border: none !important',
+    ].join(';');
+
+    const shadow = host.attachShadow({ mode: 'closed' });
+
+    const style = document.createElement('style');
+    style.textContent = `
+        :host {
+            all: initial;
+            pointer-events: none !important;
+        }
+
+        .indicator {
+            position: absolute;
+            top: 50%;
+            width: 150px;
+            height: 150px;
+            margin-top: -75px;
+            background: rgba(26, 26, 26, 0.9);
+            border-radius: 50%;
+            box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.35);
+            display: flex;
+            align-items: center;
+            box-sizing: border-box;
+            will-change: transform, opacity;
+            pointer-events: none !important;
+            opacity: 0;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .indicator.left {
+            left: 0;
+            justify-content: flex-end;
+            padding-right: 20px;
+            transform: translate3d(-150px, 0, 0);
+        }
+
+        .indicator.right {
+            right: 0;
+            justify-content: flex-start;
+            padding-left: 20px;
+            transform: translate3d(150px, 0, 0);
+        }
+
+        .indicator svg {
+            width: 34px;
+            height: 34px;
+            flex-shrink: 0;
+            transition: transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .indicator svg path {
+            fill: #e8eaed;
+            transition: fill 0.10s ease;
+        }
+
+        /* Armed State (Activated color: #1a1a1a at 100% solid opacity) */
+        .indicator.armed {
+            background: #1a1a1a !important;
+        }
+
+        .indicator.armed svg {
+            transform: scale(1.15);
+        }
+
+        .indicator.armed svg path {
+            fill: #ffffff !important;
+        }
+
+        /* Fast in-place fade-out upon release / cancel */
+        .indicator.fading {
+            transition: opacity 0.08s ease-out !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }
+    `;
+    shadow.appendChild(style);
+
+    // Indicators HTML
+    const leftIndicator = document.createElement('div');
+    leftIndicator.className = 'indicator left';
+    leftIndicator.innerHTML = `
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+        </svg>
+    `;
+
+    const rightIndicator = document.createElement('div');
+    rightIndicator.className = 'indicator right';
+    rightIndicator.innerHTML = `
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/>
+        </svg>
+    `;
+
+    shadow.appendChild(leftIndicator);
+    shadow.appendChild(rightIndicator);
+
+    // Pre-mount immediately so GPU memory is allocated before first gesture
+    function mountHost() {
+        if (!document.documentElement) {
+            window.requestAnimationFrame(mountHost);
+            return;
+        }
+        if (!document.getElementById('__invisurf_overscroll_host__')) {
+            document.documentElement.appendChild(host);
+        }
+    }
+    mountHost();
+    window.addEventListener('DOMContentLoaded', mountHost, { once: true });
+
+    // -------------------------------------------------------------
+    // 2. GESTURE & COMPOSITOR PHYSICS (150px Circle, Half Reveal)
+    // -------------------------------------------------------------
+    const THRESHOLD = 60;        // Delta px to arm navigation
+    const MAX_DISPLACEMENT = 75; // Half of 150px circle (only half circle reveals)
+
+    let accumulatedX = 0;
+    let lockedDirection = null;  // 'back' | 'forward' | null (strictly locked per finger session)
+    let isGestureActive = false;
+    let isLockedVertical = false;
+    let isLockedOut = false;     // True if DOM scroll or unnavigable at start of session
+    let isTouchSessionActive = false;
+    let rAF = null;
+    let safetyTimer = null;
+    let lastWheelTime = 0;
+    // Reveal physics: smoothly reveals up to exactly half-circle (75px) at THRESHOLD,
+    // and STOPS MORE REVEALING once active (clamped at 75px).
+    function calculateDisplacement(delta) {
+        if (delta >= THRESHOLD) {
+            return MAX_DISPLACEMENT;
+        }
+        const progress = Math.max(0, delta / THRESHOLD);
+        return MAX_DISPLACEMENT * Math.sin((progress * Math.PI) / 2);
+    }
+
+    // 0ms GPU Compositor frame tick
+    function render() {
+        rAF = null;
+        if (!lockedDirection) return;
+
+        const isBack = lockedDirection === 'back';
+        const indicator = isBack ? leftIndicator : rightIndicator;
+        const otherIndicator = isBack ? rightIndicator : leftIndicator;
+
+        if (otherIndicator.style.opacity !== '0') {
+            otherIndicator.style.opacity = '0';
+            otherIndicator.style.transform = isBack ? 'translate3d(150px, 0, 0)' : 'translate3d(-150px, 0, 0)';
+        }
+
+        indicator.classList.remove('fading');
+
+        const displacement = calculateDisplacement(accumulatedX);
+        const isArmed = accumulatedX >= THRESHOLD;
+
+        indicator.classList.toggle('armed', isArmed);
+
+        if (isBack) {
+            indicator.style.transform = `translate3d(${displacement - 150}px, 0, 0)`;
+        } else {
+            indicator.style.transform = `translate3d(${150 - displacement}px, 0, 0)`;
+        }
+
+        // 1a1a1a at 90% opacity while non-activated, full 100% solid opacity once activated
+        if (isArmed) {
+            indicator.style.opacity = '1';
+        } else {
+            const entryProgress = Math.min(accumulatedX / 20, 1);
+            indicator.style.opacity = (entryProgress * 0.9).toFixed(3);
+        }
+    }
+
+    function resetState() {
+        accumulatedX = 0;
+        lockedDirection = null;
+        isGestureActive = false;
+        isLockedVertical = false;
+        isLockedOut = false;
+        isTouchSessionActive = false;
+        if (safetyTimer) {
+            clearTimeout(safetyTimer);
+            safetyTimer = null;
+        }
+    }
+
+    // -------------------------------------------------------------
+    // 3. GESTURE LIFECYCLE & STATE MACHINE
+    // -------------------------------------------------------------
+    // Fresh finger contact on trackpad initiates / clears state for a new session
+    function onGestureBegin() {
+        if (isNavigating) return;
+
+        isCooldown = false;
+        if (cooldownTimer) {
+            clearTimeout(cooldownTimer);
+            cooldownTimer = null;
+        }
+
+        isTouchSessionActive = true;
+        resetState();
+        isTouchSessionActive = true;
+
+        if (rAF) {
+            cancelAnimationFrame(rAF);
+            rAF = null;
+        }
+
+        leftIndicator.classList.remove('fading', 'armed');
+        rightIndicator.classList.remove('fading', 'armed');
+        leftIndicator.style.opacity = '0';
+        rightIndicator.style.opacity = '0';
+        leftIndicator.style.transform = 'translate3d(-150px, 0, 0)';
+        rightIndicator.style.transform = 'translate3d(150px, 0, 0)';
+    }
+
+    // Quick in-place fade-out without triggering navigation
+    function cancelGesture() {
+        if (rAF) {
+            cancelAnimationFrame(rAF);
+            rAF = null;
+        }
+
+        leftIndicator.classList.remove('armed');
+        rightIndicator.classList.remove('armed');
+        leftIndicator.classList.add('fading');
+        rightIndicator.classList.add('fading');
+        leftIndicator.style.opacity = '0';
+        rightIndicator.style.opacity = '0';
+
+        setTimeout(() => {
+            leftIndicator.classList.remove('fading');
+            rightIndicator.classList.remove('fading');
+            leftIndicator.style.transform = 'translate3d(-150px, 0, 0)';
+            rightIndicator.style.transform = 'translate3d(150px, 0, 0)';
+            leftIndicator.style.opacity = '0';
+            rightIndicator.style.opacity = '0';
+        }, 90);
+
+        resetState();
+    }
+
+    // Finalize gesture settlement on physical finger lift:
+    // Fades out quickly in place in few ms instead of translating back to original position
+    function executeRelease() {
+        if (safetyTimer) {
+            clearTimeout(safetyTimer);
+            safetyTimer = null;
+        }
+
+        if (rAF) {
+            cancelAnimationFrame(rAF);
+            rAF = null;
+        }
+
+        if (!isGestureActive || !lockedDirection) {
+            cancelGesture();
+            return;
+        }
+
+        const isBack = lockedDirection === 'back';
+        const indicator = isBack ? leftIndicator : rightIndicator;
+        const otherIndicator = isBack ? rightIndicator : leftIndicator;
+        const isArmed = accumulatedX >= THRESHOLD;
+        const triggeredDirection = lockedDirection;
+
+        // Quick in-place fade-out: keep position and fade opacity to 0 in 80ms
+        indicator.classList.remove('armed');
+        indicator.classList.add('fading');
+        indicator.style.opacity = '0';
+
+        otherIndicator.classList.remove('fading', 'armed');
+        otherIndicator.style.opacity = '0';
+
+        setTimeout(() => {
+            indicator.classList.remove('fading');
+            indicator.style.transform = isBack ? 'translate3d(-150px, 0, 0)' : 'translate3d(150px, 0, 0)';
+            indicator.style.opacity = '0';
+        }, 90);
+
+        resetState();
+
+        if (isArmed) {
+            // INSTANT NAVIGATION: Send immediately without delay, matching toolbar arrow click speed
+            isNavigating = true;
+            try {
+                ipcRenderer.send(C.IPC_SEND.OVERSCROLL_TRIGGER_NAVIGATION, triggeredDirection);
+            } catch (_) {}
+
+            // Debounce lock: ignore all trailing momentum wheel events while navigation is in flight
+            if (cooldownTimer) clearTimeout(cooldownTimer);
+            cooldownTimer = setTimeout(() => {
+                isNavigating = false;
+                isCooldown = false;
+            }, 350);
+        } else {
+            // Unarmed release: short cooldown to drop residual momentum wheel events
+            isCooldown = true;
+            if (cooldownTimer) clearTimeout(cooldownTimer);
+            cooldownTimer = setTimeout(() => {
+                isCooldown = false;
+            }, 150);
+        }
+    }
+
+    // Triggered when fingers physically lift from trackpad (gestureScrollEnd or gestureFlingStart)
+    function onFingerLift() {
+        if (isNavigating) return;
+        executeRelease();
+    }
+
+    // Main process Chromium input-event IPC listeners
+    ipcRenderer.on(C.IPC_EVENT.OVERSCROLL_GESTURE_BEGIN, onGestureBegin);
+    ipcRenderer.on(C.IPC_EVENT.OVERSCROLL_FINGER_LIFTED, onFingerLift);
+
+    // Fallbacks for cancellation
+    window.addEventListener('blur', cancelGesture);
+    document.addEventListener('visibilitychange', () => { if (document.hidden) cancelGesture(); });
+    window.addEventListener('keydown', (e) => { if (e.key === 'Escape') cancelGesture(); }, { capture: true });
+    window.addEventListener('pointerdown', () => { if (isGestureActive) cancelGesture(); }, { capture: true, passive: true });
+
+    // -------------------------------------------------------------
+    // 4. DEEP DOM SCROLL & CSS OVERSCROLL CHECKER
+    // -------------------------------------------------------------
+    function canTargetScrollHorizontally(target, direction) {
+        let el = target;
+        while (el && el !== document.documentElement && el !== document.body) {
+            if (el.nodeType !== 1) { // Node.ELEMENT_NODE
+                el = el.parentElement;
+                continue;
+            }
+
+            const computedStyle = window.getComputedStyle(el);
+
+            // 1. Honor W3C overscroll-behavior-x
+            if (computedStyle.overscrollBehaviorX === 'none' || computedStyle.overscrollBehaviorX === 'contain') {
+                return true; 
+            }
+
+            // 2. Check horizontally scrollable containers
+            if (computedStyle.overflowX === 'auto' || computedStyle.overflowX === 'scroll') {
+                const hasLeft = el.scrollLeft > 1;
+                const hasRight = el.scrollLeft < (el.scrollWidth - el.clientWidth - 1);
+                if (direction === 'back' && hasLeft) return true;
+                if (direction === 'forward' && hasRight) return true;
+            }
+
+            el = el.parentElement;
+        }
+
+        // 3. Check root viewport scroll
+        const rootScrollX = window.scrollX || (document.documentElement ? document.documentElement.scrollLeft : 0) || (document.body ? document.body.scrollLeft : 0);
+        const maxScroll = Math.max(0, (document.documentElement ? document.documentElement.scrollWidth : 0) - window.innerWidth);
+
+        if (direction === 'back' && rootScrollX > 1) return true;
+        if (direction === 'forward' && rootScrollX < (maxScroll - 1)) return true;
+
+        if (document.documentElement) {
+            const rootStyle = window.getComputedStyle(document.documentElement);
+            if (rootStyle.overscrollBehaviorX === 'none' || rootStyle.overscrollBehaviorX === 'contain') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // -------------------------------------------------------------
+    // 5. INPUT WHEEL INTERCEPTION (Strict Direction Locking per Touch)
+    // -------------------------------------------------------------
+    window.addEventListener('wheel', (e) => {
+        // Trackpad pixel scrolling only
+        if (e.deltaMode !== 0) return;
+        if (!isTabReady) return;
+        if (!canGoBack && !canGoForward) return;
+        if (isNavigating || isCooldown) return;
+
+        // Reset safety fallback timer (10s dead silence timeout to prevent zombie locks)
+        if (safetyTimer) clearTimeout(safetyTimer);
+        safetyTimer = setTimeout(cancelGesture, 10000);
+
+        lastWheelTime = performance.now();
+
+        if (!isTouchSessionActive) {
+            isTouchSessionActive = true;
+            lockedDirection = null;
+            isGestureActive = false;
+            isLockedVertical = false;
+            isLockedOut = false;
+            accumulatedX = 0;
+        }
+
+        // Ignore if this session was locked out (vertical scroll or element scrolled)
+        if (isLockedVertical || isLockedOut) return;
+
+        // If direction has not been locked yet for this touch contact:
+        if (!lockedDirection) {
+            // Intent lock: if vertical delta dominates, lock session to vertical
+            if (Math.abs(e.deltaY) >= Math.abs(e.deltaX)) {
+                isLockedVertical = true;
+                return;
+            }
+
+            if (Math.abs(e.deltaX) < 1) return;
+
+            // Delta direction: negative deltaX = swiping right (Back), positive deltaX = swiping left (Forward)
+            const candidateDir = e.deltaX < 0 ? 'back' : 'forward';
+
+            if (candidateDir === 'back' && !canGoBack) {
+                isLockedOut = true;
+                return;
+            }
+            if (candidateDir === 'forward' && !canGoForward) {
+                isLockedOut = true;
+                return;
+            }
+            if (canTargetScrollHorizontally(e.target, candidateDir)) {
+                isLockedOut = true;
+                return;
+            }
+
+            // Lock this touch session strictly to candidateDir
+            lockedDirection = candidateDir;
+            isGestureActive = true;
+
+            leftIndicator.classList.remove('fading');
+            rightIndicator.classList.remove('fading');
+        }
+
+        // Accumulate displacement for the locked direction ONLY
+        // Reversing swipe motion reduces accumulatedX towards 0, but never flips direction
+        // Stop more revealing once active: clamp accumulatedX at THRESHOLD + 15
+        if (lockedDirection === 'back') {
+            accumulatedX -= e.deltaX;
+            if (accumulatedX < 0) accumulatedX = 0;
+            if (accumulatedX > THRESHOLD + 15) accumulatedX = THRESHOLD + 15;
+        } else if (lockedDirection === 'forward') {
+            accumulatedX += e.deltaX;
+            if (accumulatedX < 0) accumulatedX = 0;
+            if (accumulatedX > THRESHOLD + 15) accumulatedX = THRESHOLD + 15;
+        }
+
+        if (!rAF) {
+            rAF = requestAnimationFrame(render);
+        }
+    }, { capture: true, passive: true });
+
+    // -------------------------------------------------------------
+    // 6. TOUCHSCREEN SUPPORT (Single Direction per Touch Session)
+    // -------------------------------------------------------------
+    let touchStartX = 0;
+    let touchStartY = 0;
+
+    window.addEventListener('touchstart', (e) => {
+        if (!isTabReady || (!canGoBack && !canGoForward)) return;
+        if (e.touches && e.touches.length === 1) {
+            onGestureBegin();
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+        }
+    }, { passive: true });
+
+    window.addEventListener('touchmove', (e) => {
+        if (!isTabReady || isLockedVertical || isLockedOut || !e.touches || e.touches.length !== 1) return;
+
+        const diffX = e.touches[0].clientX - touchStartX;
+        const diffY = e.touches[0].clientY - touchStartY;
+
+        if (!lockedDirection) {
+            if (Math.abs(diffY) >= Math.abs(diffX)) {
+                isLockedVertical = true;
+                return;
+            }
+
+            if (Math.abs(diffX) < 5) return;
+
+            const candidateDir = diffX > 0 ? 'back' : 'forward';
+            if (candidateDir === 'back' && !canGoBack) { isLockedOut = true; return; }
+            if (candidateDir === 'forward' && !canGoForward) { isLockedOut = true; return; }
+            if (canTargetScrollHorizontally(e.target, candidateDir)) { isLockedOut = true; return; }
+
+            lockedDirection = candidateDir;
+            isGestureActive = true;
+
+            leftIndicator.classList.remove('fading');
+            rightIndicator.classList.remove('fading');
+        }
+
+        if (lockedDirection === 'back') {
+            accumulatedX = Math.min(THRESHOLD + 15, Math.max(0, diffX * 1.15));
+        } else if (lockedDirection === 'forward') {
+            accumulatedX = Math.min(THRESHOLD + 15, Math.max(0, -diffX * 1.15));
+        }
+
+        if (!rAF) {
+            rAF = requestAnimationFrame(render);
+        }
+    }, { passive: true });
+
+    window.addEventListener('touchend', () => {
+        if (isGestureActive) executeRelease();
+    }, { passive: true });
+}
+
+setupOverscrollEngine();
+
 
