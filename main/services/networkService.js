@@ -20,7 +20,11 @@ const NTP_PREWARM_PATHS = Object.freeze([
 ]);
 
 function appRendererPath(relativePath) {
-    return path.join(app.getAppPath(), 'renderer', relativePath);
+    const primaryPath = path.join(app.getAppPath(), 'renderer', relativePath);
+    if (fs.existsSync(primaryPath)) return primaryPath;
+    const fallbackPath = path.join(__dirname, '..', '..', 'renderer', relativePath);
+    if (fs.existsSync(fallbackPath)) return fallbackPath;
+    return primaryPath;
 }
 
 async function readAppAsset(filePath) {

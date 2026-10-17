@@ -62,6 +62,7 @@ const State = {
 
     // Services (Injected at boot)
     historyService: null,
+    downloadService: null,
     appLogger: null
 };
 

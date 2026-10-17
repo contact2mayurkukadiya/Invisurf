@@ -1,0 +1,114 @@
+--- STARTING PIXABAY DEBUG ---
+1. Launching InviSurf...
+2. Shell window found. Setting up main process listeners...
+3. Navigating tab to Pixabay...
+[MAIN] onHeadersReceived: 200 app://localhost/assets/images/search.svg Disposition: undefined
+[MAIN] onHeadersReceived: 200 app://localhost/assets/images/mic.svg Disposition: undefined
+[MAIN] onHeadersReceived: 200 app://localhost/assets/images/envelope.svg Disposition: undefined
+[MAIN] onHeadersReceived: 200 app://localhost/assets/images/calendar-days.svg Disposition: undefined
+[MAIN] onHeadersReceived: 200 app://localhost/assets/images/document.svg Disposition: undefined
+[MAIN] onHeadersReceived: 200 app://localhost/assets/images/code-window.svg Disposition: undefined
+[MAIN] onHeadersReceived: 200 app://localhost/assets/images/chat.svg Disposition: undefined
+[MAIN] onHeadersReceived: 200 app://localhost/assets/images/youtube.svg Disposition: undefined
+[MAIN] onHeadersReceived: 200 app://localhost/assets/images/graduation-cap.svg Disposition: undefined
+[MAIN] onHeadersReceived: 200 app://localhost/assets/images/adjust.svg Disposition: undefined
+[MAIN] onHeadersReceived: 200 https://cdn-au.onetrust.com/scripttemplates/otSDKStub.js Disposition: undefined
+[MAIN] onHeadersReceived: 200 https://cdn.pixabay.com/photo/2026/08/04/20/34/20-34-49-252_1280.jpg Disposition: undefined
+[MAIN] onHeadersReceived: 200 https://media.istockphoto.com/id/592031250/photo/milky-way-and-pink-light-at-mountains-night-colorful-landscape.webp?b=1&s=612x612&w=0&k=20&c=NXlvRFz0jCfud2w9P_1f_Zl6rSLI9HJJJXMS_DB8Rx8= Disposition: ["inline; filename=istockphoto-592031250-612x612.webp"]
+[MAIN] onHeadersReceived: 200 https://media.istockphoto.com/id/2225408464/photo/space-view-of-the-moons-cratered-surface-with-a-star-filled-outer-space-background-deep-space.webp?b=1&s=612x612&w=0&k=20&c=bv-J9f0oekBYLGXlr9ArxTW7RHkqRSOXVoqevafKRNc= Disposition: ["inline; filename=istockphoto-2225408464-612x612.webp"]
+[MAIN] onHeadersReceived: 200 https://media.istockphoto.com/id/2249032875/photo/barnard-33-the-horsehead-nebula-in-the-constellation-of-orion.webp?b=1&s=612x612&w=0&k=20&c=w27dLgDW6gpqNqC58BXogAB5qdgvNUc0OBtHYTEz5wY= Disposition: ["inline; filename=istockphoto-2249032875-612x612.webp"]
+[MAIN] onHeadersReceived: 200 https://media.istockphoto.com/id/1170047942/photo/space-milky-way.webp?b=1&s=612x612&w=0&k=20&c=kOEXxcuvmaMO1mge3wNN1alstYVbJkCMHBo8DqZaJe0= Disposition: ["inline; filename=istockphoto-1170047942-612x612.webp"]
+[MAIN] onHeadersReceived: 200 https://media.istockphoto.com/id/1306714918/photo/the-man-silhouette-with-camera-and-tripod-stands-on-the-hill-and-looking-at-the-bright-milky.webp?b=1&s=612x612&w=0&k=20&c=VpTbxBdXzloseWbMN3IUBVfi7JZgL9-tbCiQaJaq3o8= Disposition: ["inline; filename=istockphoto-1306714918-612x612.webp"]
+[MAIN] onHeadersReceived: 200 https://media.istockphoto.com/id/1830555784/photo/astronomer-looking-at-the-starry-skies-and-crescent-moon-with-a-telescope.webp?b=1&s=612x612&w=0&k=20&c=CA0RhbeSS6howZXm0CFPdrQrGTgDhMC3RklXucuNTu0= Disposition: ["inline; filename=istockphoto-1830555784-612x612.webp"]
+[MAIN] onHeadersReceived: 200 https://cdn.pixabay.com/photo/2026/07/14/07/22/07-22-20-47_1280.jpg Disposition: undefined
+[MAIN] onHeadersReceived: 200 https://cdn-au.onetrust.com/consent/52f0ce5e-0c2d-48a6-8e40-e978c5058a96/52f0ce5e-0c2d-48a6-8e40-e978c5058a96.json Disposition: undefined
+[MAIN] onHeadersReceived: 200 https://cdn.pixabay.com/photo/2026/08/14/19/13/19-13-20-924_1280.jpg Disposition: undefined
+[MAIN] onHeadersReceived: 200 https://cdn.jsdelivr.net/npm/@snowplow/javascript-tracker@3.14.0/dist/sp.js Disposition: undefined
+[MAIN] onHeadersReceived: 200 https://cdn.jsdelivr.net/npm/@snowplow/browser-plugin-timezone@3.14.0/dist/index.umd.min.js Disposition: undefined
+[MAIN] onHeadersReceived: 200 https://cdn.pixabay.com/photo/2017/08/30/01/05/milky-way-2695569_1280.jpg Disposition: undefined
+[MAIN] onHeadersReceived: 200 https://cdn.pixabay.com/photo/2023/08/07/13/44/tree-8175062_1280.jpg Disposition: undefined
+[MAIN] onHeadersReceived: 200 https://cdn.pixabay.com/photo/2016/09/08/20/52/stars-1655504_1280.jpg Disposition: undefined
+[MAIN] onHeadersReceived: 200 https://cdn.pixabay.com/photo/2016/11/18/22/58/stars-1837306_1280.jpg Disposition: undefined
+[MAIN] onHeadersReceived: 200 https://cdn.pixabay.com/photo/2017/08/24/03/41/starry-sky-2675322_1280.jpg Disposition: undefined
+[MAIN] onHeadersReceived: 200 https://cdn.pixabay.com/photo/2023/07/27/14/49/milky-way-8153503_1280.jpg Disposition: undefined
+[MAIN] onHeadersReceived: 200 https://cdn.pixabay.com/photo/2017/08/08/00/33/constellations-2609647_1280.jpg Disposition: undefined
+[MAIN] onHeadersReceived: 200 https://cdn.pixabay.com/photo/2024/08/26/12/29/milky-way-8999255_1280.jpg Disposition: undefined
+[MAIN] onHeadersReceived: 200 https://cdn.pixabay.com/photo/2017/02/09/09/11/starry-sky-2051448_1280.jpg Disposition: undefined
+[MAIN] onHeadersReceived: 200 https://cdn-au.onetrust.com/scripttemplates/202603.1.0/otBannerSdk.js Disposition: undefined
+[MAIN] onHeadersReceived: 200 https://cdn-au.onetrust.com/consent/52f0ce5e-0c2d-48a6-8e40-e978c5058a96/018df227-0f31-78cb-baea-b1c95f9920e6/en.json Disposition: undefined
+[MAIN] onHeadersReceived: 200 https://cdn-au.onetrust.com/scripttemplates/202603.1.0/assets/otCookieSettingsButton.json Disposition: undefined
+[MAIN] onHeadersReceived: 200 https://cdn-au.onetrust.com/scripttemplates/202603.1.0/assets/otFlat.json Disposition: undefined
+[MAIN] onHeadersReceived: 200 https://cdn-au.onetrust.com/scripttemplates/202603.1.0/assets/v2/otPcCenter.json Disposition: undefined
+[MAIN] onHeadersReceived: 200 https://cdn-au.onetrust.com/scripttemplates/202603.1.0/assets/otCommonStyles.css Disposition: undefined
+[MAIN] onHeadersReceived: 200 https://cdn-au.onetrust.com/logos/static/ot_guard_logo.svg Disposition: undefined
+[MAIN] onHeadersReceived: 200 https://cdn-au.onetrust.com/logos/static/ot_guard_logo.svg Disposition: undefined
+[MAIN] onHeadersReceived: 200 https://cdn-au.onetrust.com/logos/3dbea99f-abc0-4dbd-bcd7-8f6dfcaea28d/3469731c-fe66-42d0-9ec2-7f82db805248/ce43fe9c-3343-40cc-9ae7-924876286904/logo.png Disposition: undefined
+[MAIN] onHeadersReceived: 200 https://cdn-au.onetrust.com/logos/static/powered_by_logo.svg Disposition: undefined
+[MAIN] onHeadersReceived: 200 https://cdn.pixabay.com/user/2025/10/19/19-58-57-757_96x96.jpg Disposition: undefined
+[MAIN] onHeadersReceived: 200 https://cdn.pixabay.com/user/2019/01/29/15-01-52-802_96x96.jpg Disposition: undefined
+[MAIN] onHeadersReceived: 200 https://cdn.pixabay.com/user/2020/09/10/05-42-12-467_96x96.jpg Disposition: undefined
+[MAIN] onHeadersReceived: 200 https://cdn.pixabay.com/user/2016/03/26/22-06-36-459_96x96.jpg Disposition: undefined
+[MAIN] onHeadersReceived: 200 https://cdn.pixabay.com/user/2026/08/14/12-30-49-675_96x96.jpg Disposition: undefined
+[MAIN] onHeadersReceived: 200 https://cdn.pixabay.com/user/2015/03/30/12-22-31-508_96x96.jpg Disposition: undefined
+[MAIN] onHeadersReceived: 200 https://cdn.pixabay.com/user/2025/12/20/09-45-24-777_96x96.jpeg Disposition: undefined
+[MAIN] onHeadersReceived: 200 https://cdn.pixabay.com/user/2017/02/09/09-04-04-909_96x96.jpg Disposition: undefined
+[MAIN] onHeadersReceived: 200 https://cdn.pixabay.com/user/2022/05/08/21-21-59-613_96x96.jpg Disposition: undefined
+[MAIN] onHeadersReceived: 200 https://cdn.pixabay.com/user/2024/05/28/03-21-26-205_96x96.jpg Disposition: undefined
+[MAIN] onHeadersReceived: 200 https://cdn.pixabay.com/user/2023/07/31/12-14-37-815_96x96.jpg Disposition: undefined
+4. Waiting 8s for Pixabay to load...
+[TAB] CONSOLE: 2 %cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security
+  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+  this app to unnecessary security risks.
+
+For more information and help, consult
+https://electronjs.org/docs/tutorial/security.
+This warning will not show up
+once the app is packaged.
+[TAB] CONSOLE: 3 Provider's accounts list is empty.
+5. Injecting in-page interception & clicking download...
+[TAB] CONSOLE: 1 >>> Found dlBtn: text=Free download tag=BUTTON
+6. Waiting 6s for download flow to execute...
+[TAB] CONSOLE: 3 [GSI_LOGGER]: FedCM get() rejects with AbortError: signal is aborted without reason
+[MAIN] onHeadersReceived: 200 https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/b/turnstile/f/av0/rch/0fv9d/0x4AAAAAACApdjYWE-YIVjZv/auto/fbE/new/normal?lang=auto Disposition: undefined
+[MAIN] onHeadersReceived: 200 https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/b/fo/2029850935:1792155624:bPa2SLvHW2qpyC3bwxiEww82sUmR19sLMQ1Hp2RS5m0/a4b7810da994f7ce/0PR.NBZJiHnCMmwkcTmgtJpPHqmmdSMXSY6KwjMEPd8-1792158327-1.2.1.1-_rVoFREhU1ir6f_L_jqfddl98S9VWeGuWd7Oqq2XFz9jxLBsA05ojyf8X_F8RQDM Disposition: undefined
+[MAIN] onHeadersReceived: 401 https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/b/pat/a4b7810da994f7ce/1792158329129/47d9f75cd974977735b875648fac708275776d11717e7df024f8258dccb45f70/7r_9ZNKVNQLyMvZ4DfmP9gnmDCmORVNAXFZxRoO4.fw-1792158329-1.3.1.1-tTD7Vo2Qf7ys.c4qxbLFsJ7nklRUpQ35jykWZGNmM0Wa6._6H23CSiMn9jr0PCl950BKpdlOMsHW5c1ENZkrxHYAVsHnEp4WXo1WuxAJV2KQs0WK5ZENdMJD42sQOyVlesGjqw2jnt0nzHKSuzMq0YzvkAx9mr.HUPgH5w7S_n6DbL76RGI9kMrZ3uOjS1hZqeHBkSUIVl5qmtW6soLUa_BhQvMVgQK_XrmUcvfXNb2v8wdj4oP8oFuK3khWf8nrWR7dFESFvrEkWWLVjLW15AlDCUqOriarbwhj2kTKtJlNvIb5PerKqlRH3SjtqSVMAtVHZu8DnxSKBQuN0xfZbxcH7qUUmaFUovqtqOaLhxqzmr53mpXcJp3hYZLZVj5tlP9cHJ7zfv_PjlddinHXOLG3RZy1TEa1CaQNlodBNPpMJTCjbzkY03t7Zl4xoJapZbpvegu_XbJJG2HjrkaPZIboBJU8T5Fq5M1SQIZY4cnnolNIg2kmJE81yLnBUuw68CkJbQnC0UhJ5QeklP0tWx2M8wNAghae97v96gN1JiUGx4EsgtwxqTI8Ej_UjG9nnipAHpEs.EidJQ.DlI3UiMF1F.O2i_vIxPfEV9_mDxhnYGvRGNgo4kZ.U1LoNObLRTptrDfJ21ZzQO9qW9j3XGBGZEW1KUmOq2n.oijectWCSmPgkSdHlmW3C0KEpEXzeqcbawfI7ojRLNZM1EKdryI6xatMyLzOeLK9DArnbQkphnzNTAAUfywXEaxlsDTT3diC4YAfu_yInh34R4pbs9s7ySvuXmWUnXckKuWvMyp_fFdwfgSd6nwad8Ak2w3te1gIMq9wx0y.EeD9VSIyfw Disposition: undefined
+[MAIN] onHeadersReceived: 200 https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/b/ci/a4b7810da994f7ce/1792158329129/pmL2ZTQyHkn5neIhT1k86na2LxmnYSq8d2o_ULo42tY-1792158329-1.3.1.1-ZW2em02HdI4Uu46.ly3NIJZbA0J3HRiOQdmlNHTiFZ0T6Q06NlV5klQcZRyaznzgf_6UKf6gRKuBKD4UKn_.5qTDdxykW6bB6SducpFVrtWo4GGKmss9WqS1Tjb02up15L6QhGdbmml.fk8fY9JLGprYak2zMx9nX7nmUunuPLL17ZXU0ffTZH54WdAY3OvljSCrI8_LFYt2Raf2ggfff_vmznLUGqhKvmcYBLr8Ixmbt6nZDgExeq.tCDOh5RCBS.wXjn12YwuqADBgxj5DYEHKhMv_MXnbi8egFtE1MmbpMdyGEuSxurqH4BrFnrBpWAas7uoIo5VyHzBN_Yb6Y5RXx0ZhU2TDm1A69.6zafDaGkZEqctXO6aNNSq71_DTA0Piv97jShNYQ725m6sN2og1ekZ5cjVdPxZRK2XOSr2IhyNX0i3H37CLydK3kxxl_HBIK6M3F3iVgqh9OTZG8UQMfgbf56rH.Ny3Q0DXPftaJgIAH49GbSG_12OZxA6_xWzLDSFdDUVMhjVIWlTE0bxpGU77E1aEFl6bWYlhaMfvUVxxgvy4.9latit21SLA5CBtIBevqRFNHrSpDUXapsGVJMjlia1j0OFfrcHQeIVqyw80cpY1zhpZdCgqEXsCho2PjNR0wAbpH24KrZDRVyKqtirJGVvmWim5iroaxrqSosao63GyffPUOQhqfx0lzMv4iItGuRUy_GwSiYswAKWTWpao5eHGpWJIumrIjQlbBhMXdaLQLIqExj.eBXb0 Disposition: undefined
+[MAIN] onHeadersReceived: 204 https://hagen.challenges.cloudflare.com/cdn-cgi/challenge-platform/h/b/i/a4b7810da994f7ce/0PR.NBZJiHnCMmwkcTmgtJpPHqmmdSMXSY6KwjMEPd8-1792158327-1.2.1.1-_rVoFREhU1ir6f_L_jqfddl98S9VWeGuWd7Oqq2XFz9jxLBsA05ojyf8X_F8RQDM Disposition: undefined
+[TAB] CONSOLE: 0 Error
+[TAB] CONSOLE: 1 nJkL5
+[TAB] CONSOLE: 1 nJkL5
+[TAB] CONSOLE: 1 YCge9
+[TAB] CONSOLE: 1 YCge9
+[TAB] CONSOLE: 1 [object HTMLAnchorElement]
+[TAB] CONSOLE: 1 [object HTMLAnchorElement]
+[TAB] CONSOLE: 0  : 1
+[TAB] CONSOLE: 0  : 1
+[TAB] CONSOLE: 0 %c%d font-size:0;color:transparent NaN
+[TAB] CONSOLE: 0 %c%d font-size:0;color:transparent NaN
+[TAB] CONSOLE: 1  OROhR9: RmGBF2
+[TAB] CONSOLE: 1  OROhR9: RmGBF2
+[TAB] CONSOLE: 1 %c%d font-size:0;color:transparent OROhR9: RmGBF2
+[TAB] CONSOLE: 1 %c%d font-size:0;color:transparent OROhR9: RmGBF2
+[TAB] CONSOLE: 3 %c%d font-size:0;color:transparent NaN
+[TAB] CONSOLE: 3 %c%d font-size:0;color:transparent NaN
+[TAB] CONSOLE: 1 %c%d font-size:0;color:transparent NaN
+[TAB] CONSOLE: 1 %c%d font-size:0;color:transparent NaN
+[TAB] CONSOLE: 1 %c%d font-size:0;color:transparent NaN
+[TAB] CONSOLE: 1 %c%d font-size:0;color:transparent NaN
+[TAB] CONSOLE: 1 %c%d font-size:0;color:transparent OROhR9: RmGBF2
+[TAB] CONSOLE: 1 %c%d font-size:0;color:transparent OROhR9: RmGBF2
+[TAB] CONSOLE: 1 %c%d font-size:0;color:transparent NaN
+[TAB] CONSOLE: 1 %c%d font-size:0;color:transparent NaN
+[TAB] CONSOLE: 2 %c%d font-size:0;color:transparent NaN
+[TAB] CONSOLE: 2 %c%d font-size:0;color:transparent NaN
+[TAB] CONSOLE: 1 console.groupEnd
+[TAB] CONSOLE: 3 Connecting to 'data:,' violates the following Content Security Policy directive: "connect-src 'self' https://hagen.challenges.cloudflare.com https://brunhild.challenges.cloudflare.com https://valid.alg13.dnstest.challenges.cloudflare.com https://invalid.alg13.dnstest.challenges.cloudflare.com https://dual-valid.mldsa44.dnstest.challenges.cloudflare.com https://valid.mldsa44.dnstest.challenges.cloudflare.com https://dnstest.dev". The action has been blocked.
+[TAB] CONSOLE: 3 Connecting to 'data:,' violates the following Content Security Policy directive: "connect-src 'self' https://hagen.challenges.cloudflare.com https://brunhild.challenges.cloudflare.com https://valid.alg13.dnstest.challenges.cloudflare.com https://invalid.alg13.dnstest.challenges.cloudflare.com https://dual-valid.mldsa44.dnstest.challenges.cloudflare.com https://valid.mldsa44.dnstest.challenges.cloudflare.com https://dnstest.dev". The action has been blocked.
+[TAB] CONSOLE: 3 Connecting to 'data:,' violates the following Content Security Policy directive: "connect-src 'self' https://hagen.challenges.cloudflare.com https://brunhild.challenges.cloudflare.com https://valid.alg13.dnstest.challenges.cloudflare.com https://invalid.alg13.dnstest.challenges.cloudflare.com https://dual-valid.mldsa44.dnstest.challenges.cloudflare.com https://valid.mldsa44.dnstest.challenges.cloudflare.com https://dnstest.dev". The action has been blocked.
+[TAB] CONSOLE: 3 Fetch API cannot load data:,. Refused to connect because it violates the document's Content Security Policy.
+[TAB] CONSOLE: 2 OTS parsing error: Size of decompressed WOFF 2.0 is less than compressed size
+[TAB] CONSOLE: 2 No available adapters.
+[MAIN] onHeadersReceived: 200 https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/b/fo/2029850935:1792155624:bPa2SLvHW2qpyC3bwxiEww82sUmR19sLMQ1Hp2RS5m0/a4b7810da994f7ce/0PR.NBZJiHnCMmwkcTmgtJpPHqmmdSMXSY6KwjMEPd8-1792158327-1.2.1.1-_rVoFREhU1ir6f_L_jqfddl98S9VWeGuWd7Oqq2XFz9jxLBsA05ojyf8X_F8RQDM Disposition: undefined
+[TAB] CONSOLE: 2 [Cloudflare Turnstile] Error: 600010.
+[TAB] CONSOLE: 3 Uncaught (in promise) Error: Error getting turnstile token
+7. Done! Closing app...

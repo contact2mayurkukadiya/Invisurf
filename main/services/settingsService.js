@@ -181,6 +181,16 @@ function sendChromeOmniboxOverlayThemePatch(context) {
     }
 }
 
+function sendStatusBubbleThemePatch(context) {
+    const sb = context?.statusBubbleView;
+    if (!isViewWebContentsAlive(sb)) return;
+    try {
+        sb.webContents.send(C.IPC_EVENT.STATUS_BUBBLE_THEME, getChromeOverlayThemePatchForContext(context));
+    } catch (_) {
+        /* status bubble may be tearing down */
+    }
+}
+
 function broadcastThemeApply() {
     const settings = loadSettings();
     const payload = { settings };
@@ -204,6 +214,7 @@ function broadcastThemeApply() {
         sendChromeOverlayThemePatch(ctx);
         sendChromeOmniboxOverlayThemePatch(ctx);
         sendChromeShellMenuOverlayThemePatch(ctx);
+        sendStatusBubbleThemePatch(ctx);
     }
 }
 
@@ -313,6 +324,7 @@ module.exports = {
     sendChromeOverlayThemePatch,
     sendChromeShellMenuOverlayThemePatch,
     sendChromeOmniboxOverlayThemePatch,
+    sendStatusBubbleThemePatch,
     broadcastThemeApply,
     broadcastSettingsUpdate,
     applyColorThemeFromSettings,

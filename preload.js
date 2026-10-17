@@ -408,7 +408,18 @@ const C = Object.freeze({
         "WINDOW_TOGGLE_BOSS_KEY": "window:toggle-boss-key",
         "TAB_ZOOM_IN": "tab:zoom-in",
         "TAB_ZOOM_OUT": "tab:zoom-out",
-        "TAB_ZOOM_RESET": "tab:zoom-reset"
+        "TAB_ZOOM_RESET": "tab:zoom-reset",
+        "DOWNLOADS_GET_ALL": "downloads:get-all",
+        "DOWNLOADS_CANCEL": "downloads:cancel",
+        "DOWNLOADS_PAUSE": "downloads:pause",
+        "DOWNLOADS_RESUME": "downloads:resume",
+        "DOWNLOADS_RETRY": "downloads:retry",
+        "DOWNLOADS_SHOW_IN_FOLDER": "downloads:show-in-folder",
+        "DOWNLOADS_OPEN_FILE": "downloads:open-file",
+        "DOWNLOADS_REMOVE": "downloads:remove",
+        "DOWNLOADS_CLEAR_ALL": "downloads:clear-all",
+        "DOWNLOADS_OPEN_FOLDER": "downloads:open-folder",
+        "DOWNLOADS_SHOW_ATTENTION": "downloads:show-attention"
     },
     "IPC_SEND": {
         "NEW_TAB": "new-tab",
@@ -426,7 +437,9 @@ const C = Object.freeze({
         "TOOLTIP_HIDE": "tooltip:hide",
         "CHROME_OVERLAY_FROM_OVERLAY": "chrome-overlay:v1:from-overlay",
         "APP_LOG": "app:log",
-        "GHOST_DRAG": "ghost:drag"
+        "GHOST_DRAG": "ghost:drag",
+        "STATUS_BUBBLE_FLIP": "status-bubble:flip",
+        "STATUS_BUBBLE_RESIZE": "status-bubble:resize"
     },
     "IPC_EVENT": {
         "URL_CHANGED": "url-changed",
@@ -458,10 +471,17 @@ const C = Object.freeze({
         "THEME_APPLY": "theme:apply",
         "TAB_AWOKEN": "tab:awoken",
         "TOOLTIP_UPDATE": "tooltip:update",
+        "STATUS_BUBBLE_UPDATE": "status-bubble:update",
+        "STATUS_BUBBLE_THEME": "status-bubble:theme",
         "PERMISSION_PROMPT_REQUEST": "permission:prompt-request",
         "PERMISSION_PROMPT_DISMISSED": "permission:prompt-dismissed",
         "WINDOW_OPACITY_CHANGED": "window:opacity-changed",
-        "GHOST_CLICK_THROUGH_CHANGED": "ghost:click-through-changed"
+        "GHOST_CLICK_THROUGH_CHANGED": "ghost:click-through-changed",
+        "DOWNLOAD_STARTED": "downloads:started",
+        "DOWNLOAD_PROGRESS": "downloads:progress",
+        "DOWNLOAD_DONE": "downloads:done",
+        "DOWNLOAD_UPDATED": "downloads:updated",
+        "SHORTCUT_DOWNLOADS": "shortcut-downloads"
     }
 });
 
@@ -701,6 +721,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     tooltipHide: () => ipcRenderer.send(C.IPC_SEND.TOOLTIP_HIDE),
     onTooltipUpdate: (callback) => ipcRenderer.on(C.IPC_EVENT.TOOLTIP_UPDATE, (event, v) => callback(v)),
 
+    // Status Bubble (link preview on hover)
+    onStatusBubbleUpdate: (callback) => ipcRenderer.on(C.IPC_EVENT.STATUS_BUBBLE_UPDATE, (event, v) => callback(v)),
+    onStatusBubbleTheme: (callback) => ipcRenderer.on(C.IPC_EVENT.STATUS_BUBBLE_THEME, (event, v) => callback(v)),
+    statusBubbleFlip: () => ipcRenderer.send(C.IPC_SEND.STATUS_BUBBLE_FLIP),
+    statusBubbleResize: (size) => ipcRenderer.send(C.IPC_SEND.STATUS_BUBBLE_RESIZE, size),
+
     // Permissions & Site Settings
     permissionsGetOriginState: (origin, profileId = null) => ipcRenderer.invoke(C.IPC_INVOKE.PERMISSIONS_GET_ORIGIN_STATE, { origin, profileId }),
     permissionsSetOriginState: (origin, permission, state, profileId = null, persist = true) => ipcRenderer.invoke(C.IPC_INVOKE.PERMISSIONS_SET_ORIGIN_STATE, { origin, permission, state, profileId, persist }),
@@ -734,6 +760,49 @@ contextBridge.exposeInMainWorld('electronAPI', {
     tabZoomIn: () => ipcRenderer.invoke(C.IPC_INVOKE.TAB_ZOOM_IN),
     tabZoomOut: () => ipcRenderer.invoke(C.IPC_INVOKE.TAB_ZOOM_OUT),
     tabZoomReset: () => ipcRenderer.invoke(C.IPC_INVOKE.TAB_ZOOM_RESET),
+
+    // Downloads
+    downloadsGetAll: () => ipcRenderer.invoke(C.IPC_INVOKE.DOWNLOADS_GET_ALL),
+    downloadsCancel: (id) => ipcRenderer.invoke(C.IPC_INVOKE.DOWNLOADS_CANCEL, { id }),
+    downloadsPause: (id) => ipcRenderer.invoke(C.IPC_INVOKE.DOWNLOADS_PAUSE, { id }),
+    downloadsResume: (id) => ipcRenderer.invoke(C.IPC_INVOKE.DOWNLOADS_RESUME, { id }),
+    downloadsRetry: (id) => ipcRenderer.invoke(C.IPC_INVOKE.DOWNLOADS_RETRY, { id }),
+    downloadsShowInFolder: (filePath) => ipcRenderer.invoke(C.IPC_INVOKE.DOWNLOADS_SHOW_IN_FOLDER, { filePath }),
+    downloadsOpenFile: (filePath) => ipcRenderer.invoke(C.IPC_INVOKE.DOWNLOADS_OPEN_FILE, { filePath }),
+    downloadsRemove: (id) => ipcRenderer.invoke(C.IPC_INVOKE.DOWNLOADS_REMOVE, { id }),
+    downloadsClearAll: () => ipcRenderer.invoke(C.IPC_INVOKE.DOWNLOADS_CLEAR_ALL),
+    downloadsOpenFolder: () => ipcRenderer.invoke(C.IPC_INVOKE.DOWNLOADS_OPEN_FOLDER),
+    downloadsShowAttention: (rect) => ipcRenderer.invoke(C.IPC_INVOKE.DOWNLOADS_SHOW_ATTENTION, rect),
+    onDownloadAttentionPlay: (callback) => {
+        const handler = (_event, data) => callback(data);
+        ipcRenderer.on('download-attention:play', handler);
+        return () => ipcRenderer.removeListener('download-attention:play', handler);
+    },
+    onDownloadStarted: (callback) => {
+        const handler = (_event, data) => callback(data);
+        ipcRenderer.on(C.IPC_EVENT.DOWNLOAD_STARTED, handler);
+        return () => ipcRenderer.removeListener(C.IPC_EVENT.DOWNLOAD_STARTED, handler);
+    },
+    onDownloadProgress: (callback) => {
+        const handler = (_event, data) => callback(data);
+        ipcRenderer.on(C.IPC_EVENT.DOWNLOAD_PROGRESS, handler);
+        return () => ipcRenderer.removeListener(C.IPC_EVENT.DOWNLOAD_PROGRESS, handler);
+    },
+    onDownloadDone: (callback) => {
+        const handler = (_event, data) => callback(data);
+        ipcRenderer.on(C.IPC_EVENT.DOWNLOAD_DONE, handler);
+        return () => ipcRenderer.removeListener(C.IPC_EVENT.DOWNLOAD_DONE, handler);
+    },
+    onDownloadUpdated: (callback) => {
+        const handler = (_event, data) => callback(data);
+        ipcRenderer.on(C.IPC_EVENT.DOWNLOAD_UPDATED, handler);
+        return () => ipcRenderer.removeListener(C.IPC_EVENT.DOWNLOAD_UPDATED, handler);
+    },
+    onShortcutDownloads: (callback) => {
+        const handler = () => callback();
+        ipcRenderer.on(C.IPC_EVENT.SHORTCUT_DOWNLOADS, handler);
+        return () => ipcRenderer.removeListener(C.IPC_EVENT.SHORTCUT_DOWNLOADS, handler);
+    },
 
     // Platform identifier
     platform: process.platform,

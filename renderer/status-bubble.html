@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    :root {
+      --chrome-shell-bg: #ffffff;
+      --chrome-nav-bg: #ffffff;
+      --chrome-fg: #202124;
+      --chrome-tab-separator: rgba(0, 0, 0, 0.14);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --chrome-shell-bg: #28292a;
+        --chrome-nav-bg: #28292a;
+        --chrome-fg: #e8eaed;
+        --chrome-tab-separator: rgba(255, 255, 255, 0.16);
+      }
+    }
+
+    html[data-forced-appearance="dark"],
+    body.dark {
+      --chrome-shell-bg: #28292a;
+      --chrome-nav-bg: #28292a;
+      --chrome-fg: #e8eaed;
+      --chrome-tab-separator: rgba(255, 255, 255, 0.16);
+    }
+
+    html[data-forced-appearance="light"],
+    body.light {
+      --chrome-shell-bg: #ffffff;
+      --chrome-nav-bg: #ffffff;
+      --chrome-fg: #202124;
+      --chrome-tab-separator: rgba(0, 0, 0, 0.14);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: transparent !important;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .status-bubble {
+      display: none;
+      height: 24px;
+      line-height: 20px;
+      padding: 2px 8px;
+      font-size: 11.5px;
+      letter-spacing: -0.1px;
+      background-color: var(--chrome-nav-bg, var(--chrome-shell-bg, #ffffff));
+      color: var(--chrome-fg, #202124);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14);
+      pointer-events: auto;
+      cursor: default;
+    }
+
+    .status-bubble.is-visible {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Left side status bubble (pinned to bottom-left) */
+    .status-bubble.side-left {
+      border-top-right-radius: 4px;
+      border-top: 1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.14));
+      border-right: 1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.14));
+      border-bottom: none;
+      border-left: none;
+    }
+
+    /* Right side status bubble (pinned to bottom-right) */
+    .status-bubble.side-right {
+      border-top-left-radius: 4px;
+      border-top: 1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.14));
+      border-left: 1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.14));
+      border-bottom: none;
+      border-right: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="status-bubble" class="status-bubble"></div>
+
+  <script>
+    const bubbleEl = document.getElementById('status-bubble');
+
+    function applyThemeTokens(themeData) {
+      if (!themeData) return;
+      const root = document.documentElement;
+      const tokens = themeData.tokens && typeof themeData.tokens === 'object' ? themeData.tokens : {};
+      Object.keys(tokens).forEach((k) => {
+        const v = tokens[k];
+        if (v !== undefined && v !== null && v !== '') {
+          root.style.setProperty(k, String(v));
+        }
+      });
+      if (typeof themeData.effectiveDark === 'boolean') {
+        root.style.colorScheme = themeData.effectiveDark ? 'dark' : 'light';
+      }
+      const fa = themeData.forcedAppearance;
+      if (fa === 'light' || fa === 'dark') {
+        root.setAttribute('data-forced-appearance', fa);
+      } else {
+        root.removeAttribute('data-forced-appearance');
+      }
+    }
+
+    // Hover-flip behavior:
+    // If the mouse cursor moves over the status bubble, immediately flip to the opposite corner
+    // so the bubble never obstructs the user's view or click target!
+    let flipThrottle = false;
+    function handleMouseEnterOrMove() {
+      if (flipThrottle) return;
+      flipThrottle = true;
+      setTimeout(() => { flipThrottle = false; }, 150);
+      if (window.electronAPI && window.electronAPI.statusBubbleFlip) {
+        window.electronAPI.statusBubbleFlip();
+      }
+    }
+
+    bubbleEl.addEventListener('mouseenter', handleMouseEnterOrMove);
+    bubbleEl.addEventListener('mousemove', handleMouseEnterOrMove);
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    ctx.font = '11.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+
+    function getAccurateUrlWidth(url) {
+      if (!url) return 0;
+      return Math.ceil(ctx.measureText(url).width) + 20;
+    }
+
+    if (window.electronAPI) {
+      if (window.electronAPI.onStatusBubbleTheme) {
+        window.electronAPI.onStatusBubbleTheme((themeData) => {
+          applyThemeTokens(themeData);
+        });
+      }
+
+      if (window.electronAPI.onStatusBubbleUpdate) {
+        window.electronAPI.onStatusBubbleUpdate((data) => {
+          if (!data || !data.url) {
+            bubbleEl.textContent = '';
+            bubbleEl.className = 'status-bubble';
+            return;
+          }
+
+          if (data.theme) {
+            applyThemeTokens(data.theme);
+          }
+
+          bubbleEl.textContent = data.url;
+          const side = data.side === 'right' ? 'side-right' : 'side-left';
+          bubbleEl.className = `status-bubble is-visible ${side}`;
+
+          const measuredWidth = getAccurateUrlWidth(data.url);
+          if (window.electronAPI.statusBubbleResize) {
+            window.electronAPI.statusBubbleResize({
+              width: measuredWidth,
+              height: 24,
+            });
+          }
+        });
+      }
+    }
+  </script>
+</body>
+</html>

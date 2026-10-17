@@ -12,6 +12,7 @@ import OmniboxInput from './omnibox/OmniboxInput';
 import ProfileMenuButton from './ProfileMenuButton';
 import ProfileEditorModal from './ProfileEditorModal';
 import WindowOpacityControl from './WindowOpacityControl';
+import DownloadToolbarButton from './DownloadToolbarButton';
 import { BOOKMARK, OVERLAY, PROFILE, URL as URL_C } from '../constants/conditionStrings.js';
 import {
   bookmarkStarFilledSvg,
@@ -148,6 +149,7 @@ export default function NavBar({
   onNewTab,
   onOpenHistory,
   onOpenBookmark,
+  onOpenDownloads,
   onDeleteBrowsingData,
   onOpenSettings,
   searchEngine = 'google',
@@ -570,7 +572,10 @@ export default function NavBar({
           else if (commandId === 'openSettings') onOpenSettings?.();
           else if (commandId === 'openHistoryPage') onOpenHistory?.();
           else if (commandId === 'openBookmarkPage') onOpenBookmark?.();
-          else if (commandId === 'openDownloads') window.electronAPI.runMenuCommand?.('open-downloads');
+          else if (commandId === 'openDownloads') {
+            if (onOpenDownloads) onOpenDownloads();
+            else window.electronAPI.runMenuCommand?.('open-downloads');
+          }
           else if (commandId === 'deleteBrowsingData') onDeleteBrowsingData?.();
           else if (commandId === 'print') window.electronAPI.runMenuCommand?.('print-active-tab');
           else if (commandId === 'searchWithGoogleLens') window.electronAPI.runMenuCommand?.('search-with-google-lens');
@@ -701,6 +706,7 @@ export default function NavBar({
     onNewTab,
     onOpenHistory,
     onOpenBookmark,
+    onOpenDownloads,
     onOpenSettings,
     openBookmarkEditorForCurrentPage,
     postStarEditorPatch,
@@ -749,6 +755,8 @@ export default function NavBar({
       </button>
 
       <WindowOpacityControl />
+
+      <DownloadToolbarButton onOpenDownloads={onOpenDownloads} />
 
       <ProfileMenuButton
         profiles={profiles}

@@ -97,6 +97,14 @@ function getWindowContextByChromeOverlaySender(sender) {
         if (isViewWebContentsAlive(omniboxOv) && omniboxOv.webContents === sender) {
             return ctx;
         }
+        const statusOv = ctx.statusBubbleView;
+        if (isViewWebContentsAlive(statusOv) && statusOv.webContents === sender) {
+            return ctx;
+        }
+        const tooltipOv = ctx.tooltipView;
+        if (isViewWebContentsAlive(tooltipOv) && tooltipOv.webContents === sender) {
+            return ctx;
+        }
     }
     return null;
 }
