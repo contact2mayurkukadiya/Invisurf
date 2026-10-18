@@ -221,6 +221,17 @@ class ExtensionController extends EventEmitter {
     getInstalledExtensions(profileId) {
         const pId = ExtensionStorage.safeProfileId(profileId);
         const state = ExtensionStorage.readState(pId);
+        // Ensure max 6 pinned extensions in FIFO order if existing state has excess
+        const allPinned = Object.values(state).filter(e => e && e.pinned);
+        if (allPinned.length > 6) {
+            allPinned.sort((a, b) => (Number(a.pinnedAt) || 0) - (Number(b.pinnedAt) || 0));
+            const excess = allPinned.length - 6;
+            for (let i = 0; i < excess; i++) {
+                allPinned[i].pinned = false;
+                delete allPinned[i].pinnedAt;
+            }
+            ExtensionStorage.writeState(pId, state);
+        }
         const profileLoadedMap = this.loadedExtensions.get(pId) || new Map();
 
         return Object.values(state).map((ext) => {
@@ -334,7 +345,13 @@ class ExtensionController extends EventEmitter {
         // Check if already installed
         const state = ExtensionStorage.readState(pId);
         if (state[cleanId]) {
-            throw new Error(`Extension "${state[cleanId].name || cleanId}" is already installed.`);
+            console.log(`[ExtensionController] Extension "${state[cleanId].name || cleanId}" is already installed for profile ${pId}`);
+            return {
+                alreadyInstalled: true,
+                extensionId: cleanId,
+                name: state[cleanId].name || cleanId,
+                version: state[cleanId].version || '1.0.0',
+            };
         }
 
         const stagingDir = ExtensionStorage.prepareStagingDir(pId, cleanId);
@@ -407,6 +424,93 @@ class ExtensionController extends EventEmitter {
     }
 
     /**
+     * Prepares installation from a local CRX file (e.g. user-downloaded CRX package).
+     */
+    async prepareInstallFromFile(profileId, filePath) {
+        if (!filePath || !fs.existsSync(filePath)) {
+            throw new Error('Extension file does not exist');
+        }
+
+        const pId = ExtensionStorage.safeProfileId(profileId);
+        const tempId = `local_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+        const stagingDir = ExtensionStorage.prepareStagingDir(pId, tempId);
+
+        try {
+            const fileBuffer = fs.readFileSync(filePath);
+            const isCrx = fileBuffer.length >= 4 && fileBuffer.readUInt32LE(0) === 0x34327243;
+            let zipBuffer;
+            if (isCrx) {
+                zipBuffer = ExtensionInstaller.extractZipBufferFromCrx(fileBuffer);
+            } else {
+                zipBuffer = fileBuffer;
+            }
+
+            await ExtensionInstaller.unpackZipBuffer(zipBuffer, stagingDir);
+            if (zipBuffer.publicKey) {
+                ExtensionInstaller.injectManifestKey(stagingDir, zipBuffer.publicKey);
+            }
+
+            const inspection = ExtensionInstaller.inspectExtractedExtension(stagingDir);
+            const cleanId = inspection.extensionId || sanitizeExtensionId(path.basename(filePath, path.extname(filePath)));
+
+            // Check if already installed
+            const state = ExtensionStorage.readState(pId);
+            if (state[cleanId]) {
+                return {
+                    alreadyInstalled: true,
+                    extensionId: cleanId,
+                    name: state[cleanId].name || cleanId,
+                    version: state[cleanId].version || '1.0.0',
+                };
+            }
+
+            let iconDataUrl = null;
+            if (inspection.iconRelativePath) {
+                const iconFullPath = path.join(stagingDir, inspection.iconRelativePath);
+                if (fs.existsSync(iconFullPath)) {
+                    try {
+                        const iconExt = path.extname(iconFullPath).toLowerCase().replace('.', '') || 'png';
+                        const mime = iconExt === 'svg' ? 'image/svg+xml' : `image/${iconExt}`;
+                        const iconBase64 = fs.readFileSync(iconFullPath).toString('base64');
+                        iconDataUrl = `data:${mime};base64,${iconBase64}`;
+                    } catch (_) { }
+                }
+            }
+
+            const installToken = crypto.randomUUID();
+            this.pendingInstalls.set(installToken, {
+                installToken,
+                profileId: pId,
+                extensionId: cleanId,
+                stagingDir,
+                inspection,
+                createdAt: Date.now(),
+            });
+
+            return {
+                installToken,
+                extensionId: cleanId,
+                name: inspection.name,
+                version: inspection.version,
+                description: inspection.description,
+                iconDataUrl,
+                hasPopup: inspection.hasPopup,
+                warnings: (inspection.permissionsAudit?.warnings || []).map(w =>
+                    typeof w === 'string' ? w : (w?.description || w?.title || w?.permission || String(w))
+                ),
+                permissions: inspection.permissionsAudit,
+            };
+        } catch (err) {
+            try {
+                if (fs.existsSync(stagingDir)) {
+                    fs.rmSync(stagingDir, { recursive: true, force: true });
+                }
+            } catch (_) { }
+            throw err;
+        }
+    }
+
+    /**
      * Stage 2 of Web Store installation:
      * User approved permissions modal. Atomically moves files to final directory and loads extension.
      */
@@ -462,7 +566,7 @@ class ExtensionController extends EventEmitter {
             ExtensionStorage.writeState(profileId, state);
 
             // Load into active session if available
-            const session = this.activeSessions.get(profileId);
+            const session = this.activeSessions.get(profileId) || (require('electron').session ? require('electron').session.defaultSession : null);
             if (session) {
                 const loaded = await session.extensions.loadExtension(finalPath);
                 let profileLoadedMap = this.loadedExtensions.get(profileId);
@@ -858,8 +962,10 @@ class ExtensionController extends EventEmitter {
 
     /**
      * Toggles whether an extension is pinned to the toolbar.
+     * Enforces a FIFO queue limited to a maximum of 6 pinned extensions:
+     * When pinning a 7th extension, the oldest pinned extension (first in) is automatically unpinned (first out).
      */
-    togglePinExtension(profileId, extensionId) {
+    togglePinExtension(profileId, extensionId, maxPinned = 6) {
         const pId = ExtensionStorage.safeProfileId(profileId);
         const cleanId = sanitizeExtensionId(extensionId);
         const state = ExtensionStorage.readState(pId);
@@ -869,7 +975,25 @@ class ExtensionController extends EventEmitter {
         ext.pinned = !ext.pinned;
         if (ext.pinned) {
             ext.pinnedAt = Date.now();
+
+            // FIFO queue logic: ensure at most `maxPinned` extensions are pinned
+            const otherPinned = Object.values(state).filter(e => e && e.id !== cleanId && e.pinned);
+            if (otherPinned.length >= maxPinned) {
+                // Sort ascending by pinnedAt (oldest first: FIFO)
+                otherPinned.sort((a, b) => (Number(a.pinnedAt) || 0) - (Number(b.pinnedAt) || 0));
+                const excessCount = (otherPinned.length - maxPinned) + 1;
+                for (let i = 0; i < excessCount; i++) {
+                    const oldest = otherPinned[i];
+                    if (oldest) {
+                        oldest.pinned = false;
+                        delete oldest.pinnedAt;
+                    }
+                }
+            }
+        } else {
+            delete ext.pinnedAt;
         }
+
         ExtensionStorage.writeState(pId, state);
         this.emit('extensions-updated', { profileId: pId });
         return ext;
@@ -1704,6 +1828,10 @@ class ExtensionController extends EventEmitter {
         try {
             const { getOmniboxManager } = require('./compat/OmniboxManager');
             getOmniboxManager().unregisterKeyword(extensionId);
+        } catch (_) {}
+        try {
+            const { getIpcBridge } = require('./compat/IpcBridge');
+            getIpcBridge().unloadExtension(extensionId);
         } catch (_) {}
     }
 }

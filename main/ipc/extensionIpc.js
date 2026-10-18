@@ -5,16 +5,34 @@ const State = require('../state');
 
 function isWebStoreOrTrustedSender(event) {
     try {
-        const frameUrl = event.senderFrame?.url || event.sender?.getURL() || '';
-        return (
-            frameUrl.startsWith('app://') ||
-            frameUrl.startsWith('https://chromewebstore.google.com') ||
-            frameUrl.startsWith('https://chrome.google.com/webstore')
-        );
+        const urls = [
+            event.sender?.getURL ? event.sender.getURL() : '',
+            event.senderFrame?.url || '',
+            event.sender?._pendingUrl || ''
+        ];
+        return urls.some((url) => {
+            if (!url || typeof url !== 'string') return false;
+            if (url.startsWith('app://')) return true;
+            try {
+                const parsed = new URL(url);
+                return (
+                    parsed.hostname === 'chromewebstore.google.com' ||
+                    parsed.hostname.endsWith('.chromewebstore.google.com') ||
+                    parsed.hostname === 'chrome.google.com' ||
+                    parsed.hostname.endsWith('.chrome.google.com')
+                );
+            } catch {
+                return (
+                    url.includes('chromewebstore.google.com') ||
+                    url.includes('chrome.google.com/webstore')
+                );
+            }
+        });
     } catch {
         return false;
     }
 }
+
 
 function isTrustedShellSender(event) {
     try {
@@ -51,6 +69,11 @@ function registerExtensionIpcHandlers() {
 
         console.log(`[ExtensionIPC] Prepare webstore install: ${extensionId} for profile ${profileId}`);
         const prep = await controller.prepareInstallFromWebStore(profileId, extensionId);
+
+        // If already installed, return immediately without opening consent overlay
+        if (prep?.alreadyInstalled) {
+            return prep;
+        }
 
         // Display install prompt in top-level overlay WebContentsView above all web tabs
         if (context) {

@@ -723,16 +723,24 @@ export function renderExtensionMenu(payload) {
     const top = Math.max(pad, Math.min(top0, metrics.viewportHeight - 200 - pad));
     const panelPoint = toCompactMenuPoint(payload, left, top);
 
+    // Calculate maximum allowed height for DOM.panel so it never overflows the overlay view or window
+    const availableHeight = metrics.overlayBounds && Number.isFinite(Number(metrics.overlayBounds.height))
+        ? Math.max(200, Math.round(Number(metrics.overlayBounds.height)) - panelPoint.top - 24)
+        : Math.max(200, metrics.viewportHeight - top - pad - 24);
+    const maxPanelHeight = Math.min(460, availableHeight);
+
     DOM.panel.innerHTML = '';
     DOM.panel.style.left = panelPoint.left + 'px';
     DOM.panel.style.top = panelPoint.top + 'px';
     DOM.panel.style.width = width + 'px';
     DOM.panel.style.minWidth = width + 'px';
     DOM.panel.style.maxWidth = width + 'px';
-    DOM.panel.style.maxHeight = Math.max(260, Math.min(560, metrics.viewportHeight - top - pad)) + 'px';
+    DOM.panel.style.maxHeight = maxPanelHeight + 'px';
+    DOM.panel.style.padding = '0';
     DOM.panel.style.display = 'flex';
     DOM.panel.style.flexDirection = 'column';
-    DOM.panel.style.overflow = 'visible';
+    DOM.panel.style.overflow = 'hidden';
+    DOM.panel.style.boxSizing = 'border-box';
     DOM.panel.style.borderRadius = '12px';
     DOM.panel.style.backgroundColor = 'var(--chrome-nav-bg, #ffffff)';
     DOM.panel.style.color = 'var(--chrome-fg, #202124)';
@@ -749,7 +757,8 @@ export function renderExtensionMenu(payload) {
     header.style.display = 'flex';
     header.style.alignItems = 'center';
     header.style.justifyContent = 'space-between';
-    header.style.padding = '12px 14px 6px';
+    header.style.padding = '12px 14px 8px';
+    header.style.flexShrink = '0';
     header.style.userSelect = 'none';
     header.style.webkitUserSelect = 'none';
 
@@ -785,9 +794,24 @@ export function renderExtensionMenu(payload) {
 
     // --- 2. Scrollable Body ---
     const bodyContainer = document.createElement('div');
-    bodyContainer.style.flex = '1';
+    bodyContainer.className = 'co-extension-menu-body';
+    bodyContainer.style.flex = '1 1 auto';
+    bodyContainer.style.minHeight = '0';
     bodyContainer.style.overflowY = 'auto';
+    bodyContainer.style.overflowX = 'hidden';
     bodyContainer.style.padding = '0 6px 6px';
+    bodyContainer.style.overscrollBehavior = 'contain';
+
+    bodyContainer.onscroll = () => {
+        if (DOM.submenu && DOM.submenu.classList.contains('co-visible')) {
+            DOM.submenu.classList.remove('co-visible');
+            DOM.submenu.style.display = 'none';
+        }
+        if (DOM.flyout && DOM.flyout.classList.contains('co-visible')) {
+            DOM.flyout.classList.remove('co-visible');
+            DOM.flyout.style.display = 'none';
+        }
+    };
 
     if (extensions.length === 0) {
         const emptyBox = document.createElement('div');
@@ -830,8 +854,10 @@ export function renderExtensionMenu(payload) {
     const footer = document.createElement('div');
     footer.style.borderTop = '1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.08))';
     footer.style.padding = '4px 6px';
+    footer.style.flexShrink = '0';
     footer.style.userSelect = 'none';
     footer.style.webkitUserSelect = 'none';
+    footer.style.backgroundColor = 'var(--chrome-nav-bg, #ffffff)';
 
     const manageBtn = document.createElement('button');
     manageBtn.type = 'button';

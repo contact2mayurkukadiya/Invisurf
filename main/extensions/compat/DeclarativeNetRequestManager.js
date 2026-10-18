@@ -44,6 +44,48 @@ class DeclarativeNetRequestManager {
          * Attached Electron sessions: WeakSet<Session>
          */
         this.attachedSessions = new WeakSet();
+
+        /**
+         * Cached active rules sorted by priority descending: CompiledRule[] | null
+         */
+        this._activeRulesCache = null;
+    }
+
+    _invalidateCache() {
+        this._activeRulesCache = null;
+    }
+
+    _getActiveRules() {
+        if (this._activeRulesCache) {
+            return this._activeRulesCache;
+        }
+
+        const activeRules = [];
+        for (const map of this.dynamicRules.values()) {
+            for (const compiled of map.values()) {
+                activeRules.push(compiled);
+            }
+        }
+        for (const map of this.sessionRules.values()) {
+            for (const compiled of map.values()) {
+                activeRules.push(compiled);
+            }
+        }
+        for (const [extId, rulesetsMap] of this.staticRulesets.entries()) {
+            const enabledSet = this.enabledRulesets.get(extId);
+            for (const [rulesetId, ruleset] of rulesetsMap.entries()) {
+                const isEnabled = enabledSet ? enabledSet.has(rulesetId) : ruleset.enabled;
+                if (isEnabled) {
+                    for (const compiled of ruleset.rules) {
+                        activeRules.push(compiled);
+                    }
+                }
+            }
+        }
+
+        activeRules.sort((a, b) => b.priority - a.priority);
+        this._activeRulesCache = activeRules;
+        return activeRules;
     }
 
     _getRulesFilePath(profileId, extensionId) {
@@ -81,6 +123,7 @@ class DeclarativeNetRequestManager {
                 console.warn(`[DNR] Failed to load rules for ${cleanExtId}:`, err?.message || err);
             }
         }
+        this._invalidateCache();
         return map;
     }
 
@@ -218,38 +261,17 @@ class DeclarativeNetRequestManager {
                 getWebRequestManager().forwardBeforeRequest(details);
             } catch (_) {}
 
+            const activeRules = this._getActiveRules();
+            if (activeRules.length === 0) {
+                return callback({});
+            }
+
             const electronResourceType = (details.resourceType || 'other').toLowerCase();
             const dnrDetails = {
                 url: details.url,
                 resourceType: electronResourceType === 'xhr' ? 'xmlhttprequest' : electronResourceType,
                 initiator: details.initiator || '',
             };
-
-            // Collect all active rules sorted by priority descending
-            const activeRules = [];
-            for (const map of this.dynamicRules.values()) {
-                for (const compiled of map.values()) {
-                    activeRules.push(compiled);
-                }
-            }
-            for (const map of this.sessionRules.values()) {
-                for (const compiled of map.values()) {
-                    activeRules.push(compiled);
-                }
-            }
-            for (const [extId, rulesetsMap] of this.staticRulesets.entries()) {
-                const enabledSet = this.enabledRulesets.get(extId);
-                for (const [rulesetId, ruleset] of rulesetsMap.entries()) {
-                    const isEnabled = enabledSet ? enabledSet.has(rulesetId) : ruleset.enabled;
-                    if (isEnabled) {
-                        for (const compiled of ruleset.rules) {
-                            activeRules.push(compiled);
-                        }
-                    }
-                }
-            }
-
-            activeRules.sort((a, b) => b.priority - a.priority);
 
             for (const rule of activeRules) {
                 if (this._matchesRule(rule, dnrDetails)) {
@@ -303,6 +325,7 @@ class DeclarativeNetRequestManager {
         }
 
         this._saveDynamicRules(profileId, extensionId);
+        this._invalidateCache();
     }
 
     /**
@@ -336,6 +359,7 @@ class DeclarativeNetRequestManager {
                 }
             }
         }
+        this._invalidateCache();
     }
 
     /**
@@ -363,6 +387,7 @@ class DeclarativeNetRequestManager {
         if (Array.isArray(options.enableRulesetIds)) {
             for (const id of options.enableRulesetIds) set.add(id);
         }
+        this._invalidateCache();
     }
 
     /**
@@ -421,6 +446,7 @@ class DeclarativeNetRequestManager {
                 console.warn(`[DNR] Failed to load static ruleset "${res.id}" for ${cleanExtId}:`, err?.message || err);
             }
         }
+        this._invalidateCache();
     }
 
     /**
@@ -430,6 +456,7 @@ class DeclarativeNetRequestManager {
         const cleanExtId = ExtensionStorage.sanitizeExtensionId(extensionId);
         this.staticRulesets.delete(cleanExtId);
         this.enabledRulesets.delete(cleanExtId);
+        this._invalidateCache();
     }
 }
 

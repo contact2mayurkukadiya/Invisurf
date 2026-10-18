@@ -636,3 +636,26 @@ html[data-forced-appearance="light"] .co-click-through-menu-badge--ghost {
 .co-extension-install-warnbox::-webkit-scrollbar-thumb:hover {
     background: color-mix(in srgb, var(--chrome-tab-separator, rgba(128, 128, 128, 0.5)) 80%, var(--chrome-fg, #000000) 20%);
 }
+
+/* Extension Menu Dropdown Scrollbar */
+.co-extension-menu-body {
+    scrollbar-width: thin;
+    scrollbar-color: var(--chrome-tab-separator, rgba(128, 128, 128, 0.35)) transparent;
+}
+
+.co-extension-menu-body::-webkit-scrollbar {
+    width: 6px;
+}
+
+.co-extension-menu-body::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.co-extension-menu-body::-webkit-scrollbar-thumb {
+    background: var(--chrome-tab-separator, rgba(128, 128, 128, 0.35));
+    border-radius: 9999px;
+}
+
+.co-extension-menu-body::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--chrome-tab-separator, rgba(128, 128, 128, 0.5)) 80%, var(--chrome-fg, #000000) 20%);
+}

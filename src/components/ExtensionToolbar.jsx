@@ -421,10 +421,11 @@ export default function ExtensionToolbar({ onNavigate, currentTabUrl }) {
     }
   }, [currentTabUrl]);
 
-  // All pinned extensions visible on toolbar
+  // All pinned extensions visible on toolbar (FIFO queue limited to maximum 6 items)
   const pinnedExtensions = extensions
-    .filter(e => e.enabled && e.pinned)
-    .sort((a, b) => (b.pinnedAt || 0) - (a.pinnedAt || 0));
+    .filter(e => e.pinned)
+    .sort((a, b) => (a.pinnedAt || 0) - (b.pinnedAt || 0))
+    .slice(0, 6);
 
   const handleActionClick = (e, ext) => {
     const badge = actionBadges[ext.id];
@@ -469,7 +470,7 @@ export default function ExtensionToolbar({ onNavigate, currentTabUrl }) {
           <button
             key={ext.id}
             className={`btn extension-action-btn${!isEnabled ? ' extension-action-btn--disabled' : ''}`}
-            title={isEnabled ? `${ext.name} (v${ext.version})` : `${ext.name} (disabled on this site)`}
+            title={isEnabled ? `${ext.name} (v${ext.version})` : ext.enabled === false ? `${ext.name} (disabled)` : `${ext.name} (disabled on this site)`}
             aria-disabled={!isEnabled}
             onClick={(e) => handleActionClick(e, ext)}
             onContextMenu={(e) => handleActionContextMenu(e, ext)}

@@ -581,20 +581,96 @@ class IpcBridge {
         const controller = getExtensionController();
         const notifiedExtIds = new Set();
 
+        const requiresPermission = (ext) => {
+            if (!ext) return true;
+            const perms = ext.manifest?.permissions || [];
+            const optPerms = ext.manifest?.optional_permissions || [];
+            const hasPerm = (p) => perms.includes(p) || optPerms.includes(p);
+
+            if (eventName.startsWith('chrome.webRequest.')) return hasPerm('webRequest');
+            if (eventName.startsWith('chrome.cookies.')) return hasPerm('cookies');
+            if (eventName.startsWith('chrome.bookmarks.')) return hasPerm('bookmarks');
+            if (eventName.startsWith('chrome.downloads.')) return hasPerm('downloads');
+            if (eventName.startsWith('chrome.history.')) return hasPerm('history');
+            if (eventName.startsWith('chrome.webNavigation.')) return hasPerm('webNavigation');
+            if (eventName.startsWith('chrome.proxy.')) return hasPerm('proxy');
+            return true;
+        };
+
         for (const profileId of controller.activeSessions.keys()) {
             const exts = controller.getInstalledExtensions(profileId);
             for (const ext of exts) {
                 if (ext.enabled && ext.id && !notifiedExtIds.has(ext.id)) {
-                    notifiedExtIds.add(ext.id);
-                    this.broadcastEvent(ext.id, eventName, args);
+                    if (requiresPermission(ext)) {
+                        notifiedExtIds.add(ext.id);
+                        this.broadcastEvent(ext.id, eventName, args);
+                    }
                 }
             }
         }
 
         for (const extId of this.pendingPolls.keys()) {
             if (!notifiedExtIds.has(extId)) {
-                notifiedExtIds.add(extId);
-                this.broadcastEvent(extId, eventName, args);
+                const ext = ExtensionStorage.findExtension(extId);
+                if (!ext || requiresPermission(ext)) {
+                    notifiedExtIds.add(extId);
+                    this.broadcastEvent(extId, eventName, args);
+                }
+            }
+        }
+    }
+
+    /**
+     * Cleans up any active runtime ports associated with a closed tab.
+     */
+    cleanupTab(tabId) {
+        if (!tabId) return;
+        const numTabId = Number(tabId);
+        for (const [portId, portInfo] of this.activePorts.entries()) {
+            if (Number(portInfo?.sourceTabId) === numTabId || Number(portInfo?.targetTabId) === numTabId) {
+                try {
+                    const targetExt = portInfo.targetExtId || portInfo.sourceExtId;
+                    if (targetExt) {
+                        this.broadcastEvent(targetExt, `chrome.runtime.portOnDisconnect_${portId}`, []);
+                    }
+                } catch (_) {}
+                this.activePorts.delete(portId);
+            }
+        }
+    }
+
+    /**
+     * Cleans up all active streams, polls, queued events, and ports when an extension is unloaded or disabled.
+     */
+    unloadExtension(extensionId) {
+        if (!extensionId) return;
+        const cleanId = ExtensionStorage.sanitizeExtensionId(extensionId);
+
+        // Close and remove any active event streams
+        if (this.activeStreams.has(cleanId)) {
+            const streams = this.activeStreams.get(cleanId);
+            for (const controller of streams) {
+                try { controller.close(); } catch (_) {}
+            }
+            this.activeStreams.delete(cleanId);
+        }
+
+        // Resolve and clear pending polls
+        if (this.pendingPolls.has(cleanId)) {
+            const polls = this.pendingPolls.get(cleanId);
+            for (const resolver of polls) {
+                try { resolver([]); } catch (_) {}
+            }
+            this.pendingPolls.delete(cleanId);
+        }
+
+        // Clear queued events
+        this.queuedEvents.delete(cleanId);
+
+        // Clean up any ports associated with this extension
+        for (const [portId, portInfo] of this.activePorts.entries()) {
+            if (portInfo.targetExtId === cleanId || portInfo.sourceExtId === cleanId) {
+                this.activePorts.delete(portId);
             }
         }
     }

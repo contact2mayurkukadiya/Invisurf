@@ -26,7 +26,7 @@ function downloadFile(url, destPath, maxRedirects = 5) {
             path: parsedUrl.pathname + parsedUrl.search,
             port: parsedUrl.port || (parsedUrl.protocol === 'https:' ? 443 : 80),
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
                 'Accept': '*/*',
             },
         };
@@ -47,37 +47,162 @@ function downloadFile(url, destPath, maxRedirects = 5) {
             const fileStream = fs.createWriteStream(destPath);
             res.pipe(fileStream);
 
+            res.on('error', (resErr) => {
+                fileStream.destroy();
+                try { fs.unlinkSync(destPath); } catch (_) {}
+                reject(resErr);
+            });
+
             fileStream.on('finish', () => {
                 fileStream.close((err) => {
-                    if (err) reject(err);
-                    else resolve(destPath);
+                    if (err) return reject(err);
+                    try {
+                        const stats = fs.statSync(destPath);
+                        if (stats.size === 0) {
+                            try { fs.unlinkSync(destPath); } catch (_) {}
+                            return reject(new Error('Downloaded extension file is empty (0 bytes)'));
+                        }
+                    } catch (statErr) {
+                        return reject(statErr);
+                    }
+                    resolve(destPath);
                 });
             });
 
             fileStream.on('error', (err) => {
-                fs.unlink(destPath, () => { });
+                try { fs.unlinkSync(destPath); } catch (_) {}
                 reject(err);
             });
         });
 
         req.on('error', (err) => {
-            fs.unlink(destPath, () => { });
+            try { fs.unlinkSync(destPath); } catch (_) {}
             reject(err);
         });
 
-        req.setTimeout(30000, () => {
+        req.setTimeout(18000, () => {
             req.destroy(new Error('Connection timed out while downloading extension'));
         });
     });
 }
 
 /**
- * Downloads CRX from Chrome Web Store by extension ID.
+ * Helper to fetch plain text from a URL following redirects with a timeout.
+ */
+function fetchText(url, timeoutMs = 12000, maxRedirects = 4) {
+    return new Promise((resolve, reject) => {
+        if (maxRedirects < 0) return reject(new Error('Too many redirects while resolving extension archive'));
+        const parsedUrl = new URL(url);
+        const protocol = parsedUrl.protocol === 'https:' ? https : http;
+        const req = protocol.get({
+            hostname: parsedUrl.hostname,
+            path: parsedUrl.pathname + parsedUrl.search,
+            port: parsedUrl.port || (parsedUrl.protocol === 'https:' ? 443 : 80),
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            },
+        }, (res) => {
+            if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+                res.resume();
+                const nextUrl = new URL(res.headers.location, url).toString();
+                return resolve(fetchText(nextUrl, timeoutMs, maxRedirects - 1));
+            }
+            if (res.statusCode !== 200) {
+                res.resume();
+                return reject(new Error(`HTTP ${res.statusCode}`));
+            }
+            let data = '';
+            res.setEncoding('utf8');
+            res.on('data', (chunk) => {
+                if (data.length < 250000) data += chunk;
+            });
+            res.on('end', () => resolve(data));
+        });
+        req.on('error', reject);
+        req.setTimeout(timeoutMs, () => {
+            req.destroy(new Error('Connection timed out while fetching archive metadata'));
+        });
+    });
+}
+
+/**
+ * Resolves direct Google CDN blob URL for an extension ID if update2 returns 204 or fails.
+ */
+async function resolveGoogleBlobUrl(extensionId) {
+    try {
+        const listingUrl = `https://www.crx4chrome.com/extensions/${extensionId}/`;
+        const html = await fetchText(listingUrl, 10000);
+        const crxPageMatch = html.match(/href=\"(\/crx\/[0-9]+\/)\"/i);
+        if (!crxPageMatch) return null;
+
+        const crxPageUrl = `https://www.crx4chrome.com${crxPageMatch[1]}`;
+        const crxPageHtml = await fetchText(crxPageUrl, 10000);
+
+        const blobMatch = crxPageHtml.match(/clients2\.googleusercontent\.com[^\"&\s]+/i);
+        if (blobMatch) {
+            return 'https://' + decodeURIComponent(blobMatch[0]);
+        }
+    } catch (err) {
+        console.warn(`[ExtensionInstaller] Archive CDN blob resolution failed for ${extensionId}:`, err?.message || err);
+    }
+    return null;
+}
+
+/**
+ * Downloads CRX from Chrome Web Store by extension ID with automatic resilient fallbacks.
  */
 async function downloadCrxFromWebStore(extensionId, destPath) {
     const cleanId = String(extensionId).trim().toLowerCase();
-    const crxUrl = `https://clients2.google.com/service/update2/crx?response=redirect&prodversion=134.0.0.0&acceptformat=crx3&x=id%3D${encodeURIComponent(cleanId)}%26installsource%3Dondemand%26uc`;
-    return downloadFile(crxUrl, destPath);
+    const platform = process.platform === 'darwin' ? 'mac' : process.platform === 'win32' ? 'win' : 'linux';
+    const arch = process.arch === 'arm64' ? 'arm64' : 'x86-64';
+    const naclArch = process.arch === 'arm64' ? 'arm' : 'x86-64';
+    const chromeVer = process.versions.chrome || '131.0.6778.86';
+
+    const candidates = [
+        // Candidate 1: Universal modern Chrome Web Store endpoint (prodversion=9999.0.0.0 satisfies all modern manifests without 204 blocks)
+        `https://clients2.google.com/service/update2/crx?response=redirect&prodversion=9999.0.0.0&acceptformat=crx2,crx3&x=id%3D${cleanId}%26installsource%3Dondemand%26uc`,
+        // Candidate 2: Platform and architecture-qualified modern Chrome update URL (with prodversion=9999.0.0.0)
+        `https://clients2.google.com/service/update2/crx?response=redirect&os=${platform}&arch=${arch}&os_arch=${arch}&nacl_arch=${naclArch}&prod=chromecrx&prodchannel=&prodversion=9999.0.0.0&lang=en-US&acceptformat=crx2,crx3&x=id%3D${cleanId}%26installsource%3Dondemand%26uc`,
+        // Candidate 3: Chrome 140+ high compatibility endpoint
+        `https://clients2.google.com/service/update2/crx?response=redirect&prodversion=140.0.0.0&acceptformat=crx2,crx3&x=id%3D${cleanId}%26installsource%3Dondemand%26uc`,
+        // Candidate 4: Platform and architecture-qualified Chrome update URL (current Chrome version)
+        `https://clients2.google.com/service/update2/crx?response=redirect&os=${platform}&arch=${arch}&os_arch=${arch}&nacl_arch=${naclArch}&prod=chromecrx&prodchannel=&prodversion=${chromeVer}&lang=en-US&acceptformat=crx3,crx2&x=id%3D${cleanId}%26installsource%3Dondemand%26uc`,
+        // Candidate 5: Edge Add-ons endpoint (contains extensive mirror of Chromium extensions)
+        `https://edge.microsoft.com/extensionwebstorebase/v1/crx?response=redirect&prod=chromiumcrx&prodchannel=&x=id%3D${cleanId}%26installsource%3Dondemand%26uc`,
+    ];
+
+    let lastError = null;
+    for (let i = 0; i < candidates.length; i++) {
+        const candidateUrl = candidates[i];
+        try {
+            if (fs.existsSync(destPath)) {
+                try { fs.unlinkSync(destPath); } catch (_) {}
+            }
+            return await downloadFile(candidateUrl, destPath);
+        } catch (err) {
+            lastError = err;
+            console.warn(`[ExtensionInstaller] Download candidate ${i + 1}/${candidates.length} failed for ${cleanId}: ${err?.message || err}`);
+        }
+    }
+
+    // Direct Google CDN Blob fallback (for extensions where update2 returns 204 No Content)
+    try {
+        console.log(`[ExtensionInstaller] Update2 endpoints returned no content for ${cleanId}, attempting direct Google CDN blob resolution...`);
+        const blobUrl = await resolveGoogleBlobUrl(cleanId);
+        if (blobUrl) {
+            if (fs.existsSync(destPath)) {
+                try { fs.unlinkSync(destPath); } catch (_) {}
+            }
+            const res = await downloadFile(blobUrl, destPath);
+            console.log(`[ExtensionInstaller] Successfully downloaded extension ${cleanId} from Google CDN blob!`);
+            return res;
+        }
+    } catch (blobErr) {
+        console.warn(`[ExtensionInstaller] Google CDN blob download failed for ${cleanId}:`, blobErr?.message || blobErr);
+    }
+
+    throw lastError || new Error(`Failed to download extension package for ${cleanId}`);
 }
 
 const crypto = require('crypto');
@@ -350,8 +475,8 @@ function inspectExtractedExtension(extractDir) {
         if (typeof icons === 'string') {
             iconRelativePath = icons;
         } else if (typeof icons === 'object') {
-            // Pick largest available icon (128 > 64 > 48 > 32 > 16)
-            const sizes = ['128', '64', '48', '32', '16'];
+            // Pick crisp UI-appropriate icon (48 > 32 > 64 > 16 > 128)
+            const sizes = ['48', '32', '64', '16', '128'];
             for (const s of sizes) {
                 if (icons[s]) {
                     iconRelativePath = icons[s];
@@ -567,6 +692,7 @@ function ensureExtensionPolyfills(extractDir, explicitExtId = null) {
 module.exports = {
     downloadFile,
     downloadCrxFromWebStore,
+    resolveGoogleBlobUrl,
     extractZipBufferFromCrx,
     unpackZipBuffer,
     inspectExtractedExtension,

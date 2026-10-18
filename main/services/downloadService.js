@@ -230,14 +230,10 @@ function broadcastDownloadEvent(channel, data) {
                 context.window.webContents.send(channel, data);
             } catch (_) {}
         }
-        if (context.tabs) {
-            for (const view of Object.values(context.tabs)) {
-                if (view && !view.webContents.isDestroyed()) {
-                    try {
-                        view.webContents.send(channel, data);
-                    } catch (_) {}
-                }
-            }
+        if (context.chromeShellMenuOverlayView && !context.chromeShellMenuOverlayView.webContents.isDestroyed()) {
+            try {
+                context.chromeShellMenuOverlayView.webContents.send(channel, data);
+            } catch (_) {}
         }
     }
 }
@@ -286,6 +282,13 @@ function handleWillDownload(item, webContents, { profileId = null, isStealth = f
     const initialDownloadUrl = (urlChain && urlChain.length > 0) ? urlChain[0] : (item.getURL() || '');
     const directServerUrl = (urlChain && urlChain.length > 0) ? urlChain[urlChain.length - 1] : (item.getURL() || '');
     const downloadUrl = initialDownloadUrl || directServerUrl;
+
+    const isCrxPackage = (
+        (item.getMimeType() || '').toLowerCase() === 'application/x-chrome-extension' ||
+        /\.crx$/i.test(originalFilename) ||
+        /clients2\.google\.com\/service\/update2\/crx/i.test(downloadUrl) ||
+        /clients2\.googleusercontent\.com\/crx\/blobs/i.test(downloadUrl)
+    );
 
     const record = {
         id,
@@ -429,6 +432,27 @@ function handleWillDownload(item, webContents, { profileId = null, isStealth = f
                 }
             } catch (renameErr) {
                 console.error('[DownloadService] Failed to rename .invdownload to final file:', renameErr);
+            }
+
+            // If this was an extension package (.crx), offer seamless installation without conflict
+            if (isCrxPackage && fs.existsSync(finalRecord.savePath)) {
+                try {
+                    const { getExtensionController } = require('../extensions/ExtensionController');
+                    const controller = getExtensionController();
+                    const safeProf = finalRecord.profileId || State.defaultProfileId || 'default';
+                    controller.prepareInstallFromFile(safeProf, finalRecord.savePath).then((prep) => {
+                        if (prep && !prep.alreadyInstalled) {
+                            const { getWindowContextByEventSender, getWindowContextForShellFallback } = require('../windows/windowContextUtils');
+                            const context = (webContents ? getWindowContextByEventSender(webContents) : null) || getWindowContextForShellFallback();
+                            if (context) {
+                                const overlayManager = require('../windows/overlayManager');
+                                overlayManager.showExtensionInstallPromptOverlay(context, prep);
+                            }
+                        }
+                    }).catch((prepErr) => {
+                        console.warn('[DownloadService] Direct CRX auto-prompt error:', prepErr?.message || prepErr);
+                    });
+                } catch (_) {}
             }
         } else {
             // Cancelled, failed, or interrupted and not resumable

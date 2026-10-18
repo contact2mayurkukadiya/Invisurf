@@ -220,6 +220,17 @@ function recoverAndMigrateExtensions(profileId, state) {
         }
     } catch (_) {}
 
+    // 4. Prune stale or uninstalled extensions whose directory was deleted from disk
+    try {
+        for (const [id, ext] of Object.entries(state)) {
+            if (ext && ext.path && !fs.existsSync(ext.path)) {
+                console.log(`[ExtensionStorage] Pruning stale/deleted extension from state: ${id}`);
+                delete state[id];
+                dirty = true;
+            }
+        }
+    } catch (_) {}
+
     if (dirty) {
         writeState(cleanProfileId, state);
     }

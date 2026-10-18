@@ -140,8 +140,10 @@ const WEBSTORE_INJECTION_CODE = `
 
   // --- Extract Extension ID from Detail Page URL ---
   function extractExtensionId() {
-    const path = window.location.pathname || '';
-    const match = path.match(/\\/detail\\/(?:[^\\/]+\\/)?([a-p0-9]{32})/i);
+    const full = (window.location.pathname || '') + (window.location.search || '');
+    const match = full.match(/\\/detail\\/(?:[^\\/?#]+\\/)?([a-p0-9]{32})/i) ||
+                  full.match(/\\/([a-p]{32})(?:[\\/?#]|$)/i) ||
+                  full.match(/([a-p]{32})/i);
     return match ? match[1].toLowerCase() : null;
   }
 
@@ -224,15 +226,32 @@ const WEBSTORE_INJECTION_CODE = `
     }
   }
 
-  // --- Locate Action Button on Page ---
+  // --- Locate Action Button on Page (Light DOM & Shadow DOM) ---
+  function queryAllButtons(root = document, depth = 0) {
+    if (depth > 6 || !root || !root.querySelectorAll) return [];
+    const list = [];
+    try {
+      const elements = root.querySelectorAll('button, [role="button"], a[role="button"], a[href*="google.com/chrome"], [aria-label*="Chrome" i], [aria-label*="InviSurf" i]');
+      for (const el of elements) list.push(el);
+
+      // Search shadow roots only on likely containers, custom elements, or section hosts
+      const shadowHosts = root.querySelectorAll('c-wiz, header, section, main, [role="main"], [role="region"], div[class*="detail"], div[class*="header"]');
+      for (const node of shadowHosts) {
+        if (node.shadowRoot) {
+          list.push(...queryAllButtons(node.shadowRoot, depth + 1));
+        }
+      }
+    } catch (_) {}
+    return list;
+  }
+
   function findActionButton() {
-    if (window.__invisurf_active_button && document.body.contains(window.__invisurf_active_button)) {
+    if (window.__invisurf_active_button && window.__invisurf_active_button.isConnected) {
       return window.__invisurf_active_button;
     }
 
-    const buttons = document.querySelectorAll('button, [role="button"]');
+    const buttons = queryAllButtons(document);
     for (const el of buttons) {
-      // Ignore hidden or zero-size buttons
       if (el.offsetWidth === 0 && el.offsetHeight === 0 && !el.getClientRects().length) {
         continue;
       }
@@ -240,7 +259,7 @@ const WEBSTORE_INJECTION_CODE = `
       const text = (el.textContent || '').trim().toLowerCase();
       const aria = (el.getAttribute('aria-label') || '').toLowerCase();
 
-      if (
+      const isEnglishMatch = (
         text === 'add to chrome' ||
         text === 'add to invisurf' ||
         text.startsWith('add to chrome') ||
@@ -253,13 +272,49 @@ const WEBSTORE_INJECTION_CODE = `
         aria.includes('available on chrome') ||
         aria.includes('add to invisurf') ||
         aria.includes('remove from chrome')
-      ) {
-        window.__invisurf_active_button = el;
-        return el;
+      );
+
+      const isIntlMatch = (
+        (text.includes('chrome') || aria.includes('chrome') || text.includes('invisurf') || aria.includes('invisurf')) &&
+        (text.includes('add') || text.includes('añadir') || text.includes('ajouter') || text.includes('hinzufügen') ||
+         text.includes('adicionar') || text.includes('aggiungi') || text.includes('install') || text.includes('ekle') ||
+         text.includes('追加') || text.includes('추가') || text.includes('добавить') || text.includes('get') ||
+         aria.includes('add') || aria.includes('install') || aria.includes('get')) &&
+        !text.includes('share') && !text.includes('support') && !text.includes('report')
+      );
+
+      if (isEnglishMatch || isIntlMatch) {
+        const targetBtn = el.closest('button, [role="button"], a[role="button"]') || el;
+        window.__invisurf_active_button = targetBtn;
+        return targetBtn;
       }
     }
+
+    // Secondary fallback: find prominent button inside header section
+    const h1 = document.querySelector('h1');
+    if (h1) {
+      const header = h1.closest('section, header, c-wiz') || h1.parentElement?.parentElement;
+      if (header) {
+        const headerButtons = header.querySelectorAll('button, [role="button"], a[role="button"]');
+        for (const b of headerButtons) {
+          if (b.offsetWidth === 0 && b.offsetHeight === 0 && !b.getClientRects().length) continue;
+          const bText = (b.textContent || '').trim().toLowerCase();
+          const bAria = (b.getAttribute('aria-label') || '').toLowerCase();
+          if (
+            (bText.includes('chrome') || bAria.includes('chrome') || bText.includes('invisurf')) &&
+            !bText.includes('share') && !bText.includes('report')
+          ) {
+            const targetBtn = b.closest('button, [role="button"], a[role="button"]') || b;
+            window.__invisurf_active_button = targetBtn;
+            return targetBtn;
+          }
+        }
+      }
+    }
+
     return null;
   }
+
 
   // --- Safe DOM Content Setter (Zero innerHTML to satisfy Trusted Types) ---
   function updateButtonDom(btn, iconElement, labelText) {
@@ -408,13 +463,26 @@ const WEBSTORE_INJECTION_CODE = `
     }, 3500);
   }
 
+  // --- Resilient Bridge Resolver ---
+  async function getWebStoreBridge(timeoutMs = 1500) {
+    if (window.__invisurf_webstore?.prepareInstall) return window.__invisurf_webstore;
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      await new Promise(r => setTimeout(r, 60));
+      if (window.__invisurf_webstore?.prepareInstall) {
+        return window.__invisurf_webstore;
+      }
+    }
+    return window.__invisurf_webstore || null;
+  }
+
   // --- Main Button Transformer ---
   async function updateButton() {
-    injectStyles();
-    hidePromotionalBanners();
-
     const extensionId = extractExtensionId();
     if (!extensionId) return;
+
+    injectStyles();
+    hidePromotionalBanners();
 
     const btn = findActionButton();
     if (!btn) return;
@@ -440,15 +508,46 @@ const WEBSTORE_INJECTION_CODE = `
         renderLoading(btn, 'Downloading');
 
         try {
-          if (window.__invisurf_webstore?.prepareInstall) {
-            await window.__invisurf_webstore.prepareInstall(targetExtId);
-            renderConfirming(btn);
+          const bridge = await getWebStoreBridge(2000);
+          if (bridge?.prepareInstall) {
+            // Subscribe to bridge lifecycle events directly
+            if (bridge.onInstallCompleted && !window.__invisurf_installed_subscribed) {
+              window.__invisurf_installed_subscribed = true;
+              bridge.onInstallCompleted((data) => {
+                handleInstallFinished(data?.extensionId, true);
+              });
+            }
+            if (bridge.onInstallCancelled && !window.__invisurf_cancelled_subscribed) {
+              window.__invisurf_cancelled_subscribed = true;
+              bridge.onInstallCancelled((data) => {
+                handleInstallFinished(data?.extensionId, false);
+              });
+            }
+
+            const res = await bridge.prepareInstall(targetExtId);
+            if (res && res.alreadyInstalled) {
+              btn.__invisurfInstalling = false;
+              renderInstalled(btn);
+            } else {
+              renderConfirming(btn);
+            }
           } else {
             throw new Error('InviSurf bridge not available');
           }
         } catch (err) {
-          console.error('[InviSurf] Install error:', err);
-          renderError(btn, targetExtId, 'Failed to Download');
+          console.error('[InviSurf] Install error:', err?.message || err);
+          let errText = 'Failed to Download';
+          const msg = (err?.message || '').toLowerCase();
+          if (msg.includes('timeout') || msg.includes('timed out')) {
+            errText = 'Download Timed Out';
+          } else if (msg.includes('already installed')) {
+            errText = 'Already Installed';
+          } else if (msg.includes('unauthorized') || msg.includes('permission')) {
+            errText = 'Permission Denied';
+          } else if (msg.includes('not available')) {
+            errText = 'Bridge Connecting...';
+          }
+          renderError(btn, targetExtId, errText);
         }
       }, true); // Capture phase
     }
@@ -460,8 +559,9 @@ const WEBSTORE_INJECTION_CODE = `
 
       let isInstalled = false;
       try {
-        if (window.__invisurf_webstore?.isInstalled) {
-          isInstalled = await window.__invisurf_webstore.isInstalled(extensionId);
+        const bridge = await getWebStoreBridge(800);
+        if (bridge?.isInstalled) {
+          isInstalled = await bridge.isInstalled(extensionId);
         }
       } catch (_) { }
 
@@ -473,39 +573,71 @@ const WEBSTORE_INJECTION_CODE = `
     }
   }
 
+  function handleInstallFinished(extId, isSuccess) {
+    const currentId = extractExtensionId();
+    if (!extId || extId === currentId) {
+      const btn = findActionButton();
+      if (btn) {
+        btn.__invisurfInstalling = false;
+        if (isSuccess) {
+          renderInstalled(btn);
+        } else {
+          renderInstallable(btn);
+        }
+      }
+    }
+  }
+
   window.__invisurf_refresh_webstore = updateButton;
 
-  // --- Listeners for InviSurf Main Process Events ---
-  window.addEventListener('invisurf:install-completed', (e) => {
-    const extId = e.detail?.extensionId;
-    const currentId = extractExtensionId();
-    if (!extId || extId === currentId) {
-      const btn = findActionButton();
-      if (btn) {
-        btn.__invisurfInstalling = false;
-        renderInstalled(btn);
-      }
-    }
-  });
+  // --- Listeners for InviSurf Main Process Events (window & document) ---
+  const onInstallCompletedEvent = (e) => {
+    handleInstallFinished(e.detail?.extensionId, true);
+  };
+  const onInstallCancelledEvent = (e) => {
+    handleInstallFinished(e.detail?.extensionId, false);
+  };
 
-  window.addEventListener('invisurf:install-cancelled', (e) => {
-    const extId = e.detail?.extensionId;
-    const currentId = extractExtensionId();
-    if (!extId || extId === currentId) {
-      const btn = findActionButton();
-      if (btn) {
-        btn.__invisurfInstalling = false;
-        renderInstallable(btn);
-      }
-    }
-  });
+  window.addEventListener('invisurf:install-completed', onInstallCompletedEvent);
+  window.addEventListener('invisurf:install-cancelled', onInstallCancelledEvent);
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    document.addEventListener('invisurf:install-completed', onInstallCompletedEvent);
+    document.addEventListener('invisurf:install-cancelled', onInstallCancelledEvent);
+  }
+
 
   // --- SPA Navigation (popstate / pushState / replaceState) ---
+  let activeFastPoll = null;
+  function startFastPolling() {
+    if (!extractExtensionId()) return;
+    if (activeFastPoll) clearInterval(activeFastPoll);
+    let count = 0;
+    activeFastPoll = setInterval(() => {
+      if (!extractExtensionId()) {
+        clearInterval(activeFastPoll);
+        activeFastPoll = null;
+        return;
+      }
+      dismissSwitchToChromeDialog();
+      updateButton();
+      count++;
+      if ((window.__invisurf_active_button && window.__invisurf_active_button.__invisurfClickBound) || count > 60) {
+        clearInterval(activeFastPoll);
+        activeFastPoll = null;
+      }
+    }, 350);
+  }
+
   const onUrlChange = () => {
     window.__invisurf_dialog_dismissed = false;
     window.__invisurf_active_button = null;
-    setTimeout(updateButton, 100);
-    setTimeout(updateButton, 500);
+    if (extractExtensionId()) {
+      startFastPolling();
+      setTimeout(updateButton, 100);
+      setTimeout(updateButton, 400);
+      setTimeout(updateButton, 1000);
+      setTimeout(updateButton, 1800);
+    }
   };
   window.addEventListener('popstate', onUrlChange);
 
@@ -524,6 +656,7 @@ const WEBSTORE_INJECTION_CODE = `
   // --- Debounced DOM Observer for dynamic loading & hydration ---
   let debounceTimeout = null;
   const observer = new MutationObserver(() => {
+    if (!extractExtensionId()) return;
     if (debounceTimeout) return;
     debounceTimeout = setTimeout(() => {
       debounceTimeout = null;
@@ -536,16 +669,20 @@ const WEBSTORE_INJECTION_CODE = `
     subtree: true
   });
 
-  // Initial trigger & short bounded poll for hydration
-  dismissSwitchToChromeDialog();
-  updateButton();
-  let pollCount = 0;
-  const pollTimer = setInterval(() => {
+  // Initial trigger & resilient hydration polling loop for dynamically rendered shadow DOM elements
+  if (extractExtensionId()) {
     dismissSwitchToChromeDialog();
     updateButton();
-    pollCount++;
-    if (pollCount > 6) clearInterval(pollTimer);
-  }, 250);
+    startFastPolling();
+  }
+
+  // Steady-state background heartbeat check every 1200ms (only on extension detail pages)
+  setInterval(() => {
+    if (!extractExtensionId()) return;
+    if (!window.__invisurf_active_button || !window.__invisurf_active_button.isConnected || !window.__invisurf_active_button.__invisurfClickBound) {
+      updateButton();
+    }
+  }, 1200);
 })();
 `;
 

@@ -101,6 +101,10 @@ class DownloadManager extends EventEmitter {
                 prev.totalBytes = item.getTotalBytes();
                 prev.fileSize = item.getTotalBytes();
 
+                if (prev.filename && prev.filename.endsWith('.invdownload')) {
+                    prev.filename = prev.filename.slice(0, -'.invdownload'.length);
+                }
+
                 let finalState = 'complete';
                 let error = null;
                 if (state === 'cancelled') {

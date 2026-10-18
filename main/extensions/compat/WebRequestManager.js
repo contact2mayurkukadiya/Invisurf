@@ -62,7 +62,7 @@ class WebRequestManager extends EventEmitter {
 
         try {
             ses.webRequest.onBeforeSendHeaders(filter, (details, callback) => {
-                if (this._isInternal(details.url)) return callback({});
+                if (this._isInternal(details.url) || !this.hasActiveWebRequestListeners()) return callback({});
                 this.emit('web-request-event', {
                     eventName: 'chrome.webRequest.onBeforeSendHeaders',
                     details: this._formatDetails(details),
@@ -73,7 +73,7 @@ class WebRequestManager extends EventEmitter {
 
         try {
             ses.webRequest.onSendHeaders(filter, (details) => {
-                if (this._isInternal(details.url)) return;
+                if (this._isInternal(details.url) || !this.hasActiveWebRequestListeners()) return;
                 this.emit('web-request-event', {
                     eventName: 'chrome.webRequest.onSendHeaders',
                     details: this._formatDetails(details),
@@ -83,7 +83,7 @@ class WebRequestManager extends EventEmitter {
 
         try {
             ses.webRequest.onHeadersReceived(filter, (details, callback) => {
-                if (this._isInternal(details.url)) return callback({});
+                if (this._isInternal(details.url) || !this.hasActiveWebRequestListeners()) return callback({});
                 this.emit('web-request-event', {
                     eventName: 'chrome.webRequest.onHeadersReceived',
                     details: this._formatDetails(details),
@@ -94,7 +94,7 @@ class WebRequestManager extends EventEmitter {
 
         try {
             ses.webRequest.onResponseStarted(filter, (details) => {
-                if (this._isInternal(details.url)) return;
+                if (this._isInternal(details.url) || !this.hasActiveWebRequestListeners()) return;
                 this.emit('web-request-event', {
                     eventName: 'chrome.webRequest.onResponseStarted',
                     details: this._formatDetails(details),
@@ -104,7 +104,7 @@ class WebRequestManager extends EventEmitter {
 
         try {
             ses.webRequest.onBeforeRedirect(filter, (details) => {
-                if (this._isInternal(details.url)) return;
+                if (this._isInternal(details.url) || !this.hasActiveWebRequestListeners()) return;
                 const formatted = this._formatDetails(details);
                 formatted.redirectUrl = details.redirectURL;
                 this.emit('web-request-event', {
@@ -116,7 +116,7 @@ class WebRequestManager extends EventEmitter {
 
         try {
             ses.webRequest.onCompleted(filter, (details) => {
-                if (this._isInternal(details.url)) return;
+                if (this._isInternal(details.url) || !this.hasActiveWebRequestListeners()) return;
                 this.emit('web-request-event', {
                     eventName: 'chrome.webRequest.onCompleted',
                     details: this._formatDetails(details),
@@ -126,13 +126,32 @@ class WebRequestManager extends EventEmitter {
 
         try {
             ses.webRequest.onErrorOccurred(filter, (details) => {
-                if (this._isInternal(details.url)) return;
+                if (this._isInternal(details.url) || !this.hasActiveWebRequestListeners()) return;
                 this.emit('web-request-event', {
                     eventName: 'chrome.webRequest.onErrorOccurred',
                     details: this._formatDetails(details),
                 });
             });
         } catch (_) {}
+    }
+
+    hasActiveWebRequestListeners() {
+        try {
+            const { getExtensionController } = require('../ExtensionController');
+            const controller = getExtensionController();
+            for (const profileId of controller.activeSessions.keys()) {
+                const exts = controller.getInstalledExtensions(profileId);
+                for (const ext of exts) {
+                    if (ext && ext.enabled) {
+                        const perms = ext.permissions?.permissions || ext.manifest?.permissions || [];
+                        if (Array.isArray(perms) && perms.includes('webRequest')) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        } catch (_) {}
+        return false;
     }
 
     _isInternal(url) {
@@ -148,7 +167,7 @@ class WebRequestManager extends EventEmitter {
      * Called by DeclarativeNetRequestManager during onBeforeRequest so we don't conflict with Electron's single-listener rule.
      */
     forwardBeforeRequest(details) {
-        if (this._isInternal(details.url)) return;
+        if (this._isInternal(details.url) || !this.hasActiveWebRequestListeners()) return;
         this.emit('web-request-event', {
             eventName: 'chrome.webRequest.onBeforeRequest',
             details: this._formatDetails(details),

@@ -53,7 +53,7 @@ export function renderExtensionInstallPrompt(payload) {
     DOM.panel.style.boxShadow = '0 16px 36px rgba(0, 0, 0, 0.28), 0 2px 8px rgba(0, 0, 0, 0.16), 0 0 0 1px var(--chrome-tab-separator, rgba(0, 0, 0, 0.08))';
     DOM.panel.classList.remove('co-panel--app-menu');
     DOM.panel.classList.add('co-visible');
-    DOM.backdrop.classList.add('co-visible');
+    DOM.backdrop.classList.add('co-visible', 'co-backdrop--modal');
 
     // 1. Header (Icon + Name + Title)
     const header = document.createElement('div');
@@ -212,6 +212,7 @@ export function renderExtensionInstallPrompt(payload) {
     cancelBtn.onmouseenter = () => cancelBtn.style.backgroundColor = 'var(--chrome-tab-hover-bg, rgba(128, 128, 128, 0.08))';
     cancelBtn.onmouseleave = () => cancelBtn.style.backgroundColor = 'transparent';
     cancelBtn.onclick = () => {
+        DOM.backdrop.classList.remove('co-backdrop--modal');
         hideAll({ hideLens: false });
         notifyHost({
             type: 'extensionInstallResponse',
@@ -235,6 +236,7 @@ export function renderExtensionInstallPrompt(payload) {
     confirmBtn.onmouseenter = () => confirmBtn.style.filter = 'brightness(1.08)';
     confirmBtn.onmouseleave = () => confirmBtn.style.filter = 'none';
     confirmBtn.onclick = () => {
+        DOM.backdrop.classList.remove('co-backdrop--modal');
         confirmBtn.disabled = true;
         confirmBtn.textContent = 'Adding...';
         confirmBtn.style.opacity = '0.7';

@@ -9,6 +9,7 @@
   user-select: none;
   -webkit-user-select: none;
   -webkit-user-drag: none;
+  flex-shrink: 0;
 }
 
 /* When pinned extensions are present, wrap the group in a pill container */

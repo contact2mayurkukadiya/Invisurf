@@ -874,6 +874,7 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
                 webContentsNumericId,
                 { windowId: context?.window?.id || 1, isWindowClosing: false }
             ]);
+            getIpcBridge().cleanupTab(webContentsNumericId);
         } catch (_) {}
     });
 
@@ -1152,7 +1153,7 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
     view.webContents.on('dom-ready', () => {
         try {
             const currentUrl = view.webContents.getURL() || '';
-            if (currentUrl.includes('chromewebstore.google.com')) {
+            if (currentUrl.includes('chromewebstore.google.com') || currentUrl.includes('chrome.google.com/webstore')) {
                 const { WEBSTORE_INJECTION_CODE } = require('../../runtime/webstoreScript');
                 view.webContents.executeJavaScript(WEBSTORE_INJECTION_CODE).catch(() => {});
             }
@@ -1207,7 +1208,7 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
             }
         } catch (_) {}
 
-        if (loadedUrl && loadedUrl.includes('chromewebstore.google.com')) {
+        if (loadedUrl && (loadedUrl.includes('chromewebstore.google.com') || loadedUrl.includes('chrome.google.com/webstore'))) {
             try {
                 const { WEBSTORE_INJECTION_CODE } = require('../../runtime/webstoreScript');
                 view.webContents.executeJavaScript(WEBSTORE_INJECTION_CODE).catch(() => {});
@@ -1299,6 +1300,12 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
             });
         }
         sendTabEvent(C.IPC_EVENT.URL_CHANGED, { id, url: displayUrl });
+        if (targetUrl && (targetUrl.includes('chromewebstore.google.com') || targetUrl.includes('chrome.google.com/webstore'))) {
+            try {
+                const { WEBSTORE_INJECTION_CODE } = require('../../runtime/webstoreScript');
+                view.webContents.executeJavaScript(WEBSTORE_INJECTION_CODE).catch(() => {});
+            } catch (_) {}
+        }
         if (!effectiveStealth && !targetUrl.startsWith('data:') && !isInternalPageUrl(targetUrl)) {
             if (State.historyService) {
                 State.historyService.recordVisit(context.profileId, {

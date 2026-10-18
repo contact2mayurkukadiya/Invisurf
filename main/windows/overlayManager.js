@@ -548,20 +548,7 @@ function computeMenuOverlayBounds(context, patch) {
         return menuOverlayBoundsFromPanel(context, { left, top, width: panelWidth, height });
     }
 
-    if (kind === 'extensionInstallPrompt') {
-        const panelWidth = 400;
-        const left = clampNumber(Math.round((windowW - panelWidth) / 2), pad, windowW - panelWidth - pad);
-        const top = 50;
-        const height = Math.min(520, windowH - top - pad);
-        return menuOverlayBoundsFromPanel(context, { left, top, width: panelWidth, height }, {
-            shadowMarginTop: 24,
-            shadowMarginBottom: 48,
-            shadowMarginLeft: 36,
-            shadowMarginRight: 36,
-        });
-    }
-
-    if (kind === 'desktopMediaPicker') {
+    if (kind === 'desktopMediaPicker' || kind === 'extensionInstallPrompt') {
         return {
             x: 0,
             y: 0,
@@ -590,10 +577,9 @@ function computeMenuOverlayBounds(context, patch) {
         });
     }
 
-    if (kind === 'cookieControls' || kind === 'extensionMenu') {
+    if (kind === 'cookieControls') {
         const ar = patch.anchorRect || {};
-        const isContextMenuOnly = kind === 'extensionMenu' && patch.contextMenuOnly;
-        const panelWidth = kind === 'cookieControls' ? 340 : (isContextMenuOnly ? 240 : 320);
+        const panelWidth = 340;
         const left0 = Math.round(Number(ar.right != null ? ar.right - panelWidth : ar.left) || 0);
         const top0 = Math.round(Number(ar.top) || 0);
         const h0 = Math.max(1, Math.round(Number(ar.height) || 32));
@@ -601,8 +587,27 @@ function computeMenuOverlayBounds(context, patch) {
         const top = clampNumber(top0 + h0 + 6, pad, windowH - 220 - pad);
         const height = Math.max(240, Math.min(windowH * 0.65, windowH - top - pad));
         return menuOverlayBoundsFromPanel(context, { left, top, width: panelWidth, height }, {
-            extraLeft: kind === 'extensionMenu' ? 560 : 0,
-            extraRight: kind === 'extensionMenu' ? 280 : 0,
+            shadowMarginTop: 16,
+            shadowMarginBottom: 32,
+            shadowMarginLeft: 24,
+            shadowMarginRight: 24,
+        });
+    }
+
+    if (kind === 'extensionMenu') {
+        const ar = patch.anchorRect || {};
+        const isContextMenuOnly = !!patch.contextMenuOnly;
+        const panelWidth = isContextMenuOnly ? 240 : 320;
+        const left0 = Math.round(Number(ar.right != null ? ar.right - panelWidth : ar.left) || 0);
+        const top0 = Math.round(Number(ar.top) || 0);
+        const h0 = Math.max(1, Math.round(Number(ar.height) || 32));
+        const left = clampNumber(left0, pad, windowW - panelWidth - pad);
+        const top = clampNumber(top0 + h0 + 6, pad, windowH - 220 - pad);
+        const maxPanelH = isContextMenuOnly ? 360 : 460;
+        const height = Math.max(200, Math.min(maxPanelH, windowH - top - pad - 16));
+        return menuOverlayBoundsFromPanel(context, { left, top, width: panelWidth, height }, {
+            extraLeft: 560,
+            extraRight: 280,
             shadowMarginTop: 16,
             shadowMarginBottom: 32,
             shadowMarginLeft: 24,
@@ -994,6 +999,7 @@ function showExtensionInstallPromptOverlay(context, promptPayload) {
         patch.overlayViewport = { width: bounds.viewportWidth, height: bounds.viewportHeight };
     }
     ov.webContents.send(C.IPC_EVENT.CHROME_OVERLAY_PATCH, patch);
+    focusChromeShellMenuOverlayWebContents(context);
 }
 
 function hideExtensionInstallPromptOverlay(context) {
