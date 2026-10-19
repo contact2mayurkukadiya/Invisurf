@@ -717,7 +717,7 @@ function registerIpcHandlers() {
                 if (context.chromeShellMenuOverlayView && !context.chromeShellMenuOverlayView.webContents.isDestroyed()) {
                     context.chromeShellMenuOverlayView.setBounds({ x: 0, y: 0, width: 0, height: 0 });
                 }
-            } catch (_) {}
+            } catch (_) { }
             return;
         }
 
@@ -739,7 +739,7 @@ function registerIpcHandlers() {
                             controller.grantOriginAccess(targetProfile, extId, origin);
                             console.log(`[ExtensionIPC] Permission granted for ${extId} on ${origin}`);
                             void controller.activateExtensionAction(targetProfile, extId, context, anchorRect);
-                        } catch (_) {}
+                        } catch (_) { }
                     }
                 }
                 return;
@@ -1052,7 +1052,7 @@ function registerIpcHandlers() {
                     canGoBack: typeof nav.canGoBack === 'function' ? nav.canGoBack() : false,
                     canGoForward: typeof nav.canGoForward === 'function' ? nav.canGoForward() : false,
                 });
-            } catch (_) {}
+            } catch (_) { }
         }
     });
 

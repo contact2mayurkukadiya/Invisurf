@@ -69,7 +69,7 @@ class WebRequestManager extends EventEmitter {
                 });
                 callback({});
             });
-        } catch (_) {}
+        } catch (_) { }
 
         try {
             ses.webRequest.onSendHeaders(filter, (details) => {
@@ -79,7 +79,7 @@ class WebRequestManager extends EventEmitter {
                     details: this._formatDetails(details),
                 });
             });
-        } catch (_) {}
+        } catch (_) { }
 
         try {
             ses.webRequest.onHeadersReceived(filter, (details, callback) => {
@@ -90,7 +90,7 @@ class WebRequestManager extends EventEmitter {
                 });
                 callback({});
             });
-        } catch (_) {}
+        } catch (_) { }
 
         try {
             ses.webRequest.onResponseStarted(filter, (details) => {
@@ -100,7 +100,7 @@ class WebRequestManager extends EventEmitter {
                     details: this._formatDetails(details),
                 });
             });
-        } catch (_) {}
+        } catch (_) { }
 
         try {
             ses.webRequest.onBeforeRedirect(filter, (details) => {
@@ -112,7 +112,7 @@ class WebRequestManager extends EventEmitter {
                     details: formatted,
                 });
             });
-        } catch (_) {}
+        } catch (_) { }
 
         try {
             ses.webRequest.onCompleted(filter, (details) => {
@@ -122,7 +122,7 @@ class WebRequestManager extends EventEmitter {
                     details: this._formatDetails(details),
                 });
             });
-        } catch (_) {}
+        } catch (_) { }
 
         try {
             ses.webRequest.onErrorOccurred(filter, (details) => {
@@ -132,7 +132,7 @@ class WebRequestManager extends EventEmitter {
                     details: this._formatDetails(details),
                 });
             });
-        } catch (_) {}
+        } catch (_) { }
     }
 
     hasActiveWebRequestListeners() {
@@ -150,7 +150,7 @@ class WebRequestManager extends EventEmitter {
                     }
                 }
             }
-        } catch (_) {}
+        } catch (_) { }
         return false;
     }
 
@@ -158,8 +158,8 @@ class WebRequestManager extends EventEmitter {
         return (
             typeof url === 'string' &&
             (url.startsWith('app://') ||
-             url.startsWith('chrome-extension://') ||
-             url.startsWith('invisurf-ext://'))
+                url.startsWith('chrome-extension://') ||
+                url.startsWith('invisurf-ext://'))
         );
     }
 

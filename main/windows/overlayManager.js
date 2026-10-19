@@ -123,7 +123,7 @@ function createStatusBubbleOverlay(context) {
                 const settingsService = require('../services/settingsService');
                 const themePatch = settingsService.getChromeOverlayThemePatchForContext(context);
                 view.webContents.send(C.IPC_EVENT.STATUS_BUBBLE_THEME, themePatch);
-            } catch (_) {}
+            } catch (_) { }
             if (context.statusBubbleState.url) {
                 updateStatusBubble(context, context.statusBubbleState.url);
             }
@@ -174,7 +174,7 @@ function updateStatusBubble(context, targetUrl) {
             if (context.statusBubbleState.isLoaded) {
                 context.statusBubbleView.webContents.send(C.IPC_EVENT.STATUS_BUBBLE_UPDATE, { url: '' });
             }
-        } catch (_) {}
+        } catch (_) { }
         return;
     }
 
@@ -209,7 +209,7 @@ function updateStatusBubble(context, targetUrl) {
                     side: context.statusBubbleState.side,
                     theme: themePatch,
                 });
-            } catch (_) {}
+            } catch (_) { }
         };
 
         if (context.statusBubbleView.webContents.isLoading()) {
@@ -217,7 +217,7 @@ function updateStatusBubble(context, targetUrl) {
         } else {
             sendUpdate();
         }
-    } catch (_) {}
+    } catch (_) { }
 }
 
 function flipStatusBubbleSide(context) {
@@ -235,7 +235,7 @@ function flipStatusBubbleSide(context) {
                 theme: themePatch,
             });
         }
-    } catch (_) {}
+    } catch (_) { }
 }
 
 function resizeStatusBubble(context, size) {
@@ -248,7 +248,7 @@ function resizeStatusBubble(context, size) {
             if (context.statusBubbleView && !context.statusBubbleView.webContents.isDestroyed()) {
                 context.statusBubbleView.setBounds(bounds);
             }
-        } catch (_) {}
+        } catch (_) { }
     }
 }
 
@@ -262,7 +262,7 @@ function hideStatusBubble(context) {
     try {
         context.statusBubbleView.setBounds({ x: 0, y: 0, width: 0, height: 0 });
         context.statusBubbleView.webContents.send(C.IPC_EVENT.STATUS_BUBBLE_UPDATE, { url: '' });
-    } catch (_) {}
+    } catch (_) { }
 }
 
 function layoutStatusBubble(context) {
@@ -272,7 +272,7 @@ function layoutStatusBubble(context) {
         if (context.statusBubbleView && !context.statusBubbleView.webContents.isDestroyed()) {
             context.statusBubbleView.setBounds(bounds);
         }
-    } catch (_) {}
+    } catch (_) { }
 }
 
 function sendStatusBubbleThemePatch(context) {
@@ -281,7 +281,7 @@ function sendStatusBubbleThemePatch(context) {
         const settingsService = require('../services/settingsService');
         const themePatch = settingsService.getChromeOverlayThemePatchForContext(context);
         context.statusBubbleView.webContents.send(C.IPC_EVENT.STATUS_BUBBLE_THEME, themePatch);
-    } catch (_) {}
+    } catch (_) { }
 }
 
 function createDownloadAttentionOverlay(context) {
@@ -309,7 +309,7 @@ function showDownloadAttentionOverlay(context, rect) {
         // Guarantee attention overlay is physically at the top of contentView (above tab content)
         try {
             cv.addChildView(context.downloadAttentionView);
-        } catch (_) {}
+        } catch (_) { }
 
         const w = 80;
         const h = 180;
@@ -317,7 +317,7 @@ function showDownloadAttentionOverlay(context, rect) {
         try {
             const winBounds = context.window.getContentBounds();
             x = Math.max(0, Math.min(x, winBounds.width - w));
-        } catch (_) {}
+        } catch (_) { }
         const y = Math.round(rect?.y || 0);
 
         context.downloadAttentionView.setBounds({ x, y, width: w, height: h });
@@ -328,7 +328,7 @@ function showDownloadAttentionOverlay(context, rect) {
                     const settingsService = require('../services/settingsService');
                     const themePatch = settingsService.getChromeOverlayThemePatchForContext(context);
                     context.downloadAttentionView.webContents.send('download-attention:play', themePatch);
-                } catch (_) {}
+                } catch (_) { }
             }
         };
 
@@ -548,7 +548,20 @@ function computeMenuOverlayBounds(context, patch) {
         return menuOverlayBoundsFromPanel(context, { left, top, width: panelWidth, height });
     }
 
-    if (kind === 'desktopMediaPicker' || kind === 'extensionInstallPrompt') {
+    if (kind === 'extensionInstallPrompt') {
+        const panelWidth = 400;
+        const left = clampNumber(Math.round((windowW - panelWidth) / 2), pad, windowW - panelWidth - pad);
+        const top = 50;
+        const height = Math.min(520, windowH - top - pad);
+        return menuOverlayBoundsFromPanel(context, { left, top, width: panelWidth, height }, {
+            shadowMarginTop: 24,
+            shadowMarginBottom: 48,
+            shadowMarginLeft: 36,
+            shadowMarginRight: 36,
+        });
+    }
+
+    if (kind === 'desktopMediaPicker') {
         return {
             x: 0,
             y: 0,
@@ -577,9 +590,10 @@ function computeMenuOverlayBounds(context, patch) {
         });
     }
 
-    if (kind === 'cookieControls') {
+    if (kind === 'cookieControls' || kind === 'downloadPanel' || kind === 'extensionMenu') {
         const ar = patch.anchorRect || {};
-        const panelWidth = 340;
+        const isContextMenuOnly = kind === 'extensionMenu' && patch.contextMenuOnly;
+        const panelWidth = kind === 'cookieControls' ? 340 : (kind === 'extensionMenu' ? (isContextMenuOnly ? 240 : 320) : 300);
         const left0 = Math.round(Number(ar.right != null ? ar.right - panelWidth : ar.left) || 0);
         const top0 = Math.round(Number(ar.top) || 0);
         const h0 = Math.max(1, Math.round(Number(ar.height) || 32));
@@ -587,27 +601,8 @@ function computeMenuOverlayBounds(context, patch) {
         const top = clampNumber(top0 + h0 + 6, pad, windowH - 220 - pad);
         const height = Math.max(240, Math.min(windowH * 0.65, windowH - top - pad));
         return menuOverlayBoundsFromPanel(context, { left, top, width: panelWidth, height }, {
-            shadowMarginTop: 16,
-            shadowMarginBottom: 32,
-            shadowMarginLeft: 24,
-            shadowMarginRight: 24,
-        });
-    }
-
-    if (kind === 'extensionMenu') {
-        const ar = patch.anchorRect || {};
-        const isContextMenuOnly = !!patch.contextMenuOnly;
-        const panelWidth = isContextMenuOnly ? 240 : 320;
-        const left0 = Math.round(Number(ar.right != null ? ar.right - panelWidth : ar.left) || 0);
-        const top0 = Math.round(Number(ar.top) || 0);
-        const h0 = Math.max(1, Math.round(Number(ar.height) || 32));
-        const left = clampNumber(left0, pad, windowW - panelWidth - pad);
-        const top = clampNumber(top0 + h0 + 6, pad, windowH - 220 - pad);
-        const maxPanelH = isContextMenuOnly ? 360 : 460;
-        const height = Math.max(200, Math.min(maxPanelH, windowH - top - pad - 16));
-        return menuOverlayBoundsFromPanel(context, { left, top, width: panelWidth, height }, {
-            extraLeft: 560,
-            extraRight: 280,
+            extraLeft: kind === 'extensionMenu' ? 560 : 0,
+            extraRight: kind === 'extensionMenu' ? 280 : 0,
             shadowMarginTop: 16,
             shadowMarginBottom: 32,
             shadowMarginLeft: 24,
@@ -652,7 +647,7 @@ function computeMenuOverlayBounds(context, patch) {
         const anchorT = Math.round(Number(ar.top) || 0);
         const anchorH = Math.max(1, Math.round(Number(ar.height) || 32));
         const left = clampNumber(anchorL + anchorW - panelWidth, pad, windowW - panelWidth - pad);
-        const top  = clampNumber(anchorT + anchorH + 6, pad, windowH - panelHeight - pad);
+        const top = clampNumber(anchorT + anchorH + 6, pad, windowH - panelHeight - pad);
         return menuOverlayBoundsFromPanel(context, { left, top, width: panelWidth, height: panelHeight }, {
             shadowMarginTop: 6,
             shadowMarginBottom: 24,
@@ -663,10 +658,10 @@ function computeMenuOverlayBounds(context, patch) {
 
     if (kind === 'clickThroughOSD') {
         // Natural menu-styled notification panel, floating below the toolbar
-        const osdWidth  = 280;
+        const osdWidth = 280;
         const osdHeight = 78;
         const left = Math.round((windowW - osdWidth) / 2);
-        const top  = clampNumber(80, pad, windowH - osdHeight - pad);
+        const top = clampNumber(80, pad, windowH - osdHeight - pad);
         return menuOverlayBoundsFromPanel(context, { left, top, width: osdWidth, height: osdHeight }, { shadowMargin: 28 });
     }
 
@@ -984,7 +979,7 @@ function showExtensionInstallPromptOverlay(context, promptPayload) {
     const themePatch = getChromeOverlayThemePatchForContext(context);
     try {
         ov.webContents.send(C.IPC_EVENT.CHROME_OVERLAY_PATCH, themePatch);
-    } catch (_) {}
+    } catch (_) { }
 
     const patch = {
         kind: 'extensionInstallPrompt',
@@ -1009,7 +1004,7 @@ function hideExtensionInstallPromptOverlay(context) {
         try {
             context.chromeShellMenuOverlayView.webContents.send(C.IPC_EVENT.CHROME_OVERLAY_PATCH, { kind: 'hide' });
             context.chromeShellMenuOverlayView.setBounds({ x: 0, y: 0, width: 0, height: 0 });
-        } catch (_) {}
+        } catch (_) { }
     }
     dismissChromeShellMenuOverlay(context);
 }
@@ -1032,13 +1027,13 @@ function showDesktopMediaPickerOverlay(context, pickerPayload) {
         if (context.window?.contentView) {
             context.window.contentView.addChildView(ov);
         }
-    } catch (_) {}
+    } catch (_) { }
 
     const { getChromeOverlayThemePatchForContext } = require('../services/settingsService');
     const themePatch = getChromeOverlayThemePatchForContext(context);
     try {
         ov.webContents.send(C.IPC_EVENT.CHROME_OVERLAY_PATCH, themePatch);
-    } catch (_) {}
+    } catch (_) { }
 
     const patch = {
         kind: 'desktopMediaPicker',
@@ -1063,7 +1058,7 @@ function hideDesktopMediaPickerOverlay(context) {
         try {
             context.chromeShellMenuOverlayView.webContents.send(C.IPC_EVENT.CHROME_OVERLAY_PATCH, { kind: 'hide' });
             context.chromeShellMenuOverlayView.setBounds({ x: 0, y: 0, width: 0, height: 0 });
-        } catch (_) {}
+        } catch (_) { }
     }
     dismissChromeShellMenuOverlay(context);
     ensureChromeOverlayOnTop(context);
@@ -1073,7 +1068,7 @@ function hideDesktopMediaPickerOverlay(context) {
         updateExtensionPopupShadow(context, currentWidth || 380, currentHeight || 420);
         try {
             context.activeExtensionPopup.view.webContents.focus();
-        } catch (_) {}
+        } catch (_) { }
     }
 }
 
@@ -1107,17 +1102,17 @@ function readPopupConfiguredDimensions(extension) {
                 const htmlContent = fs.readFileSync(popupPath, 'utf8');
                 if (!width) {
                     const match = htmlContent.match(/(?:body|html)[^{]*\{[^}]*width:\s*(\d+)px/i) ||
-                                  htmlContent.match(/style=["'][^"']*width:\s*(\d+)px/i);
+                        htmlContent.match(/style=["'][^"']*width:\s*(\d+)px/i);
                     if (match) width = parseInt(match[1], 10);
                 }
                 if (!height) {
                     const match = htmlContent.match(/(?:body|html)[^{]*\{[^}]*height:\s*(\d+)px/i) ||
-                                  htmlContent.match(/style=["'][^"']*height:\s*(\d+)px/i);
+                        htmlContent.match(/style=["'][^"']*height:\s*(\d+)px/i);
                     if (match) height = parseInt(match[1], 10);
                 }
             }
         }
-    } catch (_) {}
+    } catch (_) { }
 
     return {
         width: Number.isFinite(width) && width > 0 ? width : null,
@@ -1175,7 +1170,7 @@ function updateExtensionPopupShadow(context, width, height) {
     }
     try {
         ov.webContents.send(C.IPC_EVENT.CHROME_OVERLAY_PATCH, patch);
-    } catch (_) {}
+    } catch (_) { }
 }
 
 function resizeExtensionPopup(context, width, height) {
@@ -1264,7 +1259,7 @@ async function showExtensionPopup(context, extension, anchorRect) {
         try {
             const { getTabRegistry } = require('../extensions/compat/TabRegistry');
             getTabRegistry().markCapturingActive?.(actualId);
-        } catch (_) {}
+        } catch (_) { }
     }
 
     const cv = context.window.contentView;
@@ -1280,7 +1275,7 @@ async function showExtensionPopup(context, extension, anchorRect) {
     });
     try {
         popupView.setBackgroundColor('#00000000');
-    } catch (_) {}
+    } catch (_) { }
 
     const configured = readPopupConfiguredDimensions(extension);
     const initialWidth = configured.width || 380;
@@ -1341,7 +1336,7 @@ async function showExtensionPopup(context, extension, anchorRect) {
                 const safeH = Math.max(targetH, dims.height);
                 resizeExtensionPopup(context, safeW, safeH);
             }
-        } catch (_) {}
+        } catch (_) { }
     };
 
     popupView.webContents.on('dom-ready', () => {
@@ -1351,7 +1346,7 @@ async function showExtensionPopup(context, extension, anchorRect) {
                     border-radius: 8px !important;
                 }
             `);
-        } catch (_) {}
+        } catch (_) { }
         measureAndResize();
     });
 
@@ -1371,7 +1366,7 @@ async function showExtensionPopup(context, extension, anchorRect) {
 
     try {
         popupView.webContents.focus();
-    } catch (_) {}
+    } catch (_) { }
 
     const onBlur = () => {
         if (context.activeDesktopMediaPicker || context.activeExtensionInstallPrompt) {
@@ -1382,7 +1377,7 @@ async function showExtensionPopup(context, extension, anchorRect) {
             if (getTabRegistry().isCapturingActive?.()) {
                 return;
             }
-        } catch (_) {}
+        } catch (_) { }
         if (context.activeExtensionPopup) {
             if (context.activeExtensionPopup.extensionId === 'fdpohaocaechififmbbbbbknoalclacl') {
                 return;
@@ -1396,7 +1391,7 @@ async function showExtensionPopup(context, extension, anchorRect) {
                     if (getTabRegistry().isCapturingActive?.()) {
                         return;
                     }
-                } catch (_) {}
+                } catch (_) { }
                 hideExtensionPopup(context);
             }, 350);
         }
@@ -1434,10 +1429,10 @@ function hideExtensionPopup(context) {
                 try {
                     context.chromeShellMenuOverlayView.webContents.send(C.IPC_EVENT.CHROME_OVERLAY_PATCH, { kind: 'hide' });
                     context.chromeShellMenuOverlayView.setBounds({ x: 0, y: 0, width: 0, height: 0 });
-                } catch (_) {}
+                } catch (_) { }
             }
         }
-    } catch (_) {}
+    } catch (_) { }
 }
 
 module.exports = {

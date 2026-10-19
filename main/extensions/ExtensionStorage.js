@@ -28,7 +28,7 @@ function getUserDataPath() {
         if (app && typeof app.getPath === 'function') {
             return app.getPath('userData');
         }
-    } catch (_) {}
+    } catch (_) { }
     return path.join(__dirname, '..', '..', '.test_userdata');
 }
 
@@ -133,7 +133,7 @@ function recoverAndMigrateExtensions(profileId, state) {
                                         const mime = iconExt === 'svg' ? 'image/svg+xml' : `image/${iconExt}`;
                                         const iconBase64 = fs.readFileSync(iconFullPath).toString('base64');
                                         iconDataUrl = `data:${mime};base64,${iconBase64}`;
-                                    } catch (_) {}
+                                    } catch (_) { }
                                 }
                             }
 
@@ -167,7 +167,7 @@ function recoverAndMigrateExtensions(profileId, state) {
                 }
             }
         }
-    } catch (_) {}
+    } catch (_) { }
 
     // 2. Check legacy extensions.json in User Data (migrate once then clean up to prevent reviving uninstalled extensions)
     try {
@@ -206,9 +206,9 @@ function recoverAndMigrateExtensions(profileId, state) {
                     }
                 }
             }
-            try { fs.unlinkSync(legacyPath); } catch (_) {}
+            try { fs.unlinkSync(legacyPath); } catch (_) { }
         }
-    } catch (_) {}
+    } catch (_) { }
 
     // 3. Ensure all extensions have service worker polyfills applied
     try {
@@ -218,7 +218,7 @@ function recoverAndMigrateExtensions(profileId, state) {
                 ExtensionInstaller.ensureExtensionPolyfills(ext.path, ext.id);
             }
         }
-    } catch (_) {}
+    } catch (_) { }
 
     // 4. Prune stale or uninstalled extensions whose directory was deleted from disk
     try {
@@ -229,7 +229,7 @@ function recoverAndMigrateExtensions(profileId, state) {
                 dirty = true;
             }
         }
-    } catch (_) {}
+    } catch (_) { }
 
     if (dirty) {
         writeState(cleanProfileId, state);
@@ -308,7 +308,7 @@ function deleteExtensionFiles(profileId, extensionId) {
     const cleanId = sanitizeExtensionId(extensionId);
     const extDir = path.join(getProfileExtensionsDir(profileId), cleanId);
     if (fs.existsSync(extDir)) {
-        try { fs.rmSync(extDir, { recursive: true, force: true }); } catch (_) {}
+        try { fs.rmSync(extDir, { recursive: true, force: true }); } catch (_) { }
     }
     try {
         const legacyExtDir = path.join(getUserDataPath(), 'extensions', cleanId);
@@ -333,7 +333,7 @@ function deleteExtensionFiles(profileId, extensionId) {
                 }
             }
         }
-    } catch (_) {}
+    } catch (_) { }
 }
 
 /**
@@ -364,7 +364,7 @@ function listProfileIds() {
                 }
             });
         }
-    } catch (_) {}
+    } catch (_) { }
     return [];
 }
 
@@ -398,7 +398,7 @@ function findExtension(extensionId, preferredProfileId = null) {
         if (session?.defaultSession) sessionsToCheck.push(session.defaultSession);
         for (const ctx of State.windowContextsById.values()) {
             if (ctx.partition) {
-                try { sessionsToCheck.push(session.fromPartition(ctx.partition)); } catch (_) {}
+                try { sessionsToCheck.push(session.fromPartition(ctx.partition)); } catch (_) { }
             }
         }
         for (const s of sessionsToCheck) {
@@ -412,7 +412,7 @@ function findExtension(extensionId, preferredProfileId = null) {
                     const manifestFile = path.join(loaded.path, 'manifest.json');
                     let manifest = {};
                     if (fs.existsSync(manifestFile)) {
-                        try { manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf-8')); } catch (_) {}
+                        try { manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf-8')); } catch (_) { }
                     }
                     return {
                         id: loaded.id,
@@ -427,7 +427,7 @@ function findExtension(extensionId, preferredProfileId = null) {
                 }
             }
         }
-    } catch (_) {}
+    } catch (_) { }
 
     // Helper to match state entries
     const matchState = (state) => {
@@ -496,7 +496,7 @@ function findExtension(extensionId, preferredProfileId = null) {
                 }
             }
         }
-    } catch (_) {}
+    } catch (_) { }
 
     return null;
 }

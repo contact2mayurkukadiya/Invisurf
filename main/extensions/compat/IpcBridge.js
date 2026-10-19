@@ -411,7 +411,7 @@ class IpcBridge {
                         return;
                     }
                 }
-            } catch (_) {}
+            } catch (_) { }
             event.returnValue = {};
         });
 
@@ -426,7 +426,7 @@ class IpcBridge {
                     const { getWindowContextByEventSender } = require('../../windows/windowContextUtils');
                     const senderCtx = getWindowContextByEventSender(senderWc);
                     if (senderCtx?.profileId) resolvedProfile = senderCtx.profileId;
-                } catch (_) {}
+                } catch (_) { }
             }
             if (!resolvedProfile) resolvedProfile = State.defaultProfileId;
 
@@ -454,7 +454,7 @@ class IpcBridge {
                 if (ext?.runtimeId) runtimeId = ExtensionStorage.sanitizeExtensionId(ext.runtimeId);
                 if (ext?.id) cleanId = ExtensionStorage.sanitizeExtensionId(ext.id);
             }
-        } catch (_) {}
+        } catch (_) { }
 
         const extObj = ExtensionStorage.findExtension(cleanId);
         const knownIds = new Set([cleanId, String(extensionId || '').toLowerCase()]);
@@ -542,7 +542,7 @@ class IpcBridge {
                     try {
                         deliveredWcIds.add(wcId);
                         popupView.webContents.send('invisurf-ext-event', eventPayload);
-                    } catch (_) {}
+                    } catch (_) { }
                 }
             }
         }
@@ -567,10 +567,10 @@ class IpcBridge {
                             deliveredWcIds.add(wc.id);
                             wc.send('invisurf-ext-event', eventPayload);
                         }
-                    } catch (_) {}
+                    } catch (_) { }
                 }
             }
-        } catch (_) {}
+        } catch (_) { }
     }
 
     /**
@@ -633,7 +633,7 @@ class IpcBridge {
                     if (targetExt) {
                         this.broadcastEvent(targetExt, `chrome.runtime.portOnDisconnect_${portId}`, []);
                     }
-                } catch (_) {}
+                } catch (_) { }
                 this.activePorts.delete(portId);
             }
         }
@@ -650,7 +650,7 @@ class IpcBridge {
         if (this.activeStreams.has(cleanId)) {
             const streams = this.activeStreams.get(cleanId);
             for (const controller of streams) {
-                try { controller.close(); } catch (_) {}
+                try { controller.close(); } catch (_) { }
             }
             this.activeStreams.delete(cleanId);
         }
@@ -659,7 +659,7 @@ class IpcBridge {
         if (this.pendingPolls.has(cleanId)) {
             const polls = this.pendingPolls.get(cleanId);
             for (const resolver of polls) {
-                try { resolver([]); } catch (_) {}
+                try { resolver([]); } catch (_) { }
             }
             this.pendingPolls.delete(cleanId);
         }
@@ -946,7 +946,7 @@ class IpcBridge {
                     if (fs.existsSync(manifestPath)) {
                         try {
                             return JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
-                        } catch (_) {}
+                        } catch (_) { }
                     }
                 }
                 return { name: cleanExtId, version: '1.0.0', manifest_version: 3 };
@@ -1109,7 +1109,7 @@ class IpcBridge {
                         try {
                             const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
                             optionsPage = manifest.options_ui?.page || manifest.options_page || 'options.html';
-                        } catch (_) {}
+                        } catch (_) { }
                     }
                 }
                 const targetUrl = `chrome-extension://${cleanExtId}/${String(optionsPage).replace(/^\//, '')}`;
@@ -1267,7 +1267,7 @@ class IpcBridge {
                 if (!manifest && extensionPath) {
                     const manifestPath = path.join(extensionPath, 'manifest.json');
                     if (fs.existsSync(manifestPath)) {
-                        try { manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')); } catch (_) {}
+                        try { manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')); } catch (_) { }
                     }
                 }
                 const commands = [];
@@ -1455,7 +1455,7 @@ class IpcBridge {
                 if (process.platform === 'darwin' && systemPreferences?.getMediaAccessStatus) {
                     try {
                         screenStatus = systemPreferences.getMediaAccessStatus('screen');
-                    } catch (_) {}
+                    } catch (_) { }
                 }
                 return { screen: screenStatus };
             }

@@ -49,7 +49,7 @@ function downloadFile(url, destPath, maxRedirects = 5) {
 
             res.on('error', (resErr) => {
                 fileStream.destroy();
-                try { fs.unlinkSync(destPath); } catch (_) {}
+                try { fs.unlinkSync(destPath); } catch (_) { }
                 reject(resErr);
             });
 
@@ -59,7 +59,7 @@ function downloadFile(url, destPath, maxRedirects = 5) {
                     try {
                         const stats = fs.statSync(destPath);
                         if (stats.size === 0) {
-                            try { fs.unlinkSync(destPath); } catch (_) {}
+                            try { fs.unlinkSync(destPath); } catch (_) { }
                             return reject(new Error('Downloaded extension file is empty (0 bytes)'));
                         }
                     } catch (statErr) {
@@ -70,13 +70,13 @@ function downloadFile(url, destPath, maxRedirects = 5) {
             });
 
             fileStream.on('error', (err) => {
-                try { fs.unlinkSync(destPath); } catch (_) {}
+                try { fs.unlinkSync(destPath); } catch (_) { }
                 reject(err);
             });
         });
 
         req.on('error', (err) => {
-            try { fs.unlinkSync(destPath); } catch (_) {}
+            try { fs.unlinkSync(destPath); } catch (_) { }
             reject(err);
         });
 
@@ -177,7 +177,7 @@ async function downloadCrxFromWebStore(extensionId, destPath) {
         const candidateUrl = candidates[i];
         try {
             if (fs.existsSync(destPath)) {
-                try { fs.unlinkSync(destPath); } catch (_) {}
+                try { fs.unlinkSync(destPath); } catch (_) { }
             }
             return await downloadFile(candidateUrl, destPath);
         } catch (err) {
@@ -192,7 +192,7 @@ async function downloadCrxFromWebStore(extensionId, destPath) {
         const blobUrl = await resolveGoogleBlobUrl(cleanId);
         if (blobUrl) {
             if (fs.existsSync(destPath)) {
-                try { fs.unlinkSync(destPath); } catch (_) {}
+                try { fs.unlinkSync(destPath); } catch (_) { }
             }
             const res = await downloadFile(blobUrl, destPath);
             console.log(`[ExtensionInstaller] Successfully downloaded extension ${cleanId} from Google CDN blob!`);
@@ -557,7 +557,7 @@ function ensureExtensionPolyfills(extractDir, explicitExtId = null) {
             try {
                 const ExtensionStorage = require('./ExtensionStorage');
                 extId = ExtensionStorage.deriveExtIdFromKey(manifest.key);
-            } catch (_) {}
+            } catch (_) { }
         }
         if (!extId || /^\d+(\.\d+)*$/.test(extId) || extId === 'latest') {
             const parentDir = path.basename(path.dirname(extractDir));
@@ -582,7 +582,7 @@ function ensureExtensionPolyfills(extractDir, explicitExtId = null) {
                 try {
                     messages = JSON.parse(fs.readFileSync(lp, 'utf-8'));
                     break;
-                } catch (_) {}
+                } catch (_) { }
             }
         }
 

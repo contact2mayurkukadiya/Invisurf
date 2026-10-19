@@ -333,16 +333,16 @@ export default function NavBar({
     if (!canBookmark || !anchorEl) return;
     const bookmarkDraft = existingBookmark
       ? {
-          ...existingBookmark,
-          folderId: findFolderIdForBookmark(existingBookmark.id, bookmarksData.bar),
-          url: currentUrl,
-        }
+        ...existingBookmark,
+        folderId: findFolderIdForBookmark(existingBookmark.id, bookmarksData.bar),
+        url: currentUrl,
+      }
       : {
-          title: tab?.title || currentUrl,
-          url: currentUrl,
-          favicon: tab?.favicon ?? null,
-          folderId: 'root',
-        };
+        title: tab?.title || currentUrl,
+        url: currentUrl,
+        favicon: tab?.favicon ?? null,
+        folderId: 'root',
+      };
     await openStarBookmarkEditor(anchorEl, bookmarkDraft);
   }, [
     bookmarksData.bar,

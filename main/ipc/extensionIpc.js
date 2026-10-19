@@ -33,7 +33,6 @@ function isWebStoreOrTrustedSender(event) {
     }
 }
 
-
 function isTrustedShellSender(event) {
     try {
         const frameUrl = event.senderFrame?.url || event.sender?.getURL() || '';

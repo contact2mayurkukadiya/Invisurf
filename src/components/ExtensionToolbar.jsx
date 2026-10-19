@@ -33,7 +33,7 @@ function isActionEnabled(ext, currentTabUrl, actionBadge) {
   // Check user preference site access restriction
   if (ext.siteAccess === 'onHost') {
     let host = '';
-    try { host = new URL(url).host; } catch (_) {}
+    try { host = new URL(url).host; } catch (_) { }
     if (!host || !(Array.isArray(ext.allowedHosts) && ext.allowedHosts.includes(host))) {
       return false;
     }
@@ -101,7 +101,7 @@ export default function ExtensionToolbar({ onNavigate, currentTabUrl }) {
       if (u && (u.startsWith('http://') || u.startsWith('https://'))) {
         return new URL(u).host;
       }
-    } catch (_) {}
+    } catch (_) { }
     return '';
   }, []);
 
@@ -182,7 +182,7 @@ export default function ExtensionToolbar({ onNavigate, currentTabUrl }) {
       console.error('ExtensionToolbar openMenu error:', err);
       openRef.current = false;
       setOpen(false);
-      try { await release(); } catch (_) {}
+      try { await release(); } catch (_) { }
     } finally {
       setTimeout(() => {
         pendingOwnResetRef.current = false;
@@ -240,7 +240,7 @@ export default function ExtensionToolbar({ onNavigate, currentTabUrl }) {
       console.error('ExtensionToolbar handleActionContextMenu error:', err);
       openRef.current = false;
       setOpen(false);
-      try { await release(); } catch (_) {}
+      try { await release(); } catch (_) { }
     } finally {
       setTimeout(() => {
         pendingOwnResetRef.current = false;

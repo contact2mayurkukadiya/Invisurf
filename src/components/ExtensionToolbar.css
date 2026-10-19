@@ -17,7 +17,8 @@
   height: 34px;
   padding: 2px 4px;
   border-radius: 9999px;
-  border: 1px solid transparent; /* Keeps layout stable without jump */
+  border: 1px solid transparent;
+  /* Keeps layout stable without jump */
   gap: 2px;
 }
 
@@ -36,6 +37,7 @@ body:has(.header--stealth-window) .extensions-toolbar-container--has-pinned.is-o
 }
 
 @media (prefers-color-scheme: dark) {
+
   :root:not([data-forced-appearance="light"]) .extensions-toolbar-container--has-pinned:hover,
   :root:not([data-forced-appearance="light"]) .extensions-toolbar-container--has-pinned.is-open {
     border-color: rgba(255, 255, 255, 0.22);

@@ -151,7 +151,7 @@ class DeclarativeNetRequestManager {
             try {
                 const flags = cond.isUrlFilterCaseSensitive ? '' : 'i';
                 urlRegex = new RegExp(cond.regexFilter, flags);
-            } catch (_) {}
+            } catch (_) { }
         } else if (cond.urlFilter) {
             urlRegex = this._compileUrlFilter(cond.urlFilter, !!cond.isUrlFilterCaseSensitive);
         }
@@ -225,7 +225,7 @@ class DeclarativeNetRequestManager {
         // Check initiator domain
         if (initiator) {
             let initHost = '';
-            try { initHost = new URL(initiator).hostname.toLowerCase(); } catch (_) {}
+            try { initHost = new URL(initiator).hostname.toLowerCase(); } catch (_) { }
 
             if (rule.initiatorDomains && !rule.initiatorDomains.has(initHost)) {
                 return false;
@@ -259,7 +259,7 @@ class DeclarativeNetRequestManager {
             try {
                 const { getWebRequestManager } = require('./WebRequestManager');
                 getWebRequestManager().forwardBeforeRequest(details);
-            } catch (_) {}
+            } catch (_) { }
 
             const activeRules = this._getActiveRules();
             if (activeRules.length === 0) {

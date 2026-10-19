@@ -193,13 +193,13 @@ class DownloadManager extends EventEmitter {
             try {
                 const rx = new RegExp(query.filenameRegex, 'i');
                 list = list.filter(d => rx.test(d.filename));
-            } catch (_) {}
+            } catch (_) { }
         }
         if (query.urlRegex != null) {
             try {
                 const rx = new RegExp(query.urlRegex, 'i');
                 list = list.filter(d => rx.test(d.url));
-            } catch (_) {}
+            } catch (_) { }
         }
         if (query.state != null) {
             list = list.filter(d => d.state === query.state);

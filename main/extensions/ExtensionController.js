@@ -28,7 +28,7 @@ class ExtensionController extends EventEmitter {
                     if (!view.webContents.isDestroyed()) {
                         view.webContents.close();
                     }
-                } catch (_) {}
+                } catch (_) { }
                 this.backgroundHosts.delete(key);
             }
         }
@@ -48,22 +48,22 @@ class ExtensionController extends EventEmitter {
         try {
             const { getIpcBridge } = require('./compat/IpcBridge');
             getIpcBridge().attachToSession(electronSession);
-        } catch (_) {}
+        } catch (_) { }
 
         try {
             const { getDeclarativeNetRequestManager } = require('./compat/DeclarativeNetRequestManager');
             getDeclarativeNetRequestManager().attachToSession(electronSession);
-        } catch (_) {}
+        } catch (_) { }
 
         try {
             const { getDownloadManager } = require('./compat/DownloadManager');
             getDownloadManager().attachToSession(electronSession);
-        } catch (_) {}
+        } catch (_) { }
 
         try {
             const { getWebRequestManager } = require('./compat/WebRequestManager');
             getWebRequestManager().attachToSession(electronSession);
-        } catch (_) {}
+        } catch (_) { }
 
         if (!this.loadedExtensions.has(pId)) {
             this.loadedExtensions.set(pId, new Map());
@@ -101,7 +101,7 @@ class ExtensionController extends EventEmitter {
                             type: 'manifest',
                             context: 'system'
                         });
-                    } catch (_) {}
+                    } catch (_) { }
                     console.error(`[ExtensionController] Failed to load extension ${extensionId} for profile ${pId}:`, loadErr?.message || loadErr);
                 }
             }
@@ -129,7 +129,7 @@ class ExtensionController extends EventEmitter {
                 if (!existingView.webContents.isDestroyed()) {
                     return existingView;
                 }
-            } catch (_) {}
+            } catch (_) { }
             this.backgroundHosts.delete(hostKey);
         }
 
@@ -163,7 +163,7 @@ class ExtensionController extends EventEmitter {
             try {
                 const ExtensionInstaller = require('./ExtensionInstaller');
                 ExtensionInstaller.ensureExtensionPolyfills(resolvedPath, cleanId);
-            } catch (_) {}
+            } catch (_) { }
         }
         if (!fs.existsSync(bgHtmlPath)) {
             return null;
@@ -182,7 +182,7 @@ class ExtensionController extends EventEmitter {
             try {
                 const { getIpcBridge } = require('./compat/IpcBridge');
                 getIpcBridge().attachToSession(view.webContents.session || session);
-            } catch (_) {}
+            } catch (_) { }
 
             this.backgroundHosts.set(hostKey, view);
 
@@ -253,7 +253,7 @@ class ExtensionController extends EventEmitter {
             try {
                 const { getActionManager } = require('./compat/ActionManager');
                 actionState = getActionManager().getState(ext.id);
-            } catch (_) {}
+            } catch (_) { }
 
             let urlPatterns = ext.urlPatterns;
             let hasAllUrls = ext.hasAllUrls;
@@ -285,7 +285,7 @@ class ExtensionController extends EventEmitter {
                         hasAllUrls = urlPatterns.some(p => allUrlsSet.includes(String(p).trim()));
                         isPageAction = !!(manifest.page_action || (manifest.action && manifest.action.default_state === 'disabled'));
                     }
-                } catch (_) {}
+                } catch (_) { }
             }
 
             let hasOptionsPage = ext.hasOptionsPage;
@@ -304,14 +304,14 @@ class ExtensionController extends EventEmitter {
                         optionsPage = opt;
                         hasOptionsPage = !!opt;
                     }
-                } catch (_) {}
+                } catch (_) { }
             }
 
             let errorCount = 0;
             try {
                 const { getExtensionErrorManager } = require('./ExtensionErrorManager');
                 errorCount = getExtensionErrorManager().getErrorCount(ext.id);
-            } catch (_) {}
+            } catch (_) { }
 
             return {
                 ...ext,
@@ -742,12 +742,12 @@ class ExtensionController extends EventEmitter {
         try {
             const { getExtensionErrorManager } = require('./ExtensionErrorManager');
             getExtensionErrorManager().resetExtension(cleanId);
-        } catch (_) {}
+        } catch (_) { }
 
         for (const [sessPid, s] of this.activeSessions.entries()) {
-            try { s.extensions.removeExtension(cleanId); } catch (_) {}
+            try { s.extensions.removeExtension(cleanId); } catch (_) { }
             if (ext.runtimeId && ext.runtimeId !== cleanId) {
-                try { s.extensions.removeExtension(ext.runtimeId); } catch (_) {}
+                try { s.extensions.removeExtension(ext.runtimeId); } catch (_) { }
             }
         }
 
@@ -793,7 +793,7 @@ class ExtensionController extends EventEmitter {
                             type: 'manifest',
                             context: 'system'
                         });
-                    } catch (_) {}
+                    } catch (_) { }
                     console.error(`[ExtensionController] Error reloading extension ${cleanId}:`, loadErr);
                 }
             }
@@ -914,9 +914,9 @@ class ExtensionController extends EventEmitter {
 
         // Remove from all active Electron sessions
         for (const [sessPid, s] of this.activeSessions.entries()) {
-            try { s.extensions.removeExtension(cleanId); } catch (_) {}
+            try { s.extensions.removeExtension(cleanId); } catch (_) { }
             if (runtimeId && runtimeId !== cleanId) {
-                try { s.extensions.removeExtension(runtimeId); } catch (_) {}
+                try { s.extensions.removeExtension(runtimeId); } catch (_) { }
             }
         }
 
@@ -953,7 +953,7 @@ class ExtensionController extends EventEmitter {
         try {
             const { getExtensionErrorManager } = require('./ExtensionErrorManager');
             getExtensionErrorManager().resetExtension(cleanId);
-        } catch (_) {}
+        } catch (_) { }
 
         this.emit('extension-uninstalled', { profileId: pId, extensionId: cleanId });
         this.emit('extensions-updated', { profileId: pId });
@@ -1087,7 +1087,7 @@ class ExtensionController extends EventEmitter {
                     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
                     optionsPage = manifest.options_ui?.page || manifest.options_page || null;
                 }
-            } catch (_) {}
+            } catch (_) { }
         }
 
         if (!optionsPage) {
@@ -1138,7 +1138,7 @@ class ExtensionController extends EventEmitter {
             try {
                 const all = session.extensions.getAllExtensions();
                 isLoaded = all.some(e => e.id === cleanId || e.id === ext.runtimeId || (ext.path && path.resolve(e.path) === path.resolve(ext.path)));
-            } catch (_) {}
+            } catch (_) { }
 
             if (!isLoaded) {
                 try {
@@ -1180,7 +1180,7 @@ class ExtensionController extends EventEmitter {
             try {
                 const parsed = new URL(tabUrl);
                 this.grantOriginAccess(pId, cleanId, parsed.origin);
-            } catch (_) {}
+            } catch (_) { }
         }
 
         const { getTabRegistry } = require('./compat/TabRegistry');
@@ -1200,7 +1200,7 @@ class ExtensionController extends EventEmitter {
                     width = width || b?.width || 0;
                     height = height || b?.height || 0;
                 }
-            } catch (_) {}
+            } catch (_) { }
             tabObj = {
                 id: activeTab.webContents.id,
                 index: 0,
@@ -1221,7 +1221,7 @@ class ExtensionController extends EventEmitter {
         // Ensure background host is active for MV3 service worker extension
         try {
             await this.ensureBackgroundHost(pId, cleanId, ext.path, session);
-        } catch (_) {}
+        } catch (_) { }
 
         try {
             const { webContents } = require('electron');
@@ -1246,16 +1246,16 @@ class ExtensionController extends EventEmitter {
                             if (typeof chrome.browserAction?.onClicked?.dispatch === 'function') chrome.browserAction.onClicked.dispatch(tab);
                         }
                     } catch (_) {}
-                `).catch(() => {});
+                `).catch(() => { });
             }
-        } catch (_) {}
+        } catch (_) { }
 
         // Broadcast onClicked to Service Worker / Background host & popups
         try {
             const { getIpcBridge } = require('./compat/IpcBridge');
             const bridge = getIpcBridge();
             bridge.broadcastEvent(cleanId, 'chrome.action.onClicked', [tabObj]);
-        } catch (_) {}
+        } catch (_) { }
 
         // Read extension files from disk and inject content scripts directly into active tab if defined
         if (ext.path && fs.existsSync(ext.path)) {
@@ -1273,7 +1273,7 @@ class ExtensionController extends EventEmitter {
                                     if (fs.existsSync(fullCss)) {
                                         try {
                                             await activeTab.webContents.insertCSS(fs.readFileSync(fullCss, 'utf-8'));
-                                        } catch (_) {}
+                                        } catch (_) { }
                                     }
                                 }
                             }
@@ -1283,7 +1283,7 @@ class ExtensionController extends EventEmitter {
                                     if (fs.existsSync(fullJs)) {
                                         try {
                                             await activeTab.webContents.executeJavaScript(fs.readFileSync(fullJs, 'utf-8'));
-                                        } catch (_) {}
+                                        } catch (_) { }
                                     }
                                 }
                             }
@@ -1506,9 +1506,9 @@ class ExtensionController extends EventEmitter {
                 let tabHost = '';
                 try {
                     tabHost = new URL(url).host;
-                } catch (_) {}
+                } catch (_) { }
                 const hostAllowed = (Array.isArray(ext.allowedHosts) && ext.allowedHosts.includes(tabHost)) ||
-                                    (Array.isArray(ext.allowedOrigins) && ext.allowedOrigins.some(o => o.includes(tabHost)));
+                    (Array.isArray(ext.allowedOrigins) && ext.allowedOrigins.some(o => o.includes(tabHost)));
                 if (!hostAllowed) {
                     continue;
                 }
@@ -1547,7 +1547,7 @@ class ExtensionController extends EventEmitter {
                             try {
                                 await tab.webContents.insertCSS(fs.readFileSync(fullCss, 'utf-8'));
                                 tab._injectedScriptKeys.add(cssKey);
-                            } catch (_) {}
+                            } catch (_) { }
                         }
                     }
                 }
@@ -1756,7 +1756,7 @@ class ExtensionController extends EventEmitter {
                                 `;
                                 await tab.webContents.executeJavaScript(contentScriptWrapper);
                                 tab._injectedScriptKeys.add(jsKey);
-                            } catch (_) {}
+                            } catch (_) { }
                         }
                     }
                 }
@@ -1788,7 +1788,7 @@ class ExtensionController extends EventEmitter {
                             const ext = path.extname(fullIconPath).toLowerCase().replace('.', '') || 'png';
                             const mime = ext === 'svg' ? 'image/svg+xml' : `image/${ext}`;
                             iconDataUrl = `data:${mime};base64,${fs.readFileSync(fullIconPath).toString('base64')}`;
-                        } catch (_) {}
+                        } catch (_) { }
                     }
                 }
                 getOmniboxManager().registerKeyword(extensionId, manifest.omnibox.keyword, manifest.name, iconDataUrl);
@@ -1808,31 +1808,31 @@ class ExtensionController extends EventEmitter {
                         if (!view.webContents.isDestroyed()) {
                             view.webContents.destroy();
                         }
-                    } catch (_) {}
+                    } catch (_) { }
                     this.backgroundHosts.delete(key);
                 }
             }
-        } catch (_) {}
+        } catch (_) { }
         try {
             const { getDeclarativeNetRequestManager } = require('./compat/DeclarativeNetRequestManager');
             getDeclarativeNetRequestManager().unloadStaticRulesets(extensionId);
-        } catch (_) {}
+        } catch (_) { }
         try {
             const { getContextMenuManager } = require('./compat/ContextMenuManager');
             getContextMenuManager().removeAll(extensionId);
-        } catch (_) {}
+        } catch (_) { }
         try {
             const { getAlarmManager } = require('./compat/AlarmManager');
             getAlarmManager().clearAll(extensionId);
-        } catch (_) {}
+        } catch (_) { }
         try {
             const { getOmniboxManager } = require('./compat/OmniboxManager');
             getOmniboxManager().unregisterKeyword(extensionId);
-        } catch (_) {}
+        } catch (_) { }
         try {
             const { getIpcBridge } = require('./compat/IpcBridge');
             getIpcBridge().unloadExtension(extensionId);
-        } catch (_) {}
+        } catch (_) { }
     }
 }
 

@@ -272,7 +272,18 @@ function activateTabInContext(context, id) {
                 windowId: context.window?.id || 1,
             }]);
         }
-    } catch (_) {}
+    } catch (_) { }
+
+    try {
+        const { getIpcBridge } = require('../extensions/compat/IpcBridge');
+        const activeWc = context.tabs[id]?.webContents;
+        if (activeWc && !activeWc.isDestroyed()) {
+            getIpcBridge().broadcastToAllExtensions('chrome.tabs.onActivated', [{
+                tabId: activeWc.id,
+                windowId: context.window?.id || 1,
+            }]);
+        }
+    } catch (_) { }
 
     const activeUrl = context.tabs[id]?.webContents.getURL() ?? '';
     const blankActive = isBlankTab(activeUrl);
@@ -685,10 +696,10 @@ function installDevToolsTypographyOnOpen(webContents) {
                                     }
                                 }
                             } catch (_) {}
-                        `).catch(() => {});
+                        `).catch(() => { });
                     }
                 }
-            } catch (_) {}
+            } catch (_) { }
         };
 
         patchDevToolsFrames();
@@ -845,7 +856,7 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
         if (tabObj && (!options.prewarm || view._invisurfPromoted)) {
             getIpcBridge().broadcastToAllExtensions('chrome.tabs.onCreated', [tabObj]);
         }
-    } catch (_) {}
+    } catch (_) { }
 
     const sendTabEvent = (channel, payload) => {
         // A detached prewarmed NTP is not a tab yet.  Its lifecycle events
@@ -875,7 +886,7 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
                 { windowId: context?.window?.id || 1, isWindowClosing: false }
             ]);
             getIpcBridge().cleanupTab(webContentsNumericId);
-        } catch (_) {}
+        } catch (_) { }
     });
 
     applyIdentityToWebContents(view.webContents);
@@ -1055,7 +1066,7 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
                 if (contextTemplate.length > 0) contextTemplate.push({ type: 'separator' });
                 contextTemplate.push(...extMenuItems);
             }
-        } catch (_) {}
+        } catch (_) { }
 
         if (contextTemplate.length > 0) contextTemplate.push({ type: 'separator' });
         contextTemplate.push({
@@ -1078,7 +1089,7 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
                 canGoBack: typeof nav.canGoBack === 'function' ? nav.canGoBack() : false,
                 canGoForward: typeof nav.canGoForward === 'function' ? nav.canGoForward() : false,
             });
-        } catch (_) {}
+        } catch (_) { }
     };
     view._invisurfSyncOverscrollHistoryState = syncOverscrollHistoryState;
 
@@ -1093,7 +1104,7 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
                 if (!view.webContents.isDestroyed()) {
                     view.webContents.send(C.IPC_EVENT.OVERSCROLL_GESTURE_BEGIN);
                 }
-            } catch (_) {}
+            } catch (_) { }
         } else if (input.type === 'gestureScrollEnd' || input.type === 'gestureFlingStart') {
             const now = Date.now();
             if (now - lastFingerLiftTime < 50) return;
@@ -1102,7 +1113,7 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
                 if (!view.webContents.isDestroyed()) {
                     view.webContents.send(C.IPC_EVENT.OVERSCROLL_FINGER_LIFTED);
                 }
-            } catch (_) {}
+            } catch (_) { }
         }
     });
 
@@ -1155,7 +1166,7 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
             const currentUrl = view.webContents.getURL() || '';
             if (currentUrl.includes('chromewebstore.google.com') || currentUrl.includes('chrome.google.com/webstore')) {
                 const { WEBSTORE_INJECTION_CODE } = require('../../runtime/webstoreScript');
-                view.webContents.executeJavaScript(WEBSTORE_INJECTION_CODE).catch(() => {});
+                view.webContents.executeJavaScript(WEBSTORE_INJECTION_CODE).catch(() => { });
             }
             const { getExtensionController } = require('../extensions/ExtensionController');
             void getExtensionController().injectContentScriptsForTab(context, id, currentUrl, 'document_idle');
@@ -1163,12 +1174,12 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
             try {
                 const { getScriptingManager } = require('../extensions/compat/ScriptingManager');
                 void getScriptingManager().injectMatchingScripts(webContentsNumericId, currentUrl, view.webContents, 'document_idle');
-            } catch (_) {}
+            } catch (_) { }
 
             try {
                 const { getWebNavigationManager } = require('../extensions/compat/WebNavigationManager');
                 getWebNavigationManager().onDOMContentLoaded(webContentsNumericId, currentUrl);
-            } catch (_) {}
+            } catch (_) { }
         } catch (_) { }
     });
 
@@ -1177,7 +1188,7 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
             view._pendingUrl = navUrl;
             const { getWebNavigationManager } = require('../extensions/compat/WebNavigationManager');
             getWebNavigationManager().onBeforeNavigate(webContentsNumericId, navUrl);
-        } catch (_) {}
+        } catch (_) { }
     });
 
     view.webContents.on('did-finish-load', () => {
@@ -1188,12 +1199,12 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
         try {
             const { getWebNavigationManager } = require('../extensions/compat/WebNavigationManager');
             getWebNavigationManager().onCompleted(webContentsNumericId, loadedUrl);
-        } catch (_) {}
+        } catch (_) { }
 
         try {
             const { getScriptingManager } = require('../extensions/compat/ScriptingManager');
             getScriptingManager().injectMatchingScripts(webContentsNumericId, loadedUrl, view.webContents);
-        } catch (_) {}
+        } catch (_) { }
 
         try {
             const { getIpcBridge } = require('../extensions/compat/IpcBridge');
@@ -1206,12 +1217,12 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
                     tabObj
                 ]);
             }
-        } catch (_) {}
+        } catch (_) { }
 
         if (loadedUrl && (loadedUrl.includes('chromewebstore.google.com') || loadedUrl.includes('chrome.google.com/webstore'))) {
             try {
                 const { WEBSTORE_INJECTION_CODE } = require('../../runtime/webstoreScript');
-                view.webContents.executeJavaScript(WEBSTORE_INJECTION_CODE).catch(() => {});
+                view.webContents.executeJavaScript(WEBSTORE_INJECTION_CODE).catch(() => { });
             } catch (_) { }
         }
 
@@ -1259,19 +1270,19 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
                     tabObj
                 ]);
             }
-        } catch (_) {}
+        } catch (_) { }
 
         try {
             const { getWebNavigationManager } = require('../extensions/compat/WebNavigationManager');
             getWebNavigationManager().onCommitted(webContentsNumericId, targetUrl);
-        } catch (_) {}
+        } catch (_) { }
 
         try {
             const { getExtensionController } = require('../extensions/ExtensionController');
             void getExtensionController().injectContentScriptsForTab(context, id, targetUrl, 'document_start');
             const { getScriptingManager } = require('../extensions/compat/ScriptingManager');
             void getScriptingManager().injectMatchingScripts(webContentsNumericId, targetUrl, view.webContents, 'document_start');
-        } catch (_) {}
+        } catch (_) { }
         if (!effectiveStealth && !targetUrl.startsWith('data:') && !isInternalPageUrl(targetUrl)) {
             if (State.historyService) {
                 State.historyService.recordVisit(context.profileId, {
@@ -1303,8 +1314,8 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
         if (targetUrl && (targetUrl.includes('chromewebstore.google.com') || targetUrl.includes('chrome.google.com/webstore'))) {
             try {
                 const { WEBSTORE_INJECTION_CODE } = require('../../runtime/webstoreScript');
-                view.webContents.executeJavaScript(WEBSTORE_INJECTION_CODE).catch(() => {});
-            } catch (_) {}
+                view.webContents.executeJavaScript(WEBSTORE_INJECTION_CODE).catch(() => { });
+            } catch (_) { }
         }
         if (!effectiveStealth && !targetUrl.startsWith('data:') && !isInternalPageUrl(targetUrl)) {
             if (State.historyService) {
@@ -1326,7 +1337,7 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
         try {
             const { getWebNavigationManager } = require('../extensions/compat/WebNavigationManager');
             getWebNavigationManager().onErrorOccurred(webContentsNumericId, validatedURL, errorDescription);
-        } catch (_) {}
+        } catch (_) { }
 
         if (errorCode === -3) {
             // net::ERR_ABORTED: Navigation was cancelled/aborted (e.g. user pressed Cmd+R or stopped navigation).

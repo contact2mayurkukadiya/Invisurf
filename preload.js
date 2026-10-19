@@ -38,17 +38,17 @@ try {
         isInstalled: (extensionId) => ipcRenderer.invoke('extensions:is-installed', { extensionId }),
         prepareInstall: (extensionId) => ipcRenderer.invoke('extensions:webstore-prepare-install', { extensionId }),
         onInstallCompleted: (callback) => {
-            if (typeof callback !== 'function') return () => {};
+            if (typeof callback !== 'function') return () => { };
             const handler = (_event, data) => {
-                try { callback(data); } catch (_) {}
+                try { callback(data); } catch (_) { }
             };
             ipcRenderer.on('extensions:install-completed', handler);
             return () => ipcRenderer.removeListener('extensions:install-completed', handler);
         },
         onInstallCancelled: (callback) => {
-            if (typeof callback !== 'function') return () => {};
+            if (typeof callback !== 'function') return () => { };
             const handler = (_event, data) => {
-                try { callback(data); } catch (_) {}
+                try { callback(data); } catch (_) { }
             };
             ipcRenderer.on('extensions:install-cancelled', handler);
             return () => ipcRenderer.removeListener('extensions:install-cancelled', handler);
@@ -62,7 +62,7 @@ try {
             if (typeof document !== 'undefined' && document.dispatchEvent) {
                 document.dispatchEvent(new CustomEvent('invisurf:install-completed', { detail: data }));
             }
-        } catch (_) {}
+        } catch (_) { }
     });
 
     ipcRenderer.on('extensions:install-cancelled', (_event, data) => {
@@ -71,7 +71,7 @@ try {
             if (typeof document !== 'undefined' && document.dispatchEvent) {
                 document.dispatchEvent(new CustomEvent('invisurf:install-cancelled', { detail: data }));
             }
-        } catch (_) {}
+        } catch (_) { }
     });
 } catch (webstoreInitErr) {
     console.warn('[Preload] Failed to initialize webstore bridge at document_start:', webstoreInitErr?.message || webstoreInitErr);
@@ -85,10 +85,12 @@ try {
             const startScripts = ipcRenderer.sendSync('extensions:get-document-start-scripts', {
                 url: window.location.href,
             });
+            ipcRenderer.send('extensions:debug-log', `[Preload] received ${startScripts?.length || 0} start scripts for ${window.location.href}`);
             if (Array.isArray(startScripts) && startScripts.length > 0) {
                 for (const s of startScripts) {
                     if (s && s.code) {
                         try {
+                            ipcRenderer.send('extensions:debug-log', `[Preload] injecting script "${s.id}" (world: ${s.world}, len: ${s.code.length})`);
                             if (s.world === 'MAIN') {
                                 let injectedSync = false;
                                 try {
@@ -100,7 +102,7 @@ try {
                                         sc.remove();
                                         injectedSync = true;
                                     }
-                                } catch (_) {}
+                                } catch (_) { }
                                 if (!injectedSync) {
                                     try {
                                         webFrame.executeJavaScript(s.code);
@@ -114,22 +116,22 @@ try {
                                 webFrame.executeJavaScript(s.code);
                             }
                         } catch (err) {
-                            console.warn(`[Preload StartScript Error] ${s.id || s}:`, err?.message || err);
+                            ipcRenderer.send('extensions:debug-log', `[Preload StartScript Error] ${s.id || s}: ${err?.message || err}`);
                         }
                     }
                 }
             }
         } catch (err) {
-            console.warn('[Preload startScripts outer error]:', err?.message || err);
+            ipcRenderer.send('extensions:debug-log', `[Preload startScripts outer error]: ${err?.message || err}`);
         }
 
         try {
             ipcRenderer.on('invisurf-ext-event', (event, payload) => {
                 try {
                     window.postMessage({ source: 'invisurf-ext-event', payload }, '*');
-                } catch (_) {}
+                } catch (_) { }
             });
-        } catch (_) {}
+        } catch (_) { }
 
         webFrame.executeJavaScript(`
             try {
@@ -215,6 +217,9 @@ try {
                         }
                     },
                     installBundle: function(details, callback) {
+                        if (window.__invisurf_webstore?.prepareInstall) {
+                            window.__invisurf_webstore.prepareInstall(id);
+                        }
                         if (typeof callback === 'function') callback('');
                     },
                     completeInstall: function(id, callback) {
@@ -1059,7 +1064,7 @@ function setupOverscrollEngine() {
     // Request initial state from main process
     try {
         ipcRenderer.send(C.IPC_SEND.OVERSCROLL_REQUEST_SYNC);
-    } catch (_) {}
+    } catch (_) { }
 
     // -------------------------------------------------------------
     // 1. PRE-HOT SHADOW DOM & GPU COMPOSITOR LAYERS
@@ -1367,7 +1372,7 @@ function setupOverscrollEngine() {
             isNavigating = true;
             try {
                 ipcRenderer.send(C.IPC_SEND.OVERSCROLL_TRIGGER_NAVIGATION, triggeredDirection);
-            } catch (_) {}
+            } catch (_) { }
 
             // Debounce lock: ignore all trailing momentum wheel events while navigation is in flight
             if (cooldownTimer) clearTimeout(cooldownTimer);
@@ -1416,7 +1421,7 @@ function setupOverscrollEngine() {
 
             // 1. Honor W3C overscroll-behavior-x
             if (computedStyle.overscrollBehaviorX === 'none' || computedStyle.overscrollBehaviorX === 'contain') {
-                return true; 
+                return true;
             }
 
             // 2. Check horizontally scrollable containers

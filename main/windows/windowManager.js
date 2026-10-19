@@ -568,13 +568,13 @@ function setWindowClickThrough(context, enable, source = 'manual') {
             isClickThrough: context.isClickThrough,
             source,
         });
-    } catch (_) {}
+    } catch (_) { }
 
     // ── Rebuild app menu to reflect new state ─────────────────────────────
     try {
         const menuUI = require('../ui/menu');
         menuUI.rebuildApplicationMenu();
-    } catch (_) {}
+    } catch (_) { }
 
     return context.isClickThrough;
 }
