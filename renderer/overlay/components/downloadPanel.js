@@ -146,7 +146,7 @@ export function renderDownloadPanel(payload) {
         sub.style.fontSize = '11.5px';
         sub.style.opacity = '0.65';
         sub.style.marginTop = '2px';
-        const isPaused = item.state === 'paused';
+        const isPaused = item.state === 'paused' || item.state === 'interrupted';
         const received = Number(item.receivedBytes) || 0;
         const total = Number(item.totalBytes) || 0;
         const speed = formatSpeed(item.speedBytesPerSec);

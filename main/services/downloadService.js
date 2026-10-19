@@ -225,15 +225,38 @@ async function probeTotalBytes(url, { referrer } = {}) {
 function broadcastDownloadEvent(channel, data) {
     if (!channel) return;
     for (const context of State.windowContextsById.values()) {
-        if (context.window && !context.window.isDestroyed() && !context.window.webContents.isDestroyed()) {
+        if (context.window && !context.window.isDestroyed?.() && !context.window.webContents.isDestroyed?.()) {
             try {
                 context.window.webContents.send(channel, data);
             } catch (_) {}
         }
-        if (context.chromeShellMenuOverlayView && !context.chromeShellMenuOverlayView.webContents.isDestroyed()) {
+        if (context.tabs && typeof context.tabs === 'object') {
+            for (const view of Object.values(context.tabs)) {
+                if (view?.webContents && !view.webContents.isDestroyed?.()) {
+                    try {
+                        view.webContents.send(channel, data);
+                    } catch (_) {}
+                }
+            }
+        }
+        if (context.chromeShellMenuOverlayView && !context.chromeShellMenuOverlayView.webContents.isDestroyed?.()) {
             try {
                 context.chromeShellMenuOverlayView.webContents.send(channel, data);
             } catch (_) {}
+        }
+        if (context.chromeOverlayView && !context.chromeOverlayView.webContents.isDestroyed?.()) {
+            try {
+                context.chromeOverlayView.webContents.send(channel, data);
+            } catch (_) {}
+        }
+    }
+    if (State.detachedTabWindows) {
+        for (const win of State.detachedTabWindows.values()) {
+            if (win && !win.isDestroyed?.() && !win.webContents.isDestroyed?.()) {
+                try {
+                    win.webContents.send(channel, data);
+                } catch (_) {}
+            }
         }
     }
 }
@@ -390,13 +413,22 @@ function handleWillDownload(item, webContents, { profileId = null, isStealth = f
         }
 
         if (state === 'interrupted') {
-            active.record.state = 'interrupted';
+            active.record.state = item.isPaused() ? 'paused' : 'interrupted';
+            if (active.record.state === 'paused') {
+                active.record.speedBytesPerSec = 0;
+            }
         } else if (state === 'progressing') {
             active.record.state = item.isPaused() ? 'paused' : 'progressing';
+            if (active.record.state === 'paused') {
+                active.record.speedBytesPerSec = 0;
+            }
         }
 
-        // Throttle progress updates to avoid IPC flooding (approx every 100ms)
-        if (now - active.lastBroadcastTime >= 100) {
+        const stateChanged = active.record.state !== active.lastState;
+        active.lastState = active.record.state;
+
+        // Throttle progress updates to avoid IPC flooding (approx every 100ms), but broadcast immediately on state change
+        if (stateChanged || (now - active.lastBroadcastTime >= 100)) {
             active.lastBroadcastTime = now;
             broadcastDownloadEvent(C.IPC_EVENT.DOWNLOAD_PROGRESS || 'downloads:progress', active.record);
         }
@@ -549,12 +581,14 @@ function pauseDownload(id) {
     if (!active) return { success: false, error: 'Download not found.' };
 
     try {
-        if (!active.item.isPaused()) {
+        if (typeof active.item.isPaused === 'function' && !active.item.isPaused()) {
             active.item.pause();
-            active.record.state = 'paused';
-            broadcastDownloadEvent(C.IPC_EVENT.DOWNLOAD_PROGRESS || 'downloads:progress', active.record);
-            broadcastDownloadEvent(C.IPC_EVENT.DOWNLOAD_UPDATED || 'downloads:updated', active.record);
         }
+        active.record.state = 'paused';
+        active.record.speedBytesPerSec = 0;
+        active.record.canResume = typeof active.item.canResume === 'function' ? active.item.canResume() : true;
+        broadcastDownloadEvent(C.IPC_EVENT.DOWNLOAD_PROGRESS || 'downloads:progress', active.record);
+        broadcastDownloadEvent(C.IPC_EVENT.DOWNLOAD_UPDATED || 'downloads:updated', active.record);
         return { success: true };
     } catch (e) {
         return { success: false, error: e?.message || String(e) };
@@ -566,14 +600,16 @@ function resumeDownload(id) {
     if (!active) return { success: false, error: 'Download not found.' };
 
     try {
-        if (active.item.isPaused() || active.item.canResume()) {
+        if (typeof active.item.resume === 'function') {
             active.item.resume();
-            active.record.state = 'progressing';
-            broadcastDownloadEvent(C.IPC_EVENT.DOWNLOAD_PROGRESS || 'downloads:progress', active.record);
-            broadcastDownloadEvent(C.IPC_EVENT.DOWNLOAD_UPDATED || 'downloads:updated', active.record);
         }
+        active.record.state = 'progressing';
+        active.record.canResume = typeof active.item.canResume === 'function' ? active.item.canResume() : true;
+        broadcastDownloadEvent(C.IPC_EVENT.DOWNLOAD_PROGRESS || 'downloads:progress', active.record);
+        broadcastDownloadEvent(C.IPC_EVENT.DOWNLOAD_UPDATED || 'downloads:updated', active.record);
         return { success: true };
     } catch (e) {
+        console.error('[DownloadService] Failed to resume download:', e?.message || e);
         return { success: false, error: e?.message || String(e) };
     }
 }
@@ -609,6 +645,7 @@ function retryDownload(id, profileId) {
     const effectiveProfileId = profileId || State.defaultProfileId || 'default';
     let history = loadHistory(effectiveProfileId);
     let itemIndex = history.findIndex(entry => entry.id === id);
+    let targetProfileId = effectiveProfileId;
 
     // If not found in effectiveProfileId, search all profile histories
     if (itemIndex < 0) {
@@ -617,6 +654,7 @@ function retryDownload(id, profileId) {
             if (idx >= 0) {
                 history = hist;
                 itemIndex = idx;
+                targetProfileId = pId;
                 break;
             }
         }
@@ -643,11 +681,11 @@ function retryDownload(id, profileId) {
     try {
         // Remove the retried item from history so it doesn't linger as duplicate alongside the restarted download
         const updated = history.filter(entry => entry.id !== id);
-        historyCacheByProfile.set(effectiveProfileId, updated);
-        saveHistory(effectiveProfileId);
+        historyCacheByProfile.set(targetProfileId, updated);
+        saveHistory(targetProfileId);
         broadcastDownloadEvent(C.IPC_EVENT.DOWNLOAD_UPDATED || 'downloads:updated');
 
-        const targetSession = getSessionForProfile(item.profileId || effectiveProfileId);
+        const targetSession = getSessionForProfile(item.profileId || targetProfileId);
         if (!targetSession || typeof targetSession.downloadURL !== 'function') {
             return { success: false, error: 'Session not available to restart download.' };
         }

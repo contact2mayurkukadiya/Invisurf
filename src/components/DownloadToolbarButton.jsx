@@ -55,11 +55,21 @@ export default function DownloadToolbarButton({ onOpenDownloads }) {
       setActiveDownloads((prev) => prev.filter((d) => d.id !== record.id));
     });
 
+    const unsubUpdated = window.electronAPI?.onDownloadUpdated?.(() => {
+      window.electronAPI?.downloadsGetAll?.().then((data) => {
+        if (!mounted) return;
+        if (Array.isArray(data?.active)) {
+          setActiveDownloads(data.active);
+        }
+      }).catch(() => {});
+    });
+
     return () => {
       mounted = false;
       if (typeof unsubStarted === 'function') unsubStarted();
       if (typeof unsubProgress === 'function') unsubProgress();
       if (typeof unsubDone === 'function') unsubDone();
+      if (typeof unsubUpdated === 'function') unsubUpdated();
     };
   }, []);
 
