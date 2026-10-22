@@ -22,7 +22,7 @@ export function renderDownloadPanel(payload) {
     if (!DOM.panel) return;
 
     const r = payload.anchorRect || {};
-    const width = 360;
+    const width = 320;
     const metrics = getCompactMenuMetrics(payload);
     const pad = 8;
     const left0 = Math.round(r.left != null ? r.left : 0);
@@ -46,20 +46,22 @@ export function renderDownloadPanel(payload) {
     DOM.panel.style.overflow = 'hidden';
     DOM.panel.style.display = 'flex';
     DOM.panel.style.flexDirection = 'column';
+    DOM.panel.style.userSelect = 'none';
+    DOM.panel.style.webkitUserSelect = 'none';
 
     // 1. Header
     const header = document.createElement('div');
     header.style.display = 'flex';
     header.style.alignItems = 'center';
     header.style.justifyContent = 'space-between';
-    header.style.padding = '14px 16px 12px 16px';
-    header.style.borderBottom = '1px solid var(--chrome-tab-separator, rgba(128,128,128,0.15))';
+    header.style.padding = '12px 14px 10px';
+    header.style.borderBottom = '1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.08))';
 
     const title = document.createElement('span');
     title.textContent = 'Recent Download History';
     title.style.fontSize = '14px';
     title.style.fontWeight = '600';
-    title.style.color = 'inherit';
+    title.style.color = 'var(--chrome-fg, #202124)';
 
     const closeBtn = document.createElement('button');
     closeBtn.type = 'button';
@@ -67,17 +69,16 @@ export function renderDownloadPanel(payload) {
     closeBtn.style.background = 'transparent';
     closeBtn.style.border = 'none';
     closeBtn.style.cursor = 'pointer';
-    closeBtn.style.color = 'inherit';
-    closeBtn.style.opacity = '0.6';
+    closeBtn.style.color = 'var(--chrome-secondary-fg, #5f6368)';
     closeBtn.style.padding = '4px';
-    closeBtn.style.margin = '-4px';
     closeBtn.style.display = 'flex';
     closeBtn.style.alignItems = 'center';
     closeBtn.style.justifyContent = 'center';
     closeBtn.style.borderRadius = '50%';
+    closeBtn.style.transition = 'background-color 0.15s ease';
     closeBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
-    closeBtn.onmouseenter = () => { closeBtn.style.opacity = '1'; };
-    closeBtn.onmouseleave = () => { closeBtn.style.opacity = '0.6'; };
+    closeBtn.onmouseenter = () => { closeBtn.style.backgroundColor = 'var(--chrome-tab-hover-bg, rgba(0, 0, 0, 0.08))'; };
+    closeBtn.onmouseleave = () => { closeBtn.style.backgroundColor = 'transparent'; };
     closeBtn.onclick = () => {
         hideAll({ hideLens: false });
         notifyHost({ type: 'dismiss', reason: 'close' });
@@ -91,10 +92,15 @@ export function renderDownloadPanel(payload) {
     const body = document.createElement('div');
     body.style.flex = '1 1 auto';
     body.style.overflowY = 'auto';
-    body.style.padding = '6px 0';
+    body.style.overflowX = 'hidden';
+    body.style.padding = '4px 6px';
 
-    const activeList = Array.isArray(payload.active) ? payload.active : [];
-    const historyList = Array.isArray(payload.history) ? payload.history.slice(0, 3) : [];
+    const allActive = Array.isArray(payload.active) ? payload.active : [];
+    const allHistory = Array.isArray(payload.history) ? payload.history : [];
+
+    // Max 3 items total shown in popup (active take precedence, then history fills remaining)
+    const activeList = allActive.slice(0, 3);
+    const historyList = allHistory.slice(0, Math.max(0, 3 - activeList.length));
     const hasItems = activeList.length > 0 || historyList.length > 0;
 
     if (!hasItems) {
@@ -102,7 +108,7 @@ export function renderDownloadPanel(payload) {
         empty.style.padding = '24px 16px';
         empty.style.textAlign = 'center';
         empty.style.fontSize = '13px';
-        empty.style.opacity = '0.7';
+        empty.style.color = 'var(--chrome-secondary-fg, #5f6368)';
         empty.textContent = 'No recent downloads';
         body.appendChild(empty);
     }
@@ -110,23 +116,44 @@ export function renderDownloadPanel(payload) {
     // Render active items
     activeList.forEach((item) => {
         const row = document.createElement('div');
-        row.style.padding = '10px 16px';
+        row.style.padding = '7px 8px';
+        row.style.borderRadius = '8px';
+        row.style.margin = '2px 0';
         row.style.display = 'flex';
         row.style.flexDirection = 'column';
         row.style.gap = '6px';
-        row.style.borderBottom = '1px solid var(--chrome-tab-separator, rgba(128,128,128,0.08))';
+        row.style.border = 'none';
+        row.style.transition = 'background-color 0.15s ease';
+        row.style.position = 'relative';
+        row.style.userSelect = 'none';
+        row.style.webkitUserSelect = 'none';
+        row.onmouseenter = () => { row.style.backgroundColor = 'var(--chrome-tab-hover-bg, rgba(0, 0, 0, 0.05))'; };
+        row.onmouseleave = () => { row.style.backgroundColor = 'transparent'; };
 
         const topRow = document.createElement('div');
         topRow.style.display = 'flex';
         topRow.style.alignItems = 'center';
-        topRow.style.gap = '12px';
+        topRow.style.justifyContent = 'space-between';
+        topRow.style.gap = '10px';
+
+        const infoLeft = document.createElement('div');
+        infoLeft.style.display = 'flex';
+        infoLeft.style.alignItems = 'center';
+        infoLeft.style.gap = '10px';
+        infoLeft.style.flex = '1 1 auto';
+        infoLeft.style.minWidth = '0';
 
         // Document icon
-        const icon = document.createElement('div');
-        icon.style.flexShrink = '0';
-        icon.style.opacity = '0.7';
-        icon.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>';
-        topRow.appendChild(icon);
+        const iconBox = document.createElement('div');
+        iconBox.style.width = '24px';
+        iconBox.style.height = '24px';
+        iconBox.style.display = 'flex';
+        iconBox.style.alignItems = 'center';
+        iconBox.style.justifyContent = 'center';
+        iconBox.style.flexShrink = '0';
+        iconBox.style.color = 'var(--chrome-secondary-fg, #5f6368)';
+        iconBox.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>';
+        infoLeft.appendChild(iconBox);
 
         const textCol = document.createElement('div');
         textCol.style.flex = '1 1 auto';
@@ -134,7 +161,8 @@ export function renderDownloadPanel(payload) {
 
         const name = document.createElement('div');
         name.style.fontSize = '13px';
-        name.style.fontWeight = '500';
+        name.style.fontWeight = '400';
+        name.style.color = 'var(--chrome-fg, #202124)';
         name.style.whiteSpace = 'nowrap';
         name.style.overflow = 'hidden';
         name.style.textOverflow = 'ellipsis';
@@ -143,10 +171,10 @@ export function renderDownloadPanel(payload) {
         textCol.appendChild(name);
 
         const sub = document.createElement('div');
-        sub.style.fontSize = '11.5px';
-        sub.style.opacity = '0.65';
+        sub.style.fontSize = '11px';
+        sub.style.color = 'var(--chrome-secondary-fg, #5f6368)';
         sub.style.marginTop = '2px';
-        const isPaused = item.state === 'paused';
+        const isPaused = item.state === 'paused' || item.state === 'interrupted';
         const received = Number(item.receivedBytes) || 0;
         const total = Number(item.totalBytes) || 0;
         const speed = formatSpeed(item.speedBytesPerSec);
@@ -160,13 +188,14 @@ export function renderDownloadPanel(payload) {
             sub.textContent = `${formatBytes(received)} downloaded${speed ? ' • ' + speed : ''}`;
         }
         textCol.appendChild(sub);
-        topRow.appendChild(textCol);
+        infoLeft.appendChild(textCol);
+        topRow.appendChild(infoLeft);
 
         // Actions: Pause/Resume and Cancel
         const actions = document.createElement('div');
         actions.style.display = 'flex';
         actions.style.alignItems = 'center';
-        actions.style.gap = '6px';
+        actions.style.gap = '2px';
         actions.style.flexShrink = '0';
 
         // Pause/Resume button
@@ -176,14 +205,24 @@ export function renderDownloadPanel(payload) {
         pauseBtn.style.background = 'transparent';
         pauseBtn.style.border = 'none';
         pauseBtn.style.cursor = 'pointer';
-        pauseBtn.style.color = 'inherit';
-        pauseBtn.style.padding = '4px';
+        pauseBtn.style.color = 'var(--chrome-secondary-fg, #5f6368)';
+        pauseBtn.style.padding = '4px 6px';
+        pauseBtn.style.borderRadius = '6px';
         pauseBtn.style.display = 'flex';
         pauseBtn.style.alignItems = 'center';
         pauseBtn.style.justifyContent = 'center';
+        pauseBtn.style.transition = 'background-color 0.15s ease';
         pauseBtn.innerHTML = isPaused
             ? '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>'
             : '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>';
+        pauseBtn.onmouseenter = (e) => {
+            e.stopPropagation();
+            pauseBtn.style.backgroundColor = 'var(--chrome-tab-hover-bg, rgba(0, 0, 0, 0.08))';
+        };
+        pauseBtn.onmouseleave = (e) => {
+            e.stopPropagation();
+            pauseBtn.style.backgroundColor = 'transparent';
+        };
         pauseBtn.onclick = (e) => {
             e.stopPropagation();
             notifyHost({
@@ -201,13 +240,22 @@ export function renderDownloadPanel(payload) {
         cancelBtn.style.background = 'transparent';
         cancelBtn.style.border = 'none';
         cancelBtn.style.cursor = 'pointer';
-        cancelBtn.style.color = 'inherit';
-        cancelBtn.style.opacity = '0.75';
-        cancelBtn.style.padding = '4px';
+        cancelBtn.style.color = 'var(--chrome-secondary-fg, #5f6368)';
+        cancelBtn.style.padding = '4px 6px';
+        cancelBtn.style.borderRadius = '6px';
         cancelBtn.style.display = 'flex';
         cancelBtn.style.alignItems = 'center';
         cancelBtn.style.justifyContent = 'center';
-        cancelBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>';
+        cancelBtn.style.transition = 'background-color 0.15s ease';
+        cancelBtn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>';
+        cancelBtn.onmouseenter = (e) => {
+            e.stopPropagation();
+            cancelBtn.style.backgroundColor = 'var(--chrome-tab-hover-bg, rgba(0, 0, 0, 0.08))';
+        };
+        cancelBtn.onmouseleave = (e) => {
+            e.stopPropagation();
+            cancelBtn.style.backgroundColor = 'transparent';
+        };
         cancelBtn.onclick = (e) => {
             e.stopPropagation();
             notifyHost({
@@ -225,7 +273,7 @@ export function renderDownloadPanel(payload) {
         const track = document.createElement('div');
         track.style.width = '100%';
         track.style.height = '3.5px';
-        track.style.background = 'var(--chrome-tab-separator, rgba(128,128,128,0.2))';
+        track.style.background = 'var(--chrome-tab-separator, rgba(128, 128, 128, 0.2))';
         track.style.borderRadius = '2px';
         track.style.overflow = 'hidden';
         track.style.marginTop = '2px';
@@ -246,30 +294,54 @@ export function renderDownloadPanel(payload) {
     // Render recent history items
     historyList.forEach((item) => {
         const row = document.createElement('div');
-        row.style.padding = '10px 16px';
+        row.style.padding = '7px 8px';
+        row.style.borderRadius = '8px';
+        row.style.margin = '2px 0';
         row.style.display = 'flex';
         row.style.alignItems = 'center';
-        row.style.gap = '12px';
-        row.style.borderBottom = '1px solid var(--chrome-tab-separator, rgba(128,128,128,0.08))';
+        row.style.justifyContent = 'space-between';
+        row.style.gap = '10px';
+        row.style.border = 'none';
+        row.style.transition = 'background-color 0.15s ease';
+        row.style.position = 'relative';
+        row.style.userSelect = 'none';
+        row.style.webkitUserSelect = 'none';
 
-        const icon = document.createElement('div');
-        icon.style.flexShrink = '0';
-        icon.style.opacity = '0.6';
-        icon.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>';
-        row.appendChild(icon);
-
-        const textCol = document.createElement('div');
-        textCol.style.flex = '1 1 auto';
-        textCol.style.minWidth = '0';
+        row.onmouseenter = () => { row.style.backgroundColor = 'var(--chrome-tab-hover-bg, rgba(0, 0, 0, 0.05))'; };
+        row.onmouseleave = () => { row.style.backgroundColor = 'transparent'; };
 
         const isCompleted = item.state === 'completed';
         const isDeleted = isCompleted && item.fileExists === false;
         const isCancelled = item.state === 'cancelled';
         const isFailed = item.state === 'failed';
 
+        // Left info container (icon + text)
+        const infoLeft = document.createElement('div');
+        infoLeft.style.display = 'flex';
+        infoLeft.style.alignItems = 'center';
+        infoLeft.style.gap = '10px';
+        infoLeft.style.flex = '1 1 auto';
+        infoLeft.style.minWidth = '0';
+
+        const iconBox = document.createElement('div');
+        iconBox.style.width = '24px';
+        iconBox.style.height = '24px';
+        iconBox.style.display = 'flex';
+        iconBox.style.alignItems = 'center';
+        iconBox.style.justifyContent = 'center';
+        iconBox.style.flexShrink = '0';
+        iconBox.style.color = 'var(--chrome-secondary-fg, #5f6368)';
+        iconBox.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>';
+        infoLeft.appendChild(iconBox);
+
+        const textCol = document.createElement('div');
+        textCol.style.flex = '1 1 auto';
+        textCol.style.minWidth = '0';
+
         const name = document.createElement('div');
         name.style.fontSize = '13px';
-        name.style.fontWeight = '500';
+        name.style.fontWeight = '400';
+        name.style.color = 'var(--chrome-fg, #202124)';
         name.style.whiteSpace = 'nowrap';
         name.style.overflow = 'hidden';
         name.style.textOverflow = 'ellipsis';
@@ -282,8 +354,8 @@ export function renderDownloadPanel(payload) {
         textCol.appendChild(name);
 
         const sub = document.createElement('div');
-        sub.style.fontSize = '11.5px';
-        sub.style.opacity = '0.6';
+        sub.style.fontSize = '11px';
+        sub.style.color = 'var(--chrome-secondary-fg, #5f6368)';
         sub.style.marginTop = '2px';
         const sizeStr = formatBytes(item.receivedBytes || item.totalBytes);
         if (isDeleted) {
@@ -296,14 +368,13 @@ export function renderDownloadPanel(payload) {
             sub.textContent = 'Failed';
         }
         textCol.appendChild(sub);
-        row.appendChild(textCol);
+        infoLeft.appendChild(textCol);
+        row.appendChild(infoLeft);
 
         // Click on the item itself opens it in default OS software
         if (isCompleted && !isDeleted && item.savePath) {
             row.style.cursor = 'pointer';
             row.title = `Open ${item.filename || 'file'}`;
-            row.onmouseenter = () => { row.style.background = 'var(--chrome-tab-hover-bg, rgba(128,128,128,0.08))'; };
-            row.onmouseleave = () => { row.style.background = 'transparent'; };
             row.onclick = () => {
                 hideAll({ hideLens: false });
                 notifyHost({
@@ -318,7 +389,7 @@ export function renderDownloadPanel(payload) {
         const actions = document.createElement('div');
         actions.style.display = 'flex';
         actions.style.alignItems = 'center';
-        actions.style.gap = '6px';
+        actions.style.gap = '2px';
         actions.style.flexShrink = '0';
 
         if (isCompleted && !isDeleted && item.savePath) {
@@ -328,13 +399,22 @@ export function renderDownloadPanel(payload) {
             folderBtn.style.background = 'transparent';
             folderBtn.style.border = 'none';
             folderBtn.style.cursor = 'pointer';
-            folderBtn.style.color = 'inherit';
-            folderBtn.style.opacity = '0.7';
-            folderBtn.style.padding = '4px';
+            folderBtn.style.color = 'var(--chrome-secondary-fg, #5f6368)';
+            folderBtn.style.padding = '4px 6px';
+            folderBtn.style.borderRadius = '6px';
             folderBtn.style.display = 'flex';
             folderBtn.style.alignItems = 'center';
             folderBtn.style.justifyContent = 'center';
+            folderBtn.style.transition = 'background-color 0.15s ease';
             folderBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>';
+            folderBtn.onmouseenter = (e) => {
+                e.stopPropagation();
+                folderBtn.style.backgroundColor = 'var(--chrome-tab-hover-bg, rgba(0, 0, 0, 0.08))';
+            };
+            folderBtn.onmouseleave = (e) => {
+                e.stopPropagation();
+                folderBtn.style.backgroundColor = 'transparent';
+            };
             folderBtn.onclick = (e) => {
                 e.stopPropagation();
                 notifyHost({
@@ -351,13 +431,22 @@ export function renderDownloadPanel(payload) {
             retryBtn.style.background = 'transparent';
             retryBtn.style.border = 'none';
             retryBtn.style.cursor = 'pointer';
-            retryBtn.style.color = 'inherit';
-            retryBtn.style.opacity = '0.7';
-            retryBtn.style.padding = '4px';
+            retryBtn.style.color = 'var(--chrome-secondary-fg, #5f6368)';
+            retryBtn.style.padding = '4px 6px';
+            retryBtn.style.borderRadius = '6px';
             retryBtn.style.display = 'flex';
             retryBtn.style.alignItems = 'center';
             retryBtn.style.justifyContent = 'center';
+            retryBtn.style.transition = 'background-color 0.15s ease';
             retryBtn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>';
+            retryBtn.onmouseenter = (e) => {
+                e.stopPropagation();
+                retryBtn.style.backgroundColor = 'var(--chrome-tab-hover-bg, rgba(0, 0, 0, 0.08))';
+            };
+            retryBtn.onmouseleave = (e) => {
+                e.stopPropagation();
+                retryBtn.style.backgroundColor = 'transparent';
+            };
             retryBtn.onclick = (e) => {
                 e.stopPropagation();
                 notifyHost({
@@ -375,43 +464,51 @@ export function renderDownloadPanel(payload) {
 
     DOM.panel.appendChild(body);
 
-    // 3. Footer: "Full Download History"
-    const footer = document.createElement('button');
-    footer.type = 'button';
-    footer.style.display = 'flex';
-    footer.style.alignItems = 'center';
-    footer.style.justifyContent = 'space-between';
-    footer.style.width = '100%';
-    footer.style.padding = '12px 16px';
-    footer.style.background = 'transparent';
-    footer.style.border = 'none';
-    footer.style.borderTop = '1px solid var(--chrome-tab-separator, rgba(128,128,128,0.15))';
-    footer.style.color = 'inherit';
-    footer.style.fontSize = '13px';
-    footer.style.fontWeight = '500';
-    footer.style.cursor = 'pointer';
-    footer.style.transition = 'background 0.15s ease';
+    // 3. Footer: "Full Download History" styled identically to "Manage Extensions"
+    const footer = document.createElement('div');
+    footer.style.borderTop = '1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.08))';
+    footer.style.padding = '4px 6px';
+    footer.style.flexShrink = '0';
+    footer.style.userSelect = 'none';
+    footer.style.webkitUserSelect = 'none';
+    footer.style.backgroundColor = 'var(--chrome-nav-bg, #ffffff)';
+
+    const historyBtn = document.createElement('button');
+    historyBtn.type = 'button';
+    historyBtn.style.display = 'flex';
+    historyBtn.style.alignItems = 'center';
+    historyBtn.style.justifyContent = 'space-between';
+    historyBtn.style.width = '100%';
+    historyBtn.style.padding = '8px 10px';
+    historyBtn.style.borderRadius = '8px';
+    historyBtn.style.border = 'none';
+    historyBtn.style.backgroundColor = 'transparent';
+    historyBtn.style.color = 'var(--chrome-fg, #202124)';
+    historyBtn.style.fontSize = '13px';
+    historyBtn.style.fontWeight = '500';
+    historyBtn.style.cursor = 'pointer';
+    historyBtn.style.transition = 'background-color 0.15s ease';
+    historyBtn.onmouseenter = () => { historyBtn.style.backgroundColor = 'var(--chrome-tab-hover-bg, rgba(0, 0, 0, 0.06))'; };
+    historyBtn.onmouseleave = () => { historyBtn.style.backgroundColor = 'transparent'; };
 
     const footerText = document.createElement('span');
     footerText.textContent = 'Full Download History';
 
     const footerIcon = document.createElement('span');
-    footerIcon.style.opacity = '0.6';
+    footerIcon.style.color = 'var(--chrome-secondary-fg, #5f6368)';
     footerIcon.style.display = 'flex';
     footerIcon.style.alignItems = 'center';
     footerIcon.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>';
 
-    footer.appendChild(footerText);
-    footer.appendChild(footerIcon);
+    historyBtn.appendChild(footerText);
+    historyBtn.appendChild(footerIcon);
 
-    footer.onmouseenter = () => { footer.style.background = 'var(--chrome-tab-hover-bg, rgba(128,128,128,0.1))'; };
-    footer.onmouseleave = () => { footer.style.background = 'transparent'; };
-
-    footer.onclick = () => {
+    historyBtn.onclick = () => {
         hideAll({ hideLens: false });
         notifyHost({ type: 'openDownloadsPage' });
     };
 
+    footer.appendChild(historyBtn);
     DOM.panel.appendChild(footer);
 
     DOM.backdrop.classList.add('co-visible');

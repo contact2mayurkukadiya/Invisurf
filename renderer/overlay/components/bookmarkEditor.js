@@ -5,7 +5,7 @@ import { getCompactMenuMetrics, toCompactMenuPoint } from '../utils/dom.js';
 export function renderBookmarkEditor(payload) {
     hideAll({ hideLens: false });
     const ar = payload.anchorRect || {};
-    const panelWidth = Math.min(340, Math.max(280, window.innerWidth - 16));
+    const panelWidth = Math.min(320, Math.max(280, window.innerWidth - 16));
     const left0 = Math.round(Number(ar.left) || 0);
     const top0 = Math.round(Number(ar.top) || 0);
     const w0 = Math.max(1, Math.round(Number(ar.width) || 32));

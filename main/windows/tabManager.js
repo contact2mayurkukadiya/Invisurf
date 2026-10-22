@@ -224,6 +224,7 @@ function activateTabInContext(context, id) {
         lensManager.suspendLensSessionPresentation(context, context.activeTabId);
         overlayManager.dismissChromeShellMenuOverlay(context, 'browser-action');
         overlayManager.hideStatusBubble(context);
+        overlayManager.hideExtensionPopup(context);
     }
     const skipSameTab =
         context.activeTabId === id &&
@@ -262,6 +263,28 @@ function activateTabInContext(context, id) {
         context.tabs[id]._invisurfSyncOverscrollHistoryState();
     }
 
+    try {
+        const { getIpcBridge } = require('../extensions/compat/IpcBridge');
+        const activeWc = context.tabs[id]?.webContents;
+        if (activeWc && !activeWc.isDestroyed()) {
+            getIpcBridge().broadcastToAllExtensions('chrome.tabs.onActivated', [{
+                tabId: activeWc.id,
+                windowId: context.window?.id || 1,
+            }]);
+        }
+    } catch (_) { }
+
+    try {
+        const { getIpcBridge } = require('../extensions/compat/IpcBridge');
+        const activeWc = context.tabs[id]?.webContents;
+        if (activeWc && !activeWc.isDestroyed()) {
+            getIpcBridge().broadcastToAllExtensions('chrome.tabs.onActivated', [{
+                tabId: activeWc.id,
+                windowId: context.window?.id || 1,
+            }]);
+        }
+    } catch (_) { }
+
     const activeUrl = context.tabs[id]?.webContents.getURL() ?? '';
     const blankActive = isBlankTab(activeUrl);
     if (!blankActive && !context.isInitialGhostSpawn) {
@@ -298,8 +321,19 @@ function activateTabInContext(context, id) {
     return true;
 }
 
-function activateTab(id) {
-    const context = getWindowContextByTabId(id) || getWindowContextForShellFallback();
+function activateTab(contextOrId, maybeId) {
+    let context = null;
+    let id = null;
+    if (maybeId !== undefined) {
+        context = contextOrId;
+        id = maybeId;
+    } else {
+        id = contextOrId;
+        context = getWindowContextByTabId(id) || getWindowContextForShellFallback();
+    }
+    if (context && id && !context.tabs[id] && context.sleepingTabs?.[id]) {
+        return activateOrWakeTab(id);
+    }
     return activateTabInContext(context, id);
 }
 
@@ -642,6 +676,35 @@ function installDevToolsTypographyOnOpen(webContents) {
         const devTools = webContents.devToolsWebContents;
         if (!devTools || devTools.isDestroyed()) return;
         devTools.insertCSS(buildDevToolsTypographyCss(), { cssOrigin: 'user' }).catch(() => { });
+
+        const patchDevToolsFrames = async () => {
+            try {
+                if (!devTools || devTools.isDestroyed()) return;
+                const frames = devTools.mainFrame ? devTools.mainFrame.framesInSubtree : [];
+                for (const frame of frames) {
+                    if (frame.url && frame.url.includes('chrome-extension://')) {
+                        frame.executeJavaScript(`
+                            try {
+                                if (window.chrome && window.chrome.devtools && window.chrome.devtools.inspectedWindow) {
+                                    if (!window.chrome.devtools.inspectedWindow.tabId || window.chrome.devtools.inspectedWindow.tabId === -1) {
+                                        Object.defineProperty(window.chrome.devtools.inspectedWindow, 'tabId', {
+                                            value: ${webContents.id},
+                                            configurable: true,
+                                            enumerable: true,
+                                            writable: true,
+                                        });
+                                    }
+                                }
+                            } catch (_) {}
+                        `).catch(() => { });
+                    }
+                }
+            } catch (_) { }
+        };
+
+        patchDevToolsFrames();
+        setTimeout(patchDevToolsFrames, 250);
+        setTimeout(patchDevToolsFrames, 1000);
     });
 }
 
@@ -693,6 +756,12 @@ function promotePrewarmedNtp(context, id) {
     view._invisurfSetTabId?.(id);
     context.tabs[id] = view;
     State.tabIdToWindowId.set(id, context.window.id);
+    if (!Array.isArray(context.tabOrder)) {
+        context.tabOrder = [];
+    }
+    if (!context.tabOrder.includes(id)) {
+        context.tabOrder.push(id);
+    }
     activateTabInContext(context, id);
 
     // Refill asynchronously.  A missed or failed prewarm always falls back to
@@ -712,16 +781,33 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
     console.log('url', url);
     const effectiveStealth = !!context.stealthWindow;
     const tabPartition = context.stealthWindow ? context.stealthTabsPartition : context.partition;
-    const { buildSecureWebPreferences } = require('../../runtime/webPreferences');
+    const { buildSecureWebPreferences, buildExtensionWebPreferences } = require('../../runtime/webPreferences');
     const { applyIdentityToWebContents } = require('../../runtime/browserIdentity');
     const { installSessionNetworkGuards, recordCompatEvent } = require('../services/networkService');
 
+    const isExtensionUrl = typeof url === 'string' && url.startsWith('chrome-extension://');
     const view = new WebContentsView({
-        webPreferences: buildSecureWebPreferences({ partition: tabPartition }),
+        webPreferences: isExtensionUrl
+            ? buildExtensionWebPreferences({ partition: tabPartition })
+            : buildSecureWebPreferences({ partition: tabPartition }),
     });
+    view._pendingUrl = url;
 
+    if (!context.tabs) {
+        context.tabs = {};
+    }
     context.tabs[id] = view;
-    State.tabIdToWindowId.set(id, context.window.id);
+    if (context.window && !context.window.isDestroyed()) {
+        State.tabIdToWindowId.set(id, context.window.id);
+    }
+    if (!options.prewarm) {
+        if (!Array.isArray(context.tabOrder)) {
+            context.tabOrder = [];
+        }
+        if (!context.tabOrder.includes(id)) {
+            context.tabOrder.push(id);
+        }
+    }
 
     if (State.appLogger) {
         State.appLogger.info('tab:create', {
@@ -754,6 +840,23 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
         view._invisurfPromoted = true;
     };
     resetTabWebContentsScale(view);
+    view.webContents.on('console-message', (event, level, message, line, sourceId) => {
+        if (message.includes('GFP') || message.includes('ScrollFinder') || message.includes('arrangements') || message.includes('GoFullPage') || message.includes('capture') || level >= 2) {
+            console.log(`[TAB-CONSOLE ${id}] [lvl=${level}] ${message}`);
+        }
+    });
+
+    try {
+        const { getIpcBridge } = require('../extensions/compat/IpcBridge');
+        if (view.webContents?.session) {
+            getIpcBridge().attachToSession(view.webContents.session);
+        }
+        const { getTabRegistry } = require('../extensions/compat/TabRegistry');
+        const tabObj = getTabRegistry().formatTab(context, id, view, view.webContents);
+        if (tabObj && (!options.prewarm || view._invisurfPromoted)) {
+            getIpcBridge().broadcastToAllExtensions('chrome.tabs.onCreated', [tabObj]);
+        }
+    } catch (_) { }
 
     const sendTabEvent = (channel, payload) => {
         // A detached prewarmed NTP is not a tab yet.  Its lifecycle events
@@ -775,6 +878,15 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
         State.webContentsIdToTabId.delete(webContentsNumericId);
         const { clearTabTopLevelRegisterableDomain } = require('../../runtime/sessionPolicy');
         clearTabTopLevelRegisterableDomain(webContentsNumericId);
+
+        try {
+            const { getIpcBridge } = require('../extensions/compat/IpcBridge');
+            getIpcBridge().broadcastToAllExtensions('chrome.tabs.onRemoved', [
+                webContentsNumericId,
+                { windowId: context?.window?.id || 1, isWindowClosing: false }
+            ]);
+            getIpcBridge().cleanupTab(webContentsNumericId);
+        } catch (_) { }
     });
 
     applyIdentityToWebContents(view.webContents);
@@ -945,6 +1057,17 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
             );
         }
 
+        try {
+            const { getContextMenuManager } = require('../extensions/compat/ContextMenuManager');
+            const { getTabRegistry } = require('../extensions/compat/TabRegistry');
+            const tabObj = getTabRegistry().formatTab(context, id, view, view.webContents);
+            const extMenuItems = getContextMenuManager().buildContextMenuItems(params, tabObj);
+            if (extMenuItems.length > 0) {
+                if (contextTemplate.length > 0) contextTemplate.push({ type: 'separator' });
+                contextTemplate.push(...extMenuItems);
+            }
+        } catch (_) { }
+
         if (contextTemplate.length > 0) contextTemplate.push({ type: 'separator' });
         contextTemplate.push({
             label: 'Inspect Element',
@@ -966,7 +1089,7 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
                 canGoBack: typeof nav.canGoBack === 'function' ? nav.canGoBack() : false,
                 canGoForward: typeof nav.canGoForward === 'function' ? nav.canGoForward() : false,
             });
-        } catch (_) {}
+        } catch (_) { }
     };
     view._invisurfSyncOverscrollHistoryState = syncOverscrollHistoryState;
 
@@ -981,7 +1104,7 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
                 if (!view.webContents.isDestroyed()) {
                     view.webContents.send(C.IPC_EVENT.OVERSCROLL_GESTURE_BEGIN);
                 }
-            } catch (_) {}
+            } catch (_) { }
         } else if (input.type === 'gestureScrollEnd' || input.type === 'gestureFlingStart') {
             const now = Date.now();
             if (now - lastFingerLiftTime < 50) return;
@@ -990,7 +1113,7 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
                 if (!view.webContents.isDestroyed()) {
                     view.webContents.send(C.IPC_EVENT.OVERSCROLL_FINGER_LIFTED);
                 }
-            } catch (_) {}
+            } catch (_) { }
         }
     });
 
@@ -1015,6 +1138,7 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
     });
 
     view.webContents.on('page-favicon-updated', (e, favicons) => {
+        view._favicon = favicons[0] || null;
         if (!context.window || context.window.isDestroyed() || context.window.webContents.isDestroyed()) return;
         const { toDisplayUrl } = require('../utils/navigation');
         sendTabEvent(C.IPC_EVENT.TAB_UPDATE, { id, favicon: favicons[0] || null, url: toDisplayUrl(view.webContents.getURL()) });
@@ -1037,10 +1161,71 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
         sendTabEvent(C.IPC_EVENT.TAB_UPDATE, { id, isLoading: false, url: toDisplayUrl(view.webContents.getURL()) });
     });
 
+    view.webContents.on('dom-ready', () => {
+        try {
+            const currentUrl = view.webContents.getURL() || '';
+            if (currentUrl.includes('chromewebstore.google.com') || currentUrl.includes('chrome.google.com/webstore')) {
+                const { WEBSTORE_INJECTION_CODE } = require('../../runtime/webstoreScript');
+                view.webContents.executeJavaScript(WEBSTORE_INJECTION_CODE).catch(() => { });
+            }
+            const { getExtensionController } = require('../extensions/ExtensionController');
+            void getExtensionController().injectContentScriptsForTab(context, id, currentUrl, 'document_idle');
+
+            try {
+                const { getScriptingManager } = require('../extensions/compat/ScriptingManager');
+                void getScriptingManager().injectMatchingScripts(webContentsNumericId, currentUrl, view.webContents, 'document_idle');
+            } catch (_) { }
+
+            try {
+                const { getWebNavigationManager } = require('../extensions/compat/WebNavigationManager');
+                getWebNavigationManager().onDOMContentLoaded(webContentsNumericId, currentUrl);
+            } catch (_) { }
+        } catch (_) { }
+    });
+
+    view.webContents.on('did-start-navigation', (event, navUrl) => {
+        try {
+            view._pendingUrl = navUrl;
+            const { getWebNavigationManager } = require('../extensions/compat/WebNavigationManager');
+            getWebNavigationManager().onBeforeNavigate(webContentsNumericId, navUrl);
+        } catch (_) { }
+    });
+
     view.webContents.on('did-finish-load', () => {
         resetTabWebContentsScale(view);
         syncOverscrollHistoryState();
         const loadedUrl = view.webContents.getURL();
+
+        try {
+            const { getWebNavigationManager } = require('../extensions/compat/WebNavigationManager');
+            getWebNavigationManager().onCompleted(webContentsNumericId, loadedUrl);
+        } catch (_) { }
+
+        try {
+            const { getScriptingManager } = require('../extensions/compat/ScriptingManager');
+            getScriptingManager().injectMatchingScripts(webContentsNumericId, loadedUrl, view.webContents);
+        } catch (_) { }
+
+        try {
+            const { getIpcBridge } = require('../extensions/compat/IpcBridge');
+            const { getTabRegistry } = require('../extensions/compat/TabRegistry');
+            const tabObj = getTabRegistry().formatTab(context, id, view, view.webContents);
+            if (tabObj) {
+                getIpcBridge().broadcastToAllExtensions('chrome.tabs.onUpdated', [
+                    webContentsNumericId,
+                    { status: 'complete', url: loadedUrl },
+                    tabObj
+                ]);
+            }
+        } catch (_) { }
+
+        if (loadedUrl && (loadedUrl.includes('chromewebstore.google.com') || loadedUrl.includes('chrome.google.com/webstore'))) {
+            try {
+                const { WEBSTORE_INJECTION_CODE } = require('../../runtime/webstoreScript');
+                view.webContents.executeJavaScript(WEBSTORE_INJECTION_CODE).catch(() => { });
+            } catch (_) { }
+        }
+
         if (context.activeTabId !== id) return;
 
         if (shouldReassertOmniboxAfterPageLoad(loadedUrl)) {
@@ -1073,6 +1258,31 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
         }
         recordCompatEvent(id, { type: 'navigated', url: displayUrl, rawUrl: targetUrl });
         sendTabEvent(C.IPC_EVENT.URL_CHANGED, { id, url: displayUrl });
+
+        try {
+            const { getIpcBridge } = require('../extensions/compat/IpcBridge');
+            const { getTabRegistry } = require('../extensions/compat/TabRegistry');
+            const tabObj = getTabRegistry().formatTab(context, id, view, view.webContents);
+            if (tabObj) {
+                getIpcBridge().broadcastToAllExtensions('chrome.tabs.onUpdated', [
+                    webContentsNumericId,
+                    { status: 'loading', url: targetUrl },
+                    tabObj
+                ]);
+            }
+        } catch (_) { }
+
+        try {
+            const { getWebNavigationManager } = require('../extensions/compat/WebNavigationManager');
+            getWebNavigationManager().onCommitted(webContentsNumericId, targetUrl);
+        } catch (_) { }
+
+        try {
+            const { getExtensionController } = require('../extensions/ExtensionController');
+            void getExtensionController().injectContentScriptsForTab(context, id, targetUrl, 'document_start');
+            const { getScriptingManager } = require('../extensions/compat/ScriptingManager');
+            void getScriptingManager().injectMatchingScripts(webContentsNumericId, targetUrl, view.webContents, 'document_start');
+        } catch (_) { }
         if (!effectiveStealth && !targetUrl.startsWith('data:') && !isInternalPageUrl(targetUrl)) {
             if (State.historyService) {
                 State.historyService.recordVisit(context.profileId, {
@@ -1101,6 +1311,12 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
             });
         }
         sendTabEvent(C.IPC_EVENT.URL_CHANGED, { id, url: displayUrl });
+        if (targetUrl && (targetUrl.includes('chromewebstore.google.com') || targetUrl.includes('chrome.google.com/webstore'))) {
+            try {
+                const { WEBSTORE_INJECTION_CODE } = require('../../runtime/webstoreScript');
+                view.webContents.executeJavaScript(WEBSTORE_INJECTION_CODE).catch(() => { });
+            } catch (_) { }
+        }
         if (!effectiveStealth && !targetUrl.startsWith('data:') && !isInternalPageUrl(targetUrl)) {
             if (State.historyService) {
                 State.historyService.recordVisit(context.profileId, {
@@ -1117,6 +1333,12 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
 
     view.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
         if (!isMainFrame) return;
+
+        try {
+            const { getWebNavigationManager } = require('../extensions/compat/WebNavigationManager');
+            getWebNavigationManager().onErrorOccurred(webContentsNumericId, validatedURL, errorDescription);
+        } catch (_) { }
+
         if (errorCode === -3) {
             // net::ERR_ABORTED: Navigation was cancelled/aborted (e.g. user pressed Cmd+R or stopped navigation).
             // Re-assert current URL and stop loading state so the omnibox and UI synchronize.
@@ -1188,11 +1410,13 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
         }).catch((err) => {
             console.warn('Failed to restore tab navigation history:', err?.message || err);
             if (!view.webContents.isDestroyed()) {
-                view.webContents.loadURL(resolveTabLoadUrl(url));
+                view._pendingUrl = resolveTabLoadUrl(url);
+                view.webContents.loadURL(view._pendingUrl);
             }
         });
     } else {
-        view.webContents.loadURL(resolveTabLoadUrl(url));
+        view._pendingUrl = resolveTabLoadUrl(url);
+        view.webContents.loadURL(view._pendingUrl);
     }
 
     if (shouldActivate) {
@@ -1203,6 +1427,94 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
     if (!options.prewarm && isBlankNtp) {
         setImmediate(() => prewarmNewTabView(context));
     }
+}
+
+function closeTab(context, id, options = {}) {
+    if (!context || !id) return false;
+    const overlayManager = require('./overlayManager');
+    const sessionService = require('../services/sessionService');
+    const lensManager = require('./lensManager');
+    const compatDiagnostics = require('../../compatibilityDiagnostics');
+
+    overlayManager.dismissChromeShellMenuOverlay(context, 'browser-action');
+
+    const tabSnapshot = sessionService.captureClosedTabSnapshot(context, id);
+    if (State.appLogger) {
+        State.appLogger.info('tab:close', { windowId: context.windowId, profileId: context.profileId, tabId: id, captured: !!tabSnapshot, url: tabSnapshot?.url || null });
+    }
+
+    delete context.sleepingTabs[id];
+
+    if (State.detachedTabWindows.has(id)) {
+        const w = State.detachedTabWindows.get(id);
+        if (w && !w.isDestroyed()) w.close();
+        return true;
+    }
+
+    const closeWindowIfLast = options.closeWindowIfLast === true;
+    const totalTabsRemaining = Object.keys(context.tabs).length + Object.keys(context.sleepingTabs).length;
+    const willCloseWindow = closeWindowIfLast && totalTabsRemaining <= 1;
+
+    if (context.tabs[id]) {
+        const view = context.tabs[id];
+        removeTabContentChildView(context, view);
+        if (view.webContents && !view.webContents.isDestroyed()) {
+            view.webContents.destroy();
+        }
+        delete context.tabs[id];
+        State.tabIdToWindowId.delete(id);
+        if (Array.isArray(context.tabOrder)) {
+            context.tabOrder = context.tabOrder.filter(tid => tid !== id);
+        }
+        lensManager.destroyLensSession(context, id);
+        if (context.activeTabId === id) context.activeTabId = null;
+    }
+    State.pendingTransitionsByTab.delete(String(id));
+    if (State.historyService) State.historyService.clearTab(id);
+    compatDiagnostics.clear(id);
+
+    if (willCloseWindow) {
+        let windowBounds = null;
+        try {
+            if (context.window && !context.window.isDestroyed()) {
+                windowBounds = context.window.getBounds();
+            }
+        } catch (_) { }
+
+        const windowSnapshot = {
+            type: 'window',
+            profileId: context.profileId,
+            ghostWindow: !!context.ghostWindow,
+            bounds: windowBounds,
+            tabs: tabSnapshot ? [tabSnapshot] : (context.ghostWindow ? [{ id, title: 'Ghost Window', url: '' }] : []),
+            activeTabId: id,
+        };
+        sessionService.pushRecentlyClosedEntry(context.profileId, windowSnapshot);
+        context._closedWindowSnapshotPushed = true;
+    } else if (tabSnapshot) {
+        sessionService.pushRecentlyClosedEntry(context.profileId, {
+            type: 'tab',
+            title: tabSnapshot.title,
+            url: tabSnapshot.url,
+            history: tabSnapshot.history,
+            ghostWindow: !!context.ghostWindow,
+        });
+    }
+
+    // Notify the renderer shell so Redux state and tab strip UI remove the tab
+    if (context.window && !context.window.isDestroyed() && context.window.webContents && !context.window.webContents.isDestroyed()) {
+        context.window.webContents.send('tab-closed-external', { id });
+    }
+
+    const tabsRemaining = Object.keys(context.tabs).length + Object.keys(context.sleepingTabs).length;
+    if (closeWindowIfLast && tabsRemaining === 0) {
+        try {
+            if (!context.window.isDestroyed()) context.window.close();
+        } catch (err) {
+            if (State.appLogger) State.appLogger.error('tab:close:close-window', { windowId: context.windowId, error: State.appLogger.serializeError(err) });
+        }
+    }
+    return true;
 }
 
 module.exports = {
@@ -1239,5 +1551,6 @@ module.exports = {
     zoomOutActiveTab,
     resetZoomActiveTab,
     prewarmNewTabView,
-    createTab
+    createTab,
+    closeTab
 };

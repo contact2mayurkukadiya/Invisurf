@@ -220,5 +220,61 @@ describe('DownloadService', () => {
       fs.unlinkSync(realFile);
     });
   });
+
+  describe('broadcastDownloadEvent', () => {
+    test('broadcasts download events to window webContents and all tab webContents', () => {
+      const State = require('../../../main/state');
+      const messagesSentWindow = [];
+      const messagesSentTab = [];
+
+      const mockTab = {
+        webContents: {
+          isDestroyed: () => false,
+          send: (channel, data) => messagesSentTab.push({ channel, data }),
+        },
+      };
+
+      const mockContext = {
+        window: {
+          isDestroyed: () => false,
+          webContents: {
+            isDestroyed: () => false,
+            send: (channel, data) => messagesSentWindow.push({ channel, data }),
+          },
+        },
+        tabs: {
+          'tab-1': mockTab,
+        },
+      };
+
+      State.windowContextsById.set('mock-win-1', mockContext);
+
+      downloadService.broadcastDownloadEvent('downloads:progress', { id: 'dl-test', percent: 50 });
+
+      assert.equal(messagesSentWindow.length, 1);
+      assert.equal(messagesSentWindow[0].channel, 'downloads:progress');
+      assert.equal(messagesSentWindow[0].data.percent, 50);
+
+      assert.equal(messagesSentTab.length, 1);
+      assert.equal(messagesSentTab[0].channel, 'downloads:progress');
+      assert.equal(messagesSentTab[0].data.percent, 50);
+
+      State.windowContextsById.delete('mock-win-1');
+    });
+  });
+
+  describe('pauseDownload & resumeDownload', () => {
+    test('pauseDownload returns error when download is not active', () => {
+      const result = downloadService.pauseDownload('non-existent-id');
+      assert.equal(result.success, false);
+      assert.ok(result.error);
+    });
+
+    test('resumeDownload returns error when download is not active', () => {
+      const result = downloadService.resumeDownload('non-existent-id');
+      assert.equal(result.success, false);
+      assert.ok(result.error);
+    });
+  });
 });
 

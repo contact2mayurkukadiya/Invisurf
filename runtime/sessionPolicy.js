@@ -408,6 +408,11 @@ function installSessionPolicy(targetSession, deps) {
     });
 
     targetSession.webRequest.onBeforeRequest((details, callback) => {
+        if (!details.url || details.url.startsWith('chrome-extension://') || details.url.startsWith('app://') || details.url.startsWith('file://') || details.url.startsWith('devtools://')) {
+            callback({});
+            return;
+        }
+
         if (details.resourceType === deps.resourceTypeMainFrame && details.webContentsId != null) {
             const domain = safeHostname(details.url);
             const topLevelRd = getRegisterableDomain(domain);

@@ -2,6 +2,7 @@ import HistoryProvider from './providers/HistoryProvider.js';
 import SearchSuggestionsProvider from './providers/SearchSuggestionsProvider.js';
 import BookmarkProvider from './providers/BookmarkProvider.js';
 import KeywordProvider from './providers/KeywordProvider.js';
+import ExtensionOmniboxProvider from './providers/ExtensionOmniboxProvider.js';
 import { OMNIBOX_SUGGESTION } from '../../constants/conditionStrings.js';
 
 const MAX_SUGGESTIONS = 8;
@@ -27,6 +28,7 @@ export default class AutocompleteController {
     this._search = new SearchSuggestionsProvider();
     this._bookmarks = new BookmarkProvider();
     this._keywords = new KeywordProvider();
+    this._extension = new ExtensionOmniboxProvider();
 
     /** @type {Array} */
     this._lockedResults = null;
@@ -71,6 +73,7 @@ export default class AutocompleteController {
     // Fire all providers; history is near-sync so UI responds immediately
     Promise.all([
       this._history.getSuggestions(inputText).then(publish),
+      this._extension.getSuggestions(inputText).then(publish),
       this._keywords.getSuggestions(inputText).then(publish),
       this._bookmarks.getSuggestions(inputText).then(publish),
       this._search.getSuggestions(inputText).then(publish),

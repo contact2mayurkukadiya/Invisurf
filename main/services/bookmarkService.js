@@ -186,6 +186,24 @@ function updateBookmark(profileId, payload = {}) {
     return false;
 }
 
+function countBookmarks(profileId) {
+    const data = loadBookmarks(profileId);
+    let count = 0;
+    function traverse(nodes) {
+        if (!Array.isArray(nodes)) return;
+        for (const node of nodes) {
+            if (!node) continue;
+            if (Array.isArray(node.children) && node.children.length > 0) {
+                traverse(node.children);
+            } else if (node.url || (node.type && node.type !== 'folder')) {
+                count++;
+            }
+        }
+    }
+    traverse([...(data.bar || []), ...(data.other || []), ...(data.mobile || [])]);
+    return count;
+}
+
 module.exports = {
     getBookmarksPath,
     loadBookmarks,
@@ -195,4 +213,5 @@ module.exports = {
     searchBookmarks,
     deleteBookmarks,
     updateBookmark,
+    countBookmarks,
 };

@@ -8,7 +8,7 @@ import { getCompactMenuMetrics, toCompactMenuPoint } from '../utils/dom.js';
 // panel (same DOM.panel element, same CSS tokens, same backdrop).
 // ---------------------------------------------------------------------------
 
-const PANEL_WIDTH = 260;
+const PANEL_WIDTH = 320;
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 

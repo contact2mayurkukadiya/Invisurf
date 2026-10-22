@@ -5,7 +5,8 @@ const fs = require('fs');
 
 // Scheme must be registered synchronously before the app is ready (CRITICAL FIX FOR WHITE SCREEN)
 protocol.registerSchemesAsPrivileged([
-    { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: false } }
+    { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: false } },
+    { scheme: 'invisurf-ext', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, allowServiceWorkers: true, bypassCSP: true } }
 ]);
 
 const encryption = require('../encryption');
@@ -72,6 +73,10 @@ app.whenReady().then(async () => {
     const { getPermissionController } = require('./permissions/PermissionController');
     getPermissionController().registerSession(session.defaultSession, { profileId: State.defaultProfileId, isIncognito: false });
     downloadService.registerSession(session.defaultSession, { profileId: State.defaultProfileId, isStealth: false });
+    const { initExtensionCompatLayer } = require('./extensions/compat');
+    initExtensionCompatLayer();
+    const { getExtensionController } = require('./extensions/ExtensionController');
+    void getExtensionController().registerSession(State.defaultProfileId, session.defaultSession);
     logStartupIdentity(app, State.appLogger);
 
     settingsService.applyColorThemeFromSettings();
@@ -96,6 +101,7 @@ app.whenReady().then(async () => {
                 p.avatarSource = profile.avatarSource === 'preset' || profile.avatarSource === 'upload' ? profile.avatarSource : null;
             }
         }
+        profileService.saveProfiles();
     } else {
         profileService.ensureProfile(`profile-${crypto.randomUUID()}`, 'Default');
         profileService.saveProfiles();

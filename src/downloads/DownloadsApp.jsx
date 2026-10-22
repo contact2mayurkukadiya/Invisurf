@@ -142,35 +142,45 @@ export default function DownloadsApp() {
     try {
       setActiveDownloads((prev) => prev.filter((d) => d.id !== id));
       await window.electronAPI?.downloadsCancel?.(id);
+      await fetchDownloads();
     } catch (e) {
       console.error('Failed to cancel download:', e);
     }
-  }, []);
+  }, [fetchDownloads]);
 
   const handlePause = useCallback(async (id) => {
     try {
+      setActiveDownloads((prev) =>
+        prev.map((d) => (d.id === id ? { ...d, state: 'paused', speedBytesPerSec: 0 } : d))
+      );
       await window.electronAPI?.downloadsPause?.(id);
+      await fetchDownloads();
     } catch (e) {
       console.error('Failed to pause download:', e);
     }
-  }, []);
+  }, [fetchDownloads]);
 
   const handleResume = useCallback(async (id) => {
     try {
+      setActiveDownloads((prev) =>
+        prev.map((d) => (d.id === id ? { ...d, state: 'progressing' } : d))
+      );
       await window.electronAPI?.downloadsResume?.(id);
+      await fetchDownloads();
     } catch (e) {
       console.error('Failed to resume download:', e);
     }
-  }, []);
+  }, [fetchDownloads]);
 
   const handleRetry = useCallback(async (id) => {
     try {
       setDownloadHistory((prev) => prev.filter((d) => d.id !== id));
       await window.electronAPI?.downloadsRetry?.(id);
+      await fetchDownloads();
     } catch (e) {
       console.error('Failed to retry download:', e);
     }
-  }, []);
+  }, [fetchDownloads]);
 
   const handleShowInFolder = useCallback(async (savePath) => {
     try {
@@ -348,7 +358,7 @@ export default function DownloadsApp() {
                 <div className="dl-cards-list">
                   {/* Active Downloading Cards */}
                   {group.active.map((item) => {
-                    const isPaused = item.state === 'paused';
+                    const isPaused = item.state === 'paused' || item.state === 'interrupted';
                     const received = Number(item.receivedBytes) || 0;
                     const total = Number(item.totalBytes) || 0;
                     const percent = total > 0 ? Math.min(100, Math.round((received / total) * 100)) : (received > 0 ? 30 : 0);

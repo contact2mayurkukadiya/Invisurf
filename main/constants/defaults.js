@@ -41,7 +41,7 @@ const TRACKING_REDIRECT_HOST_MARKERS = [
 const CANONICAL_NTP_HTML = C.URL.NTP_CANONICAL_HTML;
 
 // Overlay limitations
-const CHROME_OVERLAY_POST_MAX_BYTES = 256 * 1024;
+const CHROME_OVERLAY_POST_MAX_BYTES = 4 * 1024 * 1024;
 const SHELL_MENU_OVERLAY_KINDS = new Set([
     'appMenu',
     'profileMenu',
@@ -53,6 +53,9 @@ const SHELL_MENU_OVERLAY_KINDS = new Set([
     'downloadPanel',
     'transparencyMenu',
     'clickThroughOSD',
+    'permissionPrompt',
+    'extensionInstallPrompt',
+    'extensionMenu',
 ]);
 
 const COOKIE_CONFIG_DEFAULTS = {

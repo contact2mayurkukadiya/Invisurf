@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer, clipboard } = require('electron');
+const { contextBridge, ipcRenderer, clipboard, webFrame } = require('electron');
 
 const appMajor = process.versions.chrome.split('.')[0] || '146';
 const osPlatform = process.platform === 'darwin' ? 'macOS' : 'Windows';
@@ -32,10 +32,107 @@ const compliantUserAgentData = {
     }
 };
 
+// Immediate top-level Chrome Web Store bridge registration (runs before any other preload logic)
+try {
+    contextBridge.exposeInMainWorld('__invisurf_webstore', {
+        isInstalled: (extensionId) => ipcRenderer.invoke('extensions:is-installed', { extensionId }),
+        prepareInstall: (extensionId) => ipcRenderer.invoke('extensions:webstore-prepare-install', { extensionId }),
+        onInstallCompleted: (callback) => {
+            if (typeof callback !== 'function') return () => { };
+            const handler = (_event, data) => {
+                try { callback(data); } catch (_) { }
+            };
+            ipcRenderer.on('extensions:install-completed', handler);
+            return () => ipcRenderer.removeListener('extensions:install-completed', handler);
+        },
+        onInstallCancelled: (callback) => {
+            if (typeof callback !== 'function') return () => { };
+            const handler = (_event, data) => {
+                try { callback(data); } catch (_) { }
+            };
+            ipcRenderer.on('extensions:install-cancelled', handler);
+            return () => ipcRenderer.removeListener('extensions:install-cancelled', handler);
+        },
+    });
+
+    // Bridge installation lifecycle events to window and document for webstore script
+    ipcRenderer.on('extensions:install-completed', (_event, data) => {
+        try {
+            window.dispatchEvent(new CustomEvent('invisurf:install-completed', { detail: data }));
+            if (typeof document !== 'undefined' && document.dispatchEvent) {
+                document.dispatchEvent(new CustomEvent('invisurf:install-completed', { detail: data }));
+            }
+        } catch (_) { }
+    });
+
+    ipcRenderer.on('extensions:install-cancelled', (_event, data) => {
+        try {
+            window.dispatchEvent(new CustomEvent('invisurf:install-cancelled', { detail: data }));
+            if (typeof document !== 'undefined' && document.dispatchEvent) {
+                document.dispatchEvent(new CustomEvent('invisurf:install-cancelled', { detail: data }));
+            }
+        } catch (_) { }
+    });
+} catch (webstoreInitErr) {
+    console.warn('[Preload] Failed to initialize webstore bridge at document_start:', webstoreInitErr?.message || webstoreInitErr);
+}
+
 try {
     // Inject the spoofed userAgentData and other browser signals into the main world so scripts can see it.
-    const { webFrame } = require('electron');
     if (webFrame && typeof webFrame.executeJavaScript === 'function') {
+        // Synchronously run registered document_start scripts (e.g. React DevTools installHook.js, proxy.js, prepareInjection.js)
+        try {
+            const startScripts = ipcRenderer.sendSync('extensions:get-document-start-scripts', {
+                url: window.location.href,
+            });
+            ipcRenderer.send('extensions:debug-log', `[Preload] received ${startScripts?.length || 0} start scripts for ${window.location.href}`);
+            if (Array.isArray(startScripts) && startScripts.length > 0) {
+                for (const s of startScripts) {
+                    if (s && s.code) {
+                        try {
+                            ipcRenderer.send('extensions:debug-log', `[Preload] injecting script "${s.id}" (world: ${s.world}, len: ${s.code.length})`);
+                            if (s.world === 'MAIN') {
+                                let injectedSync = false;
+                                try {
+                                    const root = document.head || document.documentElement || document;
+                                    if (root && typeof root.appendChild === 'function') {
+                                        const sc = document.createElement('script');
+                                        sc.textContent = s.code;
+                                        root.appendChild(sc);
+                                        sc.remove();
+                                        injectedSync = true;
+                                    }
+                                } catch (_) { }
+                                if (!injectedSync) {
+                                    try {
+                                        webFrame.executeJavaScript(s.code);
+                                    } catch (_) {
+                                        if (typeof webFrame.executeJavaScriptInIsolatedWorld === 'function') {
+                                            webFrame.executeJavaScriptInIsolatedWorld(0, [{ code: s.code }]);
+                                        }
+                                    }
+                                }
+                            } else {
+                                webFrame.executeJavaScript(s.code);
+                            }
+                        } catch (err) {
+                            ipcRenderer.send('extensions:debug-log', `[Preload StartScript Error] ${s.id || s}: ${err?.message || err}`);
+                        }
+                    }
+                }
+            }
+        } catch (err) {
+            ipcRenderer.send('extensions:debug-log', `[Preload startScripts outer error]: ${err?.message || err}`);
+        }
+
+        try {
+            ipcRenderer.on('invisurf-ext-event', (event, payload) => {
+                try {
+                    window.postMessage({ source: 'invisurf-ext-event', payload }, '*');
+                } catch (_) { }
+            });
+        } catch (_) { }
+
         webFrame.executeJavaScript(`
             try {
                 // 1. Spoof navigator.userAgentData
@@ -60,6 +157,88 @@ try {
                         CANNOT_RUN: 'cannot_run',
                         READY_TO_RUN: 'ready_to_run',
                         RUNNING: 'running'
+                    }
+                };
+                window.chrome.webstorePrivate = window.chrome.webstorePrivate || {
+                    install: function(id, callback) {
+                        const cleanId = typeof id === 'string' ? id : (id?.id || '');
+                        if (window.__invisurf_webstore?.prepareInstall && cleanId) {
+                            const onCompleted = (e) => {
+                                if (!e.detail?.extensionId || e.detail.extensionId === cleanId) {
+                                    window.removeEventListener('invisurf:install-completed', onCompleted);
+                                    window.removeEventListener('invisurf:install-cancelled', onCancelled);
+                                    if (typeof callback === 'function') callback('');
+                                }
+                            };
+                            const onCancelled = (e) => {
+                                if (!e.detail?.extensionId || e.detail.extensionId === cleanId) {
+                                    window.removeEventListener('invisurf:install-completed', onCompleted);
+                                    window.removeEventListener('invisurf:install-cancelled', onCancelled);
+                                    if (typeof callback === 'function') callback('user_cancelled');
+                                }
+                            };
+                            window.addEventListener('invisurf:install-completed', onCompleted);
+                            window.addEventListener('invisurf:install-cancelled', onCancelled);
+                            window.__invisurf_webstore.prepareInstall(cleanId).catch((err) => {
+                                window.removeEventListener('invisurf:install-completed', onCompleted);
+                                window.removeEventListener('invisurf:install-cancelled', onCancelled);
+                                if (typeof callback === 'function') callback(err?.message || 'unknown_error');
+                            });
+                        } else if (typeof callback === 'function') {
+                            callback('');
+                        }
+                    },
+                    beginInstallWithManifest3: function(details, callback) {
+                        const cleanId = typeof details === 'string' ? details : (details?.id || '');
+                        if (window.__invisurf_webstore?.prepareInstall && cleanId) {
+                            const onCompleted = (e) => {
+                                if (!e.detail?.extensionId || e.detail.extensionId === cleanId) {
+                                    window.removeEventListener('invisurf:install-completed', onCompleted);
+                                    window.removeEventListener('invisurf:install-cancelled', onCancelled);
+                                    if (typeof callback === 'function') callback('');
+                                }
+                            };
+                            const onCancelled = (e) => {
+                                if (!e.detail?.extensionId || e.detail.extensionId === cleanId) {
+                                    window.removeEventListener('invisurf:install-completed', onCompleted);
+                                    window.removeEventListener('invisurf:install-cancelled', onCancelled);
+                                    if (typeof callback === 'function') callback('user_cancelled');
+                                }
+                            };
+                            window.addEventListener('invisurf:install-completed', onCompleted);
+                            window.addEventListener('invisurf:install-cancelled', onCancelled);
+                            window.__invisurf_webstore.prepareInstall(cleanId).catch((err) => {
+                                window.removeEventListener('invisurf:install-completed', onCompleted);
+                                window.removeEventListener('invisurf:install-cancelled', onCancelled);
+                                if (typeof callback === 'function') callback(err?.message || 'unknown_error');
+                            });
+                        } else if (typeof callback === 'function') {
+                            callback('');
+                        }
+                    },
+                    installBundle: function(details, callback) {
+                        if (window.__invisurf_webstore?.prepareInstall) {
+                            window.__invisurf_webstore.prepareInstall(id);
+                        }
+                        if (typeof callback === 'function') callback('');
+                    },
+                    completeInstall: function(id, callback) {
+                        if (typeof callback === 'function') callback();
+                    },
+                    enable: function(id, callback) {
+                        if (typeof callback === 'function') callback();
+                    },
+                    getBrowserLogin: function(callback) {
+                        if (typeof callback === 'function') callback({ login: '' });
+                    },
+                    getStoreLogin: function(callback) {
+                        if (typeof callback === 'function') callback('');
+                    },
+                    isInIncognitoMode: function(callback) {
+                        if (typeof callback === 'function') callback(false);
+                    },
+                    getIsLauncherEnabled: function(callback) {
+                        if (typeof callback === 'function') callback(false);
                     }
                 };
                 window.chrome.runtime = window.chrome.runtime || {
@@ -336,6 +515,7 @@ const C = Object.freeze({
         "PROFILE_CLEAR_AVATAR": "profile:clearAvatar",
         "PROFILE_GET_AVATAR": "profile:getAvatarDataUrl",
         "PROFILE_DELETE": "profile:delete",
+        "PROFILE_GET_DATA_SUMMARY": "profile:get-data-summary",
         "PROFILE_OPEN_WINDOW": "profile:open-window",
         "PROFILE_PICKER_OPEN": "profile:picker-open",
         "PROFILE_CLOSE_CURRENT": "profile:close-current",
@@ -550,6 +730,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onUrlChanged: (callback) => ipcRenderer.on(C.IPC_EVENT.URL_CHANGED, (event, data) => callback(data)),
     onTabUpdate: (callback) => ipcRenderer.on(C.IPC_EVENT.TAB_UPDATE, (event, data) => callback(data)),
     onTabCreated: (callback) => ipcRenderer.on(C.IPC_EVENT.TAB_CREATED, (event, data) => callback(data)),
+    onTabClosedExternal: (callback) => ipcRenderer.on('tab-closed-external', (event, data) => callback(data)),
     onTabSwitched: (callback) => ipcRenderer.on(C.IPC_EVENT.TAB_SWITCHED, (event, data) => callback(data)),
     onOmniboxFocus: (callback) => ipcRenderer.on(C.IPC_EVENT.OMNIBOX_FOCUS, (event, data) => callback(data)),
     onShortcutNewTab: (callback) => ipcRenderer.on(C.IPC_EVENT.SHORTCUT_NEW_TAB, () => callback()),
@@ -630,6 +811,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     profileClearAvatar: (profileId) => ipcRenderer.invoke(C.IPC_INVOKE.PROFILE_CLEAR_AVATAR, { profileId }),
     profileGetAvatarDataUrl: (profileId) => ipcRenderer.invoke(C.IPC_INVOKE.PROFILE_GET_AVATAR, { profileId }),
     profileDelete: (profileId) => ipcRenderer.invoke(C.IPC_INVOKE.PROFILE_DELETE, { profileId }),
+    profileGetDataSummary: (profileId) => ipcRenderer.invoke(C.IPC_INVOKE.PROFILE_GET_DATA_SUMMARY, { profileId }),
     profileOpenWindow: (profileId, options = {}) => ipcRenderer.invoke(C.IPC_INVOKE.PROFILE_OPEN_WINDOW, { profileId, closeProfilePicker: options.closeProfilePicker === true }),
     profilePickerOpen: () => ipcRenderer.invoke(C.IPC_INVOKE.PROFILE_PICKER_OPEN),
     profileCloseCurrent: () => ipcRenderer.invoke(C.IPC_INVOKE.PROFILE_CLOSE_CURRENT),
@@ -685,6 +867,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
         const handler = () => callback();
         ipcRenderer.on(C.IPC_EVENT.CHROME_SHELL_MENU_OVERLAY_SUPERSEDED, handler);
         return () => ipcRenderer.removeListener(C.IPC_EVENT.CHROME_SHELL_MENU_OVERLAY_SUPERSEDED, handler);
+    },
+    onAppNavigateUrl: (callback) => {
+        const handler = (_event, data) => callback(data);
+        ipcRenderer.on('app:navigate-url', handler);
+        return () => ipcRenderer.removeListener('app:navigate-url', handler);
     },
     chromeOverlayNotifyHost: (data) => ipcRenderer.send(C.IPC_SEND.CHROME_OVERLAY_FROM_OVERLAY, data),
     onChromeOverlayV1Patch: (callback) => {
@@ -809,6 +996,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
         return () => ipcRenderer.removeListener(C.IPC_EVENT.SHORTCUT_DOWNLOADS, handler);
     },
 
+    // Omnibox Extension suggestions
+    omniboxExtensionQuery: (payload) => ipcRenderer.invoke('omnibox:query-extension', payload),
+    omniboxExtensionEntered: (payload) => ipcRenderer.invoke('omnibox:extension-input-entered', payload),
+    omniboxExtensionCancelled: (payload) => ipcRenderer.invoke('omnibox:extension-input-cancelled', payload),
+
     // Platform identifier
     platform: process.platform,
 });
@@ -847,6 +1039,7 @@ contextBridge.exposeInMainWorld('cookieAPI', {
 function setupOverscrollEngine() {
     if (typeof window === 'undefined' || window.top !== window) return;
 
+    var rAF = null;
     let canGoBack = false;
     let canGoForward = false;
     let isTabReady = false;
@@ -871,7 +1064,7 @@ function setupOverscrollEngine() {
     // Request initial state from main process
     try {
         ipcRenderer.send(C.IPC_SEND.OVERSCROLL_REQUEST_SYNC);
-    } catch (_) {}
+    } catch (_) { }
 
     // -------------------------------------------------------------
     // 1. PRE-HOT SHADOW DOM & GPU COMPOSITOR LAYERS
@@ -969,22 +1162,25 @@ function setupOverscrollEngine() {
     `;
     shadow.appendChild(style);
 
-    // Indicators HTML
+    // Indicators DOM (Created via createElementNS to strictly comply with Trusted Types CSP)
+    const SVG_NS = 'http://www.w3.org/2000/svg';
+    function createIndicatorSvg(pathD) {
+        const svg = document.createElementNS(SVG_NS, 'svg');
+        svg.setAttribute('viewBox', '0 0 24 24');
+        svg.setAttribute('aria-hidden', 'true');
+        const pathEl = document.createElementNS(SVG_NS, 'path');
+        pathEl.setAttribute('d', pathD);
+        svg.appendChild(pathEl);
+        return svg;
+    }
+
     const leftIndicator = document.createElement('div');
     leftIndicator.className = 'indicator left';
-    leftIndicator.innerHTML = `
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
-        </svg>
-    `;
+    leftIndicator.appendChild(createIndicatorSvg('M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z'));
 
     const rightIndicator = document.createElement('div');
     rightIndicator.className = 'indicator right';
-    rightIndicator.innerHTML = `
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/>
-        </svg>
-    `;
+    rightIndicator.appendChild(createIndicatorSvg('M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z'));
 
     shadow.appendChild(leftIndicator);
     shadow.appendChild(rightIndicator);
@@ -1014,7 +1210,6 @@ function setupOverscrollEngine() {
     let isLockedVertical = false;
     let isLockedOut = false;     // True if DOM scroll or unnavigable at start of session
     let isTouchSessionActive = false;
-    let rAF = null;
     let safetyTimer = null;
     let lastWheelTime = 0;
     // Reveal physics: smoothly reveals up to exactly half-circle (75px) at THRESHOLD,
@@ -1177,7 +1372,7 @@ function setupOverscrollEngine() {
             isNavigating = true;
             try {
                 ipcRenderer.send(C.IPC_SEND.OVERSCROLL_TRIGGER_NAVIGATION, triggeredDirection);
-            } catch (_) {}
+            } catch (_) { }
 
             // Debounce lock: ignore all trailing momentum wheel events while navigation is in flight
             if (cooldownTimer) clearTimeout(cooldownTimer);
@@ -1226,7 +1421,7 @@ function setupOverscrollEngine() {
 
             // 1. Honor W3C overscroll-behavior-x
             if (computedStyle.overscrollBehaviorX === 'none' || computedStyle.overscrollBehaviorX === 'contain') {
-                return true; 
+                return true;
             }
 
             // 2. Check horizontally scrollable containers
@@ -1394,6 +1589,48 @@ function setupOverscrollEngine() {
     }, { passive: true });
 }
 
-setupOverscrollEngine();
+try {
+    setupOverscrollEngine();
+} catch (overscrollErr) {
+    console.warn('[Preload] Overscroll engine failed to init:', overscrollErr?.message || overscrollErr);
+}
 
+contextBridge.exposeInMainWorld('extensionAPI', {
+    list: (profileId = null) => ipcRenderer.invoke('extensions:list', { profileId }),
+    toggle: (extensionId, profileId = null) => ipcRenderer.invoke('extensions:toggle', { extensionId, profileId }),
+    uninstall: (extensionId, profileId = null) => ipcRenderer.invoke('extensions:uninstall', { extensionId, profileId }),
+    confirmInstall: (installToken) => ipcRenderer.invoke('extensions:confirm-install', { installToken }),
+    cancelInstall: (installToken) => ipcRenderer.invoke('extensions:cancel-install', { installToken }),
+    togglePin: (extensionId, profileId = null) => ipcRenderer.invoke('extensions:toggle-pin', { extensionId, profileId }),
+    activateAction: (extensionId, anchorRect = null) => ipcRenderer.invoke('extensions:activate-action', { extensionId, anchorRect }),
+    loadUnpacked: (profileId = null) => ipcRenderer.invoke('extensions:load-unpacked', { profileId }),
+    reload: (extensionId, profileId = null) => ipcRenderer.invoke('extensions:reload', { extensionId, profileId }),
+    setSiteAccess: (extensionId, mode, host, profileId = null) => ipcRenderer.invoke('extensions:set-site-access', { extensionId, mode, host, profileId }),
+    inspectPopup: (extensionId, profileId = null) => ipcRenderer.invoke('extensions:inspect-popup', { extensionId, profileId }),
+    openOptionsPage: (extensionId, profileId = null) => ipcRenderer.invoke('extensions:open-options-page', { extensionId, profileId }),
+    onInstallPrompt: (callback) => {
+        const handler = (_event, data) => callback(data);
+        ipcRenderer.on('extensions:prompt-install', handler);
+        return () => ipcRenderer.removeListener('extensions:prompt-install', handler);
+    },
+    onExtensionsUpdated: (callback) => {
+        const handler = (_event, data) => callback(data);
+        ipcRenderer.on('extensions:updated', handler);
+        return () => ipcRenderer.removeListener('extensions:updated', handler);
+    },
+    onActionStateUpdated: (callback) => {
+        const handler = (_event, data) => callback(data);
+        ipcRenderer.on('extensions:action-state-updated', handler);
+        return () => ipcRenderer.removeListener('extensions:action-state-updated', handler);
+    },
+    getErrors: (extensionId) => ipcRenderer.invoke('extensions:get-errors', { extensionId }),
+    clearErrors: (extensionId) => ipcRenderer.invoke('extensions:clear-errors', { extensionId }),
+    clearError: (extensionId, errorId) => ipcRenderer.invoke('extensions:clear-error', { extensionId, errorId }),
+    getCodeSnippet: (extensionId, source, lineno) => ipcRenderer.invoke('extensions:get-code-snippet', { extensionId, source, lineno }),
+    onErrorsUpdated: (callback) => {
+        const handler = (_event, data) => callback(data);
+        ipcRenderer.on('extensions:errors-updated', handler);
+        return () => ipcRenderer.removeListener('extensions:errors-updated', handler);
+    },
+});
 

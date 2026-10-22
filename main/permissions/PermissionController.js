@@ -44,11 +44,9 @@ class PermissionController {
 
     // 1. Synchronous Permission Check Handler (e.g. navigator.permissions.query)
     ses.setPermissionCheckHandler((webContents, permission, requestingOrigin, details) => {
-      // Allow internal browser chrome requests (e.g. fullscreen, clipboard)
-      if (requestingOrigin && (requestingOrigin.startsWith('app://') || requestingOrigin.startsWith('invisurf://'))) {
-        if (permission === 'fullscreen' || permission === 'clipboard-read' || permission === 'clipboard-sanitized-write') {
-          return true;
-        }
+      // Allow internal browser chrome requests and extension contexts
+      if (requestingOrigin && (requestingOrigin.startsWith('app://') || requestingOrigin.startsWith('invisurf://') || requestingOrigin.startsWith('chrome-extension://'))) {
+        return true;
       }
 
       const origin = normalizeOrigin(requestingOrigin);
@@ -63,12 +61,16 @@ class PermissionController {
         return callback(false);
       }
 
-      // Shell internal permissions
+      // Shell internal permissions and extensions
       const requestingUrl = details?.requestingUrl || webContents.getURL() || '';
       if (requestingUrl.startsWith('app://') || requestingUrl.startsWith('invisurf://')) {
         if (permission === 'fullscreen' || permission === 'clipboard-read' || permission === 'clipboard-sanitized-write') {
           return callback(true);
         }
+      }
+
+      if (requestingUrl.startsWith('chrome-extension://')) {
+        return callback(true);
       }
 
       const origin = normalizeOrigin(requestingUrl);
@@ -131,6 +133,19 @@ class PermissionController {
       const permName = this.mapDeviceTypeToPermission(details.deviceType);
       return this.checkPermission(safeProfileId, origin, permName);
     });
+
+    // 4. Electron Display Media Request Handler (getDisplayMedia / screen capture)
+    if (typeof ses.setDisplayMediaRequestHandler === 'function') {
+      ses.setDisplayMediaRequestHandler((request, cb) => {
+        try {
+          const { getMediaCaptureManager } = require('../extensions/compat/MediaCaptureManager');
+          getMediaCaptureManager().handleDisplayMediaRequest(request, cb);
+        } catch (err) {
+          console.warn('[PermissionController] setDisplayMediaRequestHandler error:', err);
+          cb({ video: null });
+        }
+      });
+    }
   }
 
   /**

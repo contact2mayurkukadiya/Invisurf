@@ -42,6 +42,8 @@ export default function TabBar({
   const tabContainerRef = useRef(null);
 
   const hoverTimeoutRef = useRef(null);
+  const tabsRef = useRef(tabs);
+  tabsRef.current = tabs;
 
   const hideTooltip = useCallback(() => {
     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
@@ -121,16 +123,21 @@ export default function TabBar({
     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
     hoverTimeoutRef.current = setTimeout(async () => {
       if (window._draggingTabId) return;
+      if (!tabEl || !document.contains(tabEl)) return;
       const info = await window.electronAPI.getTabInfo(id);
       if (!info || window._draggingTabId) return;
+      if (!tabEl || !document.contains(tabEl)) return;
+      const tabData = tabsRef.current?.[id];
+      const title = (info.title && info.title.trim()) || (tabData?.title && tabData.title.trim()) || 'New Tab';
+      const url = info.url || tabData?.url;
       const rect = tabEl.getBoundingClientRect();
       const tooltipWidth = 280;
       const tooltipHeight = 140;
       let left = rect.left + rect.width / 2 - tooltipWidth / 2;
       left = Math.max(10, Math.min(window.innerWidth - tooltipWidth - 10, left));
       window.electronAPI.tooltipShow({
-        title: info.title || 'New Tab',
-        url: info.url,
+        title,
+        url,
         memory: info.memory,
         x: left,
         y: rect.bottom + 8,

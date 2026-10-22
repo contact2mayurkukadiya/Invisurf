@@ -55,11 +55,21 @@ export default function DownloadToolbarButton({ onOpenDownloads }) {
       setActiveDownloads((prev) => prev.filter((d) => d.id !== record.id));
     });
 
+    const unsubUpdated = window.electronAPI?.onDownloadUpdated?.(() => {
+      window.electronAPI?.downloadsGetAll?.().then((data) => {
+        if (!mounted) return;
+        if (Array.isArray(data?.active)) {
+          setActiveDownloads(data.active);
+        }
+      }).catch(() => {});
+    });
+
     return () => {
       mounted = false;
       if (typeof unsubStarted === 'function') unsubStarted();
       if (typeof unsubProgress === 'function') unsubProgress();
       if (typeof unsubDone === 'function') unsubDone();
+      if (typeof unsubUpdated === 'function') unsubUpdated();
     };
   }, []);
 
@@ -113,6 +123,16 @@ export default function DownloadToolbarButton({ onOpenDownloads }) {
     if (!openRef.current) return;
     void postPatch();
   }, [activeDownloads, postPatch]);
+
+  // Reposition on window resize if open so popup follows download trigger button
+  useEffect(() => {
+    if (!open) return undefined;
+    const onResize = () => {
+      void postPatch();
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [open, postPatch]);
 
   // ── Handle events routed back from the overlay renderer ─────────────────
   useEffect(() => {

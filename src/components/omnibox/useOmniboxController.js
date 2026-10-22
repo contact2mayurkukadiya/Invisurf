@@ -34,6 +34,7 @@ export function serializeSuggestionsForOverlay(list) {
       type: String(s.type || 'url').slice(0, 32),
       description: s.description != null ? String(s.description).slice(0, 240) : '',
       favicon: s.favicon != null ? String(s.favicon).slice(0, 2000) : '',
+      extensionId: s.extensionId || null,
     });
   }
   return out;
@@ -165,6 +166,8 @@ export function useOmniboxController({ currentTabId, tabsData, searchEngine = 'g
   const popupOpenRef = useRef(false);
   const popupKindRef = useRef(null);
   const pendingOwnPopupResetRef = useRef(false);
+  const activePopupAnchorElRef = useRef(null);
+  const activePopupPayloadRef = useRef(null);
 
   const controller = useMemo(() => new AutocompleteController(), []);
   useEffect(() => () => controller.dispose(), [controller]);
@@ -256,6 +259,7 @@ export function useOmniboxController({ currentTabId, tabsData, searchEngine = 'g
     isNavigatingRef.current = false;
     overlayEditedRef.current = false;
     controller.unlockList();
+    try { window.electronAPI?.omniboxExtensionCancelled?.(); } catch (_) {}
     void closeOmniboxChrome();
   }, [controller, closeOmniboxChrome]);
 
@@ -366,8 +370,34 @@ export function useOmniboxController({ currentTabId, tabsData, searchEngine = 'g
 
   const navigateFromDraft = useCallback((value, selIdx) => {
     const list = suggestionsRef.current;
-    if (selIdx >= 0 && list[selIdx]?.url) {
-      commitNavigation(list[selIdx].url, list[selIdx].type);
+    if (selIdx >= 0 && list[selIdx]) {
+      const selected = list[selIdx];
+      if (selected.type === 'extension') {
+        window.electronAPI?.omniboxExtensionEntered?.({
+          extensionId: selected.extensionId,
+          text: selected.url || selected.text,
+          disposition: 'currentTab',
+        });
+        closeOverlay();
+        setIsFocused(false);
+        inputRef.current?.blur();
+        return;
+      }
+      if (selected.url) {
+        commitNavigation(selected.url, selected.type);
+        return;
+      }
+    }
+    if (list.length > 0 && list[0]?.type === 'extension' && list[0]?.isDefault) {
+      const def = list[0];
+      window.electronAPI?.omniboxExtensionEntered?.({
+        extensionId: def.extensionId,
+        text: def.url || def.text,
+        disposition: 'currentTab',
+      });
+      closeOverlay();
+      setIsFocused(false);
+      inputRef.current?.blur();
       return;
     }
     const ghost = ghostSuffixRef.current;
@@ -558,6 +588,18 @@ export function useOmniboxController({ currentTabId, tabsData, searchEngine = 'g
         const index = Number(data.index);
         if (!Number.isFinite(index) || index < 0) return;
         const suggestion = suggestionsRef.current[index];
+        if (!suggestion) return;
+        if (suggestion.type === 'extension') {
+          window.electronAPI?.omniboxExtensionEntered?.({
+            extensionId: suggestion.extensionId,
+            text: suggestion.url || suggestion.text,
+            disposition: 'currentTab',
+          });
+          closeOverlay();
+          setIsFocused(false);
+          inputRef.current?.blur();
+          return;
+        }
         if (!suggestion?.url) return;
         commitNavigation(suggestion.url, suggestion.type);
         return;
@@ -786,6 +828,8 @@ export function useOmniboxController({ currentTabId, tabsData, searchEngine = 'g
     if (!popupOpenRef.current) return;
     popupOpenRef.current = false;
     popupKindRef.current = null;
+    activePopupAnchorElRef.current = null;
+    activePopupPayloadRef.current = null;
     setPopup(null);
     if (!pendingOwnPopupResetRef.current) {
       try {
@@ -811,6 +855,7 @@ export function useOmniboxController({ currentTabId, tabsData, searchEngine = 'g
       await shellAcquire();
       popupOpenRef.current = true;
       popupKindRef.current = kind;
+      activePopupPayloadRef.current = payload;
       setPopup(kind);
       await shellPost({
         kind,
@@ -821,6 +866,8 @@ export function useOmniboxController({ currentTabId, tabsData, searchEngine = 'g
       console.error('[useOmniboxController] popup overlay open', err);
       popupOpenRef.current = false;
       popupKindRef.current = null;
+      activePopupAnchorElRef.current = null;
+      activePopupPayloadRef.current = null;
       setPopup(null);
       try {
         await shellRelease();
@@ -838,6 +885,33 @@ export function useOmniboxController({ currentTabId, tabsData, searchEngine = 'g
     });
     return () => unsub?.();
   }, [closePopup]);
+
+  useEffect(() => {
+    const unsub = window.electronAPI?.onChromeShellMenuOverlaySuperseded?.(() => {
+      if (pendingOwnPopupResetRef.current) return;
+      if (!popupOpenRef.current) return;
+      void closePopup();
+    });
+    return () => unsub?.();
+  }, [closePopup]);
+
+  // Reposition popup on window resize so it follows its omnibox trigger button
+  useEffect(() => {
+    if (!popup) return undefined;
+    const onResize = () => {
+      if (!popupOpenRef.current || !activePopupAnchorElRef.current || !popupKindRef.current) return;
+      const br = activePopupAnchorElRef.current.getBoundingClientRect();
+      const anchorRect = rectToPlain(br);
+      const payload = activePopupPayloadRef.current || {};
+      void shellPost({
+        kind: popupKindRef.current,
+        anchorRect,
+        ...payload,
+      });
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [popup, shellPost]);
 
   useEffect(() => {
     const handleGlobalMouseDown = (e) => {
@@ -1041,6 +1115,7 @@ export function useOmniboxController({ currentTabId, tabsData, searchEngine = 'g
     } else if (action.opensPopup === OMNIBOX_POPUP.DOWNLOAD) {
       payload = { domain: displayParts?.domain || '' };
     }
+    activePopupAnchorElRef.current = event?.currentTarget || null;
     void openPopup(action.opensPopup, anchorRect, payload);
   }, [displayParts, isSecure, openPopup, tab?.favicon, tab?.url]);
 

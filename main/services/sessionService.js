@@ -140,7 +140,7 @@ function captureClosedTabSnapshot(context, tabId) {
         title: (tabWebContents.getTitle() || '').trim() || displayUrl,
         url: displayUrl,
         history: captureNavigationHistorySnapshot(tabWebContents),
-        favicon: null,
+        favicon: view._favicon || null,
         isSleeping: false,
     };
 }
@@ -247,21 +247,27 @@ function pushRecentlyClosedEntry(profileId, entry) {
             activeTabId = tabs[tabs.length - 1].id;
         }
         normalized = {
+            sessionId: entry.sessionId || `session_win_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
             type: 'window',
             profileId: entry.profileId || profileId,
             ghostWindow: isGhost,
             bounds: entry.bounds || null,
-            tabs,
+            tabs: tabs.map((t, idx) => ({
+                ...t,
+                sessionId: t.sessionId || `session_tab_${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${idx}`,
+            })),
             activeTabId,
             closedAt: Date.now(),
         };
     } else {
         if (!canStoreRecentlyClosedUrl(entry.url)) return;
         normalized = {
+            sessionId: entry.sessionId || `session_tab_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
             type: 'tab',
             title: (entry.title || '').trim(),
             url: toDisplayUrl(entry.url),
             history: entry.history || null,
+            favicon: entry.favicon || null,
             ghostWindow: !!entry.ghostWindow,
             closedAt: Date.now(),
         };
@@ -282,6 +288,10 @@ function pushRecentlyClosedEntry(profileId, entry) {
         });
     }
     triggerMenuRebuild();
+    try {
+        const { getSessionManager } = require('../extensions/compat/SessionManager');
+        getSessionManager().notifySessionsChanged();
+    } catch (_) {}
 }
 
 /** @deprecated Use pushRecentlyClosedEntry */
@@ -359,7 +369,7 @@ function restoreRecentlyClosedWindowEntry(entry) {
             activeTabId: entry.activeTabId,
         });
     }
-    return true;
+    return targetContext;
 }
 
 function consumeRecentlyClosedWindowForProfile(profileId) {
@@ -375,6 +385,10 @@ function consumeRecentlyClosedWindowForProfile(profileId) {
     if (index < 0) return null;
     const [entry] = stack.splice(index, 1);
     triggerMenuRebuild();
+    try {
+        const { getSessionManager } = require('../extensions/compat/SessionManager');
+        getSessionManager().notifySessionsChanged();
+    } catch (_) {}
 
     if (State.appLogger) {
         State.appLogger.info('recently-closed:consume-window-for-profile', {
@@ -430,6 +444,10 @@ function restoreRecentlyClosed(closedAt = null, callerContext = null) {
     if (targetIndex < 0) return;
     const [entry] = stack.splice(targetIndex, 1);
     triggerMenuRebuild();
+    try {
+        const { getSessionManager } = require('../extensions/compat/SessionManager');
+        getSessionManager().notifySessionsChanged();
+    } catch (_) {}
     if (!entry) return;
 
     if (State.appLogger) {

@@ -495,13 +495,11 @@ input[type="range"].tm-slider {
     cursor: pointer;
     margin: 4px 0;
     width: 100%;
-    background: linear-gradient(
-        to right,
-        var(--chrome-fg, rgba(255, 255, 255, 0.85)) 0%,
-        var(--chrome-fg, rgba(255, 255, 255, 0.85)) var(--tm-pct, 100%),
-        var(--chrome-tab-separator, rgba(0, 0, 0, 0.15)) var(--tm-pct, 100%),
-        var(--chrome-tab-separator, rgba(0, 0, 0, 0.15)) 100%
-    );
+    background: linear-gradient(to right,
+            var(--chrome-fg, rgba(255, 255, 255, 0.85)) 0%,
+            var(--chrome-fg, rgba(255, 255, 255, 0.85)) var(--tm-pct, 100%),
+            var(--chrome-tab-separator, rgba(0, 0, 0, 0.15)) var(--tm-pct, 100%),
+            var(--chrome-tab-separator, rgba(0, 0, 0, 0.15)) 100%);
 }
 
 input[type="range"].tm-slider::-webkit-slider-thumb {
@@ -554,7 +552,8 @@ input[type="range"].tm-slider::-webkit-slider-thumb:active {
     align-items: center;
     gap: 5px;
     padding: 2px 8px;
-    border-radius: 9999px; /* Both ends fully rounded pill like titlebar */
+    border-radius: 9999px;
+    /* Both ends fully rounded pill like titlebar */
     font-size: 11px;
     font-weight: 500;
     letter-spacing: 0.3px;
@@ -612,4 +611,50 @@ html[data-forced-appearance="light"] .co-click-through-menu-badge--ghost {
     border: 1px solid var(--chrome-tab-separator, rgba(255, 255, 255, 0.15));
     border-radius: 4px;
     color: inherit;
+}
+
+/* Extension Install Prompt Warning Box Scrollbar */
+.co-extension-install-warnbox {
+    scrollbar-width: thin;
+    scrollbar-color: var(--chrome-tab-separator, rgba(128, 128, 128, 0.35)) transparent;
+}
+
+.co-extension-install-warnbox::-webkit-scrollbar {
+    width: 6px;
+}
+
+.co-extension-install-warnbox::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.co-extension-install-warnbox::-webkit-scrollbar-thumb {
+    background: var(--chrome-tab-separator, rgba(128, 128, 128, 0.35));
+    border-radius: 9999px;
+}
+
+.co-extension-install-warnbox::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--chrome-tab-separator, rgba(128, 128, 128, 0.5)) 80%, var(--chrome-fg, #000000) 20%);
+}
+
+/* Extension Menu Dropdown Scrollbar */
+.co-extension-menu-body {
+    scrollbar-width: thin;
+    scrollbar-color: var(--chrome-tab-separator, rgba(128, 128, 128, 0.35)) transparent;
+}
+
+.co-extension-menu-body::-webkit-scrollbar {
+    width: 6px;
+}
+
+.co-extension-menu-body::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.co-extension-menu-body::-webkit-scrollbar-thumb {
+    background: var(--chrome-tab-separator, rgba(128, 128, 128, 0.35));
+    border-radius: 9999px;
+}
+
+.co-extension-menu-body::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--chrome-tab-separator, rgba(128, 128, 128, 0.5)) 80%, var(--chrome-fg, #000000) 20%);
 }

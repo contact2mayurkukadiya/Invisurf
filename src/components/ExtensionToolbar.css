@@ -1,0 +1,159 @@
+/* ExtensionToolbar.css */
+
+.extensions-toolbar-container {
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  position: relative;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
+  flex-shrink: 0;
+}
+
+/* When pinned extensions are present, wrap the group in a pill container */
+.extensions-toolbar-container--has-pinned {
+  height: 34px;
+  padding: 2px 4px;
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  /* Keeps layout stable without jump */
+  gap: 2px;
+}
+
+/* Hover or open state reveals the pill border around the entire extensions area */
+.extensions-toolbar-container--has-pinned:hover,
+.extensions-toolbar-container--has-pinned.is-open {
+  border-color: rgba(0, 0, 0, 0.2);
+}
+
+/* Dark mode / stealth window theme support for pill border */
+html[data-forced-appearance="dark"] .extensions-toolbar-container--has-pinned:hover,
+html[data-forced-appearance="dark"] .extensions-toolbar-container--has-pinned.is-open,
+body:has(.header--stealth-window) .extensions-toolbar-container--has-pinned:hover,
+body:has(.header--stealth-window) .extensions-toolbar-container--has-pinned.is-open {
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+@media (prefers-color-scheme: dark) {
+
+  :root:not([data-forced-appearance="light"]) .extensions-toolbar-container--has-pinned:hover,
+  :root:not([data-forced-appearance="light"]) .extensions-toolbar-container--has-pinned.is-open {
+    border-color: rgba(255, 255, 255, 0.22);
+  }
+}
+
+/* Circular buttons inside the pill container */
+.extensions-toolbar-container--has-pinned .extension-action-btn,
+.extensions-toolbar-container--has-pinned .extensions-menu-btn {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  border-radius: 50% !important;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  background: transparent;
+  color: var(--chrome-toolbar-icon);
+  border: none;
+  position: relative;
+  transition: background-color 0.15s ease;
+  flex-shrink: 0;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -webkit-user-drag: none;
+}
+
+/* Standalone extensions menu button (when no pinned extensions exist) */
+.extensions-toolbar-container:not(.extensions-toolbar-container--has-pinned) .extensions-menu-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50% !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  background: transparent;
+  color: var(--chrome-toolbar-icon);
+  border: none;
+  position: relative;
+  transition: background-color 0.15s ease;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -webkit-user-drag: none;
+}
+
+/* Circular hover background for all extension buttons (matching bookmark button) */
+.extensions-toolbar-container .extension-action-btn:hover,
+.extensions-toolbar-container .extensions-menu-btn:hover {
+  background-color: var(--chrome-close-hover, rgba(0, 0, 0, 0.08)) !important;
+  border-radius: 50% !important;
+}
+
+/* Active / open state for extensions menu button */
+.extensions-toolbar-container .extensions-menu-btn.active {
+  background-color: var(--chrome-close-hover, rgba(0, 0, 0, 0.12)) !important;
+  border-radius: 50% !important;
+}
+
+.extension-action-img {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  border-radius: 3px;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
+}
+
+.extension-action-fallback {
+  font-size: 15px;
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.extension-badge {
+  position: absolute;
+  bottom: 0px;
+  right: 0px;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 0 2.5px;
+  border-radius: 3px;
+  line-height: 11px;
+  pointer-events: none;
+  max-width: 18px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Disabled / inactive extension action button on toolbar (grayed out) */
+.extension-action-btn--disabled {
+  cursor: default !important;
+}
+
+.extension-action-btn--disabled .extension-action-img,
+.extension-action-btn--disabled .extension-action-fallback {
+  filter: grayscale(100%) !important;
+  opacity: 0.4 !important;
+  transition: filter 0.15s ease, opacity 0.15s ease;
+}
+
+.extension-action-btn--disabled:hover .extension-action-img,
+.extension-action-btn--disabled:hover .extension-action-fallback {
+  opacity: 0.65 !important;
+}
+
+.extension-action-btn--disabled .extension-badge {
+  opacity: 0.45 !important;
+}

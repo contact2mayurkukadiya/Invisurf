@@ -4,7 +4,7 @@ const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('path');
 
-const { buildSecureWebPreferences, DEFAULT_PRELOAD } = require('../../../runtime/webPreferences');
+const { buildSecureWebPreferences, buildExtensionWebPreferences, DEFAULT_PRELOAD } = require('../../../runtime/webPreferences');
 
 describe('Runtime Secure WebPreferences', () => {
   test('enforces strict enterprise sandbox defaults', () => {
@@ -43,5 +43,15 @@ describe('Runtime Secure WebPreferences', () => {
     assert.equal(prefs.zoomFactor, 1.25);
     assert.equal(prefs.nodeIntegration, false);
     assert.equal(prefs.contextIsolation, true);
+  });
+
+  test('enforces sandbox and disables nodeIntegration for extensions', () => {
+    const extPrefs = buildExtensionWebPreferences();
+
+    assert.equal(extPrefs.sandbox, true);
+    assert.equal(extPrefs.nodeIntegration, false);
+    assert.equal(extPrefs.enableRemoteModule, false);
+    assert.equal(extPrefs.nodeIntegrationInSubFrames, false);
+    assert.ok(extPrefs.preload.endsWith('extensionPreload.js'));
   });
 });

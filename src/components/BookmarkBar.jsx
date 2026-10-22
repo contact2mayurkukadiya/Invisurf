@@ -43,6 +43,8 @@ export default function BookmarkBar({ currentTabId }) {
   const pendingOwnFolderResetRef = useRef(false);
   const folderMenuActiveRef = useRef(false);
   const folderMenuSessionFolderIdRef = useRef(null);
+  const activeFolderAnchorElRef = useRef(null);
+  const activeFolderPayloadRef = useRef(null);
 
   // Overflow Measurement state
   const itemsContainerRef = useRef(null);
@@ -100,6 +102,8 @@ export default function BookmarkBar({ currentTabId }) {
     if (!folderMenuActiveRef.current) return;
     folderMenuActiveRef.current = false;
     folderMenuSessionFolderIdRef.current = null;
+    activeFolderAnchorElRef.current = null;
+    activeFolderPayloadRef.current = null;
     try { await release(); } catch (err) { console.error('bookmark folder overlay release', err); }
   }, [release]);
 
@@ -220,6 +224,8 @@ export default function BookmarkBar({ currentTabId }) {
       if (folderMenuActiveRef.current) {
         folderMenuActiveRef.current = false;
         folderMenuSessionFolderIdRef.current = null;
+        activeFolderAnchorElRef.current = null;
+        activeFolderPayloadRef.current = null;
       }
     });
     return typeof unsub === 'function' ? unsub : undefined;
@@ -286,6 +292,7 @@ export default function BookmarkBar({ currentTabId }) {
       }
 
       const br = e.currentTarget.getBoundingClientRect();
+      activeFolderAnchorElRef.current = e.currentTarget;
       const children = Array.isArray(folder.children) ? folder.children : [];
       const items = children.map((ch) => ({
         id: ch.id,
@@ -295,22 +302,27 @@ export default function BookmarkBar({ currentTabId }) {
         favicon: ch.favicon != null ? String(ch.favicon).slice(0, 2000) : '',
       }));
 
+      const payload = {
+        kind: 'bookmarkFolderMenu',
+        folderId: folder.id,
+        title: String(folder.title || 'Folder').slice(0, 120),
+        anchorRect: { left: br.left, top: br.top, width: br.width, height: br.height },
+        items,
+      };
+      activeFolderPayloadRef.current = payload;
+
       pendingOwnFolderResetRef.current = true;
       try {
         await reset();
         await acquire();
         folderMenuActiveRef.current = true;
         folderMenuSessionFolderIdRef.current = folder.id;
-        await post({
-          kind: 'bookmarkFolderMenu',
-          folderId: folder.id,
-          title: String(folder.title || 'Folder').slice(0, 120),
-          anchorRect: { left: br.left, top: br.top, width: br.width, height: br.height },
-          items,
-        });
+        await post(payload);
       } catch (err) {
         folderMenuActiveRef.current = false;
         folderMenuSessionFolderIdRef.current = null;
+        activeFolderAnchorElRef.current = null;
+        activeFolderPayloadRef.current = null;
         try { await release(); } catch (releaseErr) { }
       } finally {
         pendingOwnFolderResetRef.current = false;
@@ -332,6 +344,7 @@ export default function BookmarkBar({ currentTabId }) {
       }
 
       const br = e.currentTarget.getBoundingClientRect();
+      activeFolderAnchorElRef.current = e.currentTarget;
       const items = overflowItems.map((ch) => ({
         id: ch.id,
         type: ch.type === BOOKMARK.TYPE_FOLDER ? 'folder' : 'bookmark',
@@ -340,22 +353,27 @@ export default function BookmarkBar({ currentTabId }) {
         favicon: ch.favicon != null ? String(ch.favicon).slice(0, 2000) : '',
       }));
 
+      const payload = {
+        kind: 'bookmarkFolderMenu',
+        folderId: 'overflow-menu',
+        title: 'Hidden Bookmarks',
+        anchorRect: { left: br.left, top: br.top, width: br.width, height: br.height },
+        items,
+      };
+      activeFolderPayloadRef.current = payload;
+
       pendingOwnFolderResetRef.current = true;
       try {
         await reset();
         await acquire();
         folderMenuActiveRef.current = true;
         folderMenuSessionFolderIdRef.current = 'overflow-menu';
-        await post({
-          kind: 'bookmarkFolderMenu',
-          folderId: 'overflow-menu',
-          title: 'Hidden Bookmarks',
-          anchorRect: { left: br.left, top: br.top, width: br.width, height: br.height },
-          items,
-        });
+        await post(payload);
       } catch (err) {
         folderMenuActiveRef.current = false;
         folderMenuSessionFolderIdRef.current = null;
+        activeFolderAnchorElRef.current = null;
+        activeFolderPayloadRef.current = null;
         try { await release(); } catch (releaseErr) { }
       } finally {
         pendingOwnFolderResetRef.current = false;
@@ -363,6 +381,22 @@ export default function BookmarkBar({ currentTabId }) {
     },
     [reset, acquire, release, post, dismissFolderOverlay, overflowItems]
   );
+
+  // Reposition folder / overflow menu on window resize so it follows the trigger button
+  useEffect(() => {
+    const onResize = () => {
+      if (!folderMenuActiveRef.current || !activeFolderAnchorElRef.current || !activeFolderPayloadRef.current) return;
+      const br = activeFolderAnchorElRef.current.getBoundingClientRect();
+      const updatedPayload = {
+        ...activeFolderPayloadRef.current,
+        anchorRect: { left: br.left, top: br.top, width: br.width, height: br.height },
+      };
+      activeFolderPayloadRef.current = updatedPayload;
+      void post(updatedPayload);
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [post]);
 
   const createFolder = async () => {
     const name = folderName.trim();

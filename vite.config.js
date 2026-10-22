@@ -131,6 +131,21 @@ const configs = {
             },
         },
     },
+    extensions: {
+        root: 'src',
+        base: './',
+        plugins: sharedPlugins,
+        build: {
+            outDir: path.resolve(__dirname, 'renderer', 'dist'),
+            emptyOutDir: false,
+            assetsDir: 'assets',
+            target: 'esnext',
+            rollupOptions: {
+                input: path.resolve(__dirname, 'src', 'extensions.html'),
+                output: rollupOutput(),
+            },
+        },
+    },
 };
 
 export default defineConfig(configs[entry]);

@@ -23,21 +23,139 @@ function getProfileAvatarsDir() {
     return dir;
 }
 
+function discoverDiskProfiles() {
+    const discovered = new Set();
+    try {
+        const userData = app.getPath('userData');
+
+        // 1. Check directories in userData/profiles
+        const profilesDir = path.join(userData, 'profiles');
+        if (fs.existsSync(profilesDir)) {
+            try {
+                for (const item of fs.readdirSync(profilesDir)) {
+                    if (item.startsWith('profile-')) {
+                        discovered.add(item);
+                    }
+                }
+            } catch (_) {}
+        }
+
+        // 2. Check history sqlite and bookmarks files in userData
+        try {
+            for (const item of fs.readdirSync(userData)) {
+                const histMatch = item.match(/^history-(profile-[a-zA-Z0-9-_]+)\.sqlite$/);
+                if (histMatch) {
+                    discovered.add(histMatch[1]);
+                }
+                const bkMatch = item.match(/^bookmarks-(profile-[a-zA-Z0-9-_]+)\.json$/);
+                if (bkMatch) {
+                    discovered.add(bkMatch[1]);
+                }
+            }
+        } catch (_) {}
+
+        // 3. Check profile-avatars
+        const avatarsDir = path.join(userData, 'profile-avatars');
+        if (fs.existsSync(avatarsDir)) {
+            try {
+                for (const item of fs.readdirSync(avatarsDir)) {
+                    const avMatch = item.match(/^(profile-[a-zA-Z0-9-_]+)\.(png|jpe?g|webp|gif)$/i);
+                    if (avMatch) {
+                        discovered.add(avMatch[1]);
+                    }
+                }
+            } catch (_) {}
+        }
+    } catch (_) {}
+
+    return Array.from(discovered);
+}
+
 function loadProfiles() {
+    let profiles = [];
     try {
         const p = getProfilesPath();
-        if (!fs.existsSync(p)) return [];
-        const parsed = JSON.parse(fs.readFileSync(p, 'utf-8'));
-        const decoded = (parsed && parsed.encrypted !== undefined)
-            ? (() => {
-                const dec = encryption.decrypt(parsed);
-                return dec ? JSON.parse(dec) : null;
-            })()
-            : parsed;
-        return Array.isArray(decoded) ? decoded : [];
+        if (fs.existsSync(p)) {
+            const parsed = JSON.parse(fs.readFileSync(p, 'utf-8'));
+            const decoded = (parsed && parsed.encrypted !== undefined)
+                ? (() => {
+                    const dec = encryption.decrypt(parsed);
+                    return dec ? JSON.parse(dec) : null;
+                })()
+                : parsed;
+            if (Array.isArray(decoded)) {
+                profiles = decoded;
+            }
+        }
     } catch {
-        return [];
+        profiles = [];
     }
+
+    // Disk auto-discovery to prevent profile loss if profiles.json was wiped or transiently empty
+    try {
+        const knownIds = new Set(profiles.map(p => p.profileId));
+        const diskIds = discoverDiskProfiles();
+        const avatarsDir = getProfileAvatarsDir();
+        const userData = app.getPath('userData');
+        let index = profiles.length + 1;
+
+        for (const diskId of diskIds) {
+            if (!knownIds.has(diskId)) {
+                let hasAvatar = false;
+                let avatarExt = null;
+                for (const ext of ['png', 'jpeg', 'jpg', 'webp', 'gif']) {
+                    if (fs.existsSync(path.join(avatarsDir, `${diskId}.${ext}`))) {
+                        hasAvatar = true;
+                        avatarExt = ext;
+                        break;
+                    }
+                }
+                let birthtime = Date.now();
+                const keyFile = path.join(userData, `history-key-${diskId}.json`);
+                const histFile = path.join(userData, `history-${diskId}.sqlite`);
+                try {
+                    if (fs.existsSync(keyFile)) {
+                        birthtime = Math.round(fs.statSync(keyFile).birthtimeMs || fs.statSync(keyFile).mtimeMs);
+                    } else if (fs.existsSync(histFile)) {
+                        birthtime = Math.round(fs.statSync(histFile).birthtimeMs || fs.statSync(histFile).mtimeMs);
+                    }
+                } catch (_) {}
+
+                profiles.push({
+                    profileId: diskId,
+                    displayName: `Profile ${index++}`,
+                    createdAt: birthtime,
+                    updatedAt: Date.now(),
+                    hasCustomAvatar: hasAvatar,
+                    avatarExt: avatarExt,
+                    avatarSource: hasAvatar ? 'upload' : null
+                });
+            }
+        }
+
+        // Keep primary active profile (profile-1da7f370...) first, followed by others sorted chronologically
+        profiles.sort((a, b) => {
+            if (a.profileId === 'profile-1da7f370-1839-4df6-887d-d4895fa2b1d0') return -1;
+            if (b.profileId === 'profile-1da7f370-1839-4df6-887d-d4895fa2b1d0') return 1;
+            return (a.createdAt || 0) - (b.createdAt || 0);
+        });
+
+        // Ensure display names are clean and distinct
+        let num = 1;
+        for (const pr of profiles) {
+            if (!pr.displayName || /^Profile\s+\d+$/i.test(pr.displayName) || (pr.displayName === 'Default' && pr.profileId !== profiles[0].profileId)) {
+                if (pr.profileId === profiles[0].profileId) {
+                    pr.displayName = 'Default';
+                } else {
+                    pr.displayName = `Profile ${++num}`;
+                }
+            }
+        }
+    } catch (e) {
+        console.error('Error discovering disk profiles:', e);
+    }
+
+    return profiles;
 }
 
 function saveProfiles() {
@@ -197,6 +315,179 @@ function getProfileAvatarDataUrl(profileId) {
     return `data:${mime};base64,${buf.toString('base64')}`;
 }
 
+async function deleteProfileDataFromDisk(profileId) {
+    const safeId = safeProfileIdForPath(profileId);
+    if (!safeId) return;
+
+    // 1. Close history DB connection if open
+    try {
+        if (State.historyService) {
+            await State.historyService.closeProfile(safeId);
+        }
+    } catch (e) {
+        console.warn(`[ProfileService] Failed to close history for ${safeId}:`, e);
+    }
+
+    // 2. Remove avatar files
+    removeAvatarFilesForProfile(safeId);
+
+    // 3. Clear session partition storage and cache in Electron
+    try {
+        const { session } = require('electron');
+        const partition = `persist:profile-${safeId}`;
+        const ses = session.fromPartition(partition);
+        if (ses) {
+            await ses.clearStorageData();
+            await ses.clearCache();
+        }
+    } catch (e) {
+        console.warn(`[ProfileService] Failed to clear partition storage for ${safeId}:`, e);
+    }
+
+    // 4. Remove session partition directories from disk
+    try {
+        const sessionDataDir = app.getPath('sessionData');
+        const partitionsDir = path.join(sessionDataDir, 'Partitions');
+        if (fs.existsSync(partitionsDir)) {
+            for (const item of fs.readdirSync(partitionsDir)) {
+                if (item.includes(safeId)) {
+                    try {
+                        fs.rmSync(path.join(partitionsDir, item), { recursive: true, force: true });
+                    } catch (_) {}
+                }
+            }
+        }
+    } catch (_) {}
+
+    try {
+        const userPartitionsDir = path.join(app.getPath('userData'), 'Partitions');
+        if (fs.existsSync(userPartitionsDir)) {
+            for (const item of fs.readdirSync(userPartitionsDir)) {
+                if (item.includes(safeId)) {
+                    try {
+                        fs.rmSync(path.join(userPartitionsDir, item), { recursive: true, force: true });
+                    } catch (_) {}
+                }
+            }
+        }
+    } catch (_) {}
+
+    // 5. Remove profile directory in userData/profiles/<safeId>
+    try {
+        const profilesDir = path.join(app.getPath('userData'), 'profiles', safeId);
+        if (fs.existsSync(profilesDir)) {
+            fs.rmSync(profilesDir, { recursive: true, force: true });
+        }
+    } catch (e) {
+        console.warn(`[ProfileService] Failed to remove profiles directory for ${safeId}:`, e);
+    }
+
+    // 6. Evict extension cache & unload extension runtime
+    try {
+        const ExtensionStorage = require('../extensions/ExtensionStorage');
+        ExtensionStorage.evictProfileState?.(safeId);
+    } catch (_) {}
+    try {
+        const { getExtensionController } = require('../extensions/ExtensionController');
+        getExtensionController().unloadProfile?.(safeId);
+    } catch (_) {}
+
+    // 7. Delete bookmarks file
+    try {
+        const bkPath = path.join(app.getPath('userData'), `bookmarks-${safeId}.json`);
+        if (fs.existsSync(bkPath)) {
+            fs.unlinkSync(bkPath);
+        }
+    } catch (_) {}
+
+    // 8. Delete history files (.sqlite, -wal, -shm, key, legacy ndjson)
+    try {
+        const userData = app.getPath('userData');
+        const historyFiles = [
+            `history-${safeId}.sqlite`,
+            `history-${safeId}.sqlite-wal`,
+            `history-${safeId}.sqlite-shm`,
+            `history-key-${safeId}.json`,
+            `history-${safeId}.ndjson`,
+        ];
+        for (const hf of historyFiles) {
+            const fp = path.join(userData, hf);
+            if (fs.existsSync(fp)) {
+                try { fs.unlinkSync(fp); } catch (_) {}
+            }
+        }
+    } catch (_) {}
+
+    // 9. Sweep userData for any remaining file or folder matching safeId
+    try {
+        const userData = app.getPath('userData');
+        for (const item of fs.readdirSync(userData)) {
+            if (item.includes(safeId)) {
+                const fp = path.join(userData, item);
+                try {
+                    const st = fs.statSync(fp);
+                    if (st.isDirectory()) {
+                        fs.rmSync(fp, { recursive: true, force: true });
+                    } else {
+                        fs.unlinkSync(fp);
+                    }
+                } catch (_) {}
+            }
+        }
+    } catch (_) {}
+
+    // 10. Clean permissions
+    try {
+        const { getPermissionController } = require('../permissions/PermissionController');
+        getPermissionController().db.deleteProfile(safeId);
+    } catch (_) {}
+
+    // 11. Clean session state (recently closed & session.json & startupSessionDoc)
+    try {
+        State.recentlyClosedTabsByProfile.delete(safeId);
+        const sessionService = require('./sessionService');
+        const sessionPath = sessionService.getSessionPath();
+        if (fs.existsSync(sessionPath)) {
+            const doc = sessionService.readDecodedSessionDoc();
+            if (doc && doc.windowsById) {
+                let changed = false;
+                for (const [wId, wData] of Object.entries(doc.windowsById)) {
+                    if (wData?.profileId === safeId) {
+                        delete doc.windowsById[wId];
+                        changed = true;
+                    }
+                }
+                if (Array.isArray(doc.profiles)) {
+                    doc.profiles = doc.profiles.filter((p) => p !== safeId && p?.profileId !== safeId);
+                    changed = true;
+                }
+                if (changed) {
+                    const payload = encryption.encrypt(JSON.stringify(doc));
+                    fs.writeFileSync(sessionPath, JSON.stringify(payload, null, 2), 'utf-8');
+                }
+            }
+        }
+    } catch (_) {}
+
+    if (State.startupSessionDoc?.windowsById) {
+        for (const [wId, wData] of Object.entries(State.startupSessionDoc.windowsById)) {
+            if (wData?.profileId === safeId) {
+                delete State.startupSessionDoc.windowsById[wId];
+            }
+        }
+    }
+
+    // 12. Clean cookie config in settings
+    try {
+        const settingsService = require('./settingsService');
+        const settings = settingsService.loadSettings();
+        if (settings?.cookieConfigByProfile && settings.cookieConfigByProfile[safeId]) {
+            delete settings.cookieConfigByProfile[safeId];
+            settingsService.saveSettings(settings);
+        }
+    } catch (_) {}
+}
+
 module.exports = {
     getProfilesPath,
     getProfileAvatarsDir,
@@ -209,5 +500,7 @@ module.exports = {
     validateAvatarDataUrl,
     setProfileAvatarFromDataUrl,
     setProfileAvatarFromPresetPngFile,
-    getProfileAvatarDataUrl
+    getProfileAvatarDataUrl,
+    discoverDiskProfiles,
+    deleteProfileDataFromDisk,
 };
