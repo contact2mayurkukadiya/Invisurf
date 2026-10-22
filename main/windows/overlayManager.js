@@ -673,6 +673,24 @@ function computeMenuOverlayBounds(context, patch) {
         });
     }
 
+    if (kind === 'zoomReset') {
+        const ar = patch.anchorRect || {};
+        const panelWidth = 248;
+        const panelHeight = 52;
+        const anchorL = Math.round(Number(ar.left) || 0);
+        const anchorW = Math.max(1, Math.round(Number(ar.width) || 32));
+        const anchorT = Math.round(Number(ar.top) || 0);
+        const anchorH = Math.max(1, Math.round(Number(ar.height) || 32));
+        const left = clampNumber(anchorL + anchorW - panelWidth + 12, pad, windowW - panelWidth - pad);
+        const top = clampNumber(anchorT + anchorH + 6, pad, windowH - panelHeight - pad);
+        return menuOverlayBoundsFromPanel(context, { left, top, width: panelWidth, height: panelHeight }, {
+            shadowMarginTop: 6,
+            shadowMarginBottom: 24,
+            shadowMarginLeft: 24,
+            shadowMarginRight: 24,
+        });
+    }
+
     if (kind === 'clickThroughOSD') {
         // Natural menu-styled notification panel, floating below the toolbar
         const osdWidth = 280;

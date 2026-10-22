@@ -18,6 +18,7 @@ function tabChromeDefaults() {
   return {
     isPinned: false,
     isAudioMuted: false,
+    zoomFactor: 1.0,
     lastActiveAt: Date.now(),
   };
 }
@@ -160,7 +161,7 @@ const browserSlice = createSlice({
     },
 
     updateTab(state, action) {
-      const { id, title, favicon, isLoading, url } = action.payload;
+      const { id, title, favicon, isLoading, url, zoomFactor } = action.payload;
       if (!state.tabs[id]) {
         state.tabs[id] = {
           url: NTP_URL,
@@ -175,6 +176,7 @@ const browserSlice = createSlice({
       if (url != null) tab.url = url;
       if (favicon != null) tab.favicon = favicon;
       if (isLoading != null) tab.isLoading = isLoading;
+      if (zoomFactor != null) tab.zoomFactor = Number(zoomFactor) || 1.0;
       if (title) {
         const currentUrl = url || tab.url || '';
         tab.title = (tab.isNewTab && isNtpUrl(currentUrl)) ? 'New Tab' : title;

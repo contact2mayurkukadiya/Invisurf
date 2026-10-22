@@ -10,4 +10,5 @@ export const OMNIBOX_POPUP = {
   NONE: null,
   SITE_INFO: 'siteInfo',
   DOWNLOAD: 'downloadPanel',
+  ZOOM: 'zoomReset',
 };

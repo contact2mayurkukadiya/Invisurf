@@ -67,6 +67,23 @@ export function getOmniboxActions(ctx) {
     });
   }
 
+  // Inject Zoom indicator suffix when page zoom is not 100%
+  const currentZoom = tab?.zoomFactor != null ? Number(tab.zoomFactor) : 1.0;
+  const isZoomed = Math.abs(currentZoom - 1.0) > 0.01;
+  if (isZoomed) {
+    const zoomPct = Math.round(currentZoom * 100);
+    actions.push({
+      id: 'zoom-reset',
+      slot: 'suffix',
+      title: `Zoom: ${zoomPct}%`,
+      visible: true,
+      isColorIcon: false,
+      zoomFactor: currentZoom,
+      zoomType: currentZoom < 1.0 ? 'zoom-out' : 'zoom-in',
+      opensPopup: OMNIBOX_POPUP.ZOOM,
+    });
+  }
+
   // Inject Standard Downloads / Optional Extra suffixes
   actions.push({
     id: 'download',

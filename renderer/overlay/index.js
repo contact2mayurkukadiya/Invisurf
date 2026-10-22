@@ -18,6 +18,7 @@ import { renderExtensionMenu } from './components/extensionMenu.js';
 import { renderExtensionPopupShadow } from './components/extensionPopupShadow.js';
 import { renderTransparencyMenu } from './components/transparencyMenu.js';
 import { renderClickThroughOSD } from './components/clickThroughOSD.js';
+import { renderZoomReset } from './components/zoomReset.js';
 
 DOM.backdrop.addEventListener('mousedown', function () {
     notifyHost({ type: 'dismiss' });
@@ -80,6 +81,7 @@ if (window.electronAPI && window.electronAPI.onChromeOverlayV1Patch) {
                 case 'extensionPopupShadow': return renderExtensionPopupShadow(patch);
                 case 'transparencyMenu': return renderTransparencyMenu(patch);
                 case 'clickThroughOSD': return renderClickThroughOSD(patch);
+                case 'zoomReset': return renderZoomReset(patch);
             }
         } catch (err) {
             // If any menu crashes, log it and safely reset the overlay to prevent freezing

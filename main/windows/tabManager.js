@@ -296,6 +296,10 @@ function activateTabInContext(context, id) {
     }
     if (context.window && !context.window.webContents.isDestroyed()) {
         context.window.webContents.send(C.IPC_EVENT.TAB_SWITCHED, { id });
+        const currentZoom = context.tabs[id]?.webContents && !context.tabs[id].webContents.isDestroyed()
+            ? context.tabs[id].webContents.getZoomFactor()
+            : 1.0;
+        context.window.webContents.send(C.IPC_EVENT.TAB_UPDATE, { id, zoomFactor: currentZoom });
     }
     const lensSession = lensManager.getLensSession(context, id, false);
     if (lensSession?.selectionActive) {
@@ -627,28 +631,66 @@ function triggerFindInActiveTab() {
     }
 }
 
+const ZOOM_PRESETS = [0.25, 0.33, 0.50, 0.67, 0.75, 0.80, 0.90, 1.00, 1.10, 1.25, 1.50, 1.75, 2.00, 2.50, 3.00, 4.00, 5.00];
+
+function getNextZoomLevel(current, direction) {
+    const rounded = Math.round(Number(current || 1.0) * 100) / 100;
+    if (direction > 0) {
+        for (let i = 0; i < ZOOM_PRESETS.length; i++) {
+            if (ZOOM_PRESETS[i] > rounded + 0.01) return ZOOM_PRESETS[i];
+        }
+        return ZOOM_PRESETS[ZOOM_PRESETS.length - 1];
+    } else {
+        for (let i = ZOOM_PRESETS.length - 1; i >= 0; i--) {
+            if (ZOOM_PRESETS[i] < rounded - 0.01) return ZOOM_PRESETS[i];
+        }
+        return ZOOM_PRESETS[0];
+    }
+}
+
+function resolveTabContext(context) {
+    if (context?.tabs && context?.window) return context;
+    const { getWindowContextByBrowserWindow } = require('./windowContextUtils');
+    return getWindowContextByBrowserWindow(State.mainWindow);
+}
+
 function zoomInActiveTab(context) {
-    const activeView = (context?.activeTabId ? context.tabs[context.activeTabId] : null) || getActiveTabView();
+    const ctx = resolveTabContext(context);
+    const activeTabId = ctx?.activeTabId;
+    const activeView = (activeTabId ? ctx.tabs[activeTabId] : null) || getActiveTabView();
     if (!activeView || activeView.webContents.isDestroyed()) return null;
     const currentZoom = activeView.webContents.getZoomFactor();
-    const newZoom = Math.min(3.0, Math.round((currentZoom + 0.1) * 10) / 10);
+    const newZoom = getNextZoomLevel(currentZoom, 1);
     activeView.webContents.setZoomFactor(newZoom);
+    if (ctx?.window && !ctx.window.isDestroyed() && !ctx.window.webContents.isDestroyed() && activeTabId) {
+        ctx.window.webContents.send(C.IPC_EVENT.TAB_UPDATE, { id: activeTabId, zoomFactor: newZoom });
+    }
     return newZoom;
 }
 
 function zoomOutActiveTab(context) {
-    const activeView = (context?.activeTabId ? context.tabs[context.activeTabId] : null) || getActiveTabView();
+    const ctx = resolveTabContext(context);
+    const activeTabId = ctx?.activeTabId;
+    const activeView = (activeTabId ? ctx.tabs[activeTabId] : null) || getActiveTabView();
     if (!activeView || activeView.webContents.isDestroyed()) return null;
     const currentZoom = activeView.webContents.getZoomFactor();
-    const newZoom = Math.max(0.25, Math.round((currentZoom - 0.1) * 10) / 10);
+    const newZoom = getNextZoomLevel(currentZoom, -1);
     activeView.webContents.setZoomFactor(newZoom);
+    if (ctx?.window && !ctx.window.isDestroyed() && !ctx.window.webContents.isDestroyed() && activeTabId) {
+        ctx.window.webContents.send(C.IPC_EVENT.TAB_UPDATE, { id: activeTabId, zoomFactor: newZoom });
+    }
     return newZoom;
 }
 
 function resetZoomActiveTab(context) {
-    const activeView = (context?.activeTabId ? context.tabs[context.activeTabId] : null) || getActiveTabView();
+    const ctx = resolveTabContext(context);
+    const activeTabId = ctx?.activeTabId;
+    const activeView = (activeTabId ? ctx.tabs[activeTabId] : null) || getActiveTabView();
     if (!activeView || activeView.webContents.isDestroyed()) return null;
     activeView.webContents.setZoomFactor(1.0);
+    if (ctx?.window && !ctx.window.isDestroyed() && !ctx.window.webContents.isDestroyed() && activeTabId) {
+        ctx.window.webContents.send(C.IPC_EVENT.TAB_UPDATE, { id: activeTabId, zoomFactor: 1.0 });
+    }
     return 1.0;
 }
 
@@ -1158,7 +1200,16 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
     view.webContents.on('did-stop-loading', () => {
         if (!context.window || context.window.isDestroyed() || context.window.webContents.isDestroyed()) return;
         const { toDisplayUrl } = require('../utils/navigation');
-        sendTabEvent(C.IPC_EVENT.TAB_UPDATE, { id, isLoading: false, url: toDisplayUrl(view.webContents.getURL()) });
+        const zoomFactor = typeof view.webContents.getZoomFactor === 'function' ? view.webContents.getZoomFactor() : 1.0;
+        sendTabEvent(C.IPC_EVENT.TAB_UPDATE, { id, isLoading: false, url: toDisplayUrl(view.webContents.getURL()), zoomFactor });
+    });
+
+    view.webContents.on('zoom-changed', (_event, zoomDirection) => {
+        if (view.webContents.isDestroyed()) return;
+        const currentZoom = typeof view.webContents.getZoomFactor === 'function' ? view.webContents.getZoomFactor() : 1.0;
+        const newZoom = getNextZoomLevel(currentZoom, zoomDirection === 'in' ? 1 : -1);
+        view.webContents.setZoomFactor(newZoom);
+        sendTabEvent(C.IPC_EVENT.TAB_UPDATE, { id, zoomFactor: newZoom });
     });
 
     view.webContents.on('dom-ready', () => {

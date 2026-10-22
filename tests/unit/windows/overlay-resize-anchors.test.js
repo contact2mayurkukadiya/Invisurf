@@ -254,6 +254,32 @@ describe('Overlay Menus Window Resize & Anchor Following', () => {
     });
   });
 
+  describe('Zoom Reset Popup Overlay & Omnibox Action', () => {
+    test('zoomReset follows magnifier icon in omnibox on window resize', () => {
+      const ctx1 = createMockContext(1000, 700);
+      const patch1 = {
+        kind: 'zoomReset',
+        anchorRect: { left: 750, top: 40, width: 28, height: 28 },
+      };
+      const bounds1 = overlayManager.computeMenuOverlayBounds(ctx1, patch1);
+
+      const ctx2 = createMockContext(1200, 700);
+      const patch2 = {
+        kind: 'zoomReset',
+        anchorRect: { left: 950, top: 40, width: 28, height: 28 },
+      };
+      const bounds2 = overlayManager.computeMenuOverlayBounds(ctx2, patch2);
+
+      assert.ok(bounds1 && bounds2);
+      assert.equal(bounds2.x - bounds1.x, 200, 'Zoom reset bubble tracks zoom button reposition');
+    });
+
+    test('SHELL_MENU_OVERLAY_KINDS includes zoomReset', () => {
+      const { SHELL_MENU_OVERLAY_KINDS } = require('../../../main/constants/defaults');
+      assert.ok(SHELL_MENU_OVERLAY_KINDS.has('zoomReset'));
+    });
+  });
+
   describe('Toolbar Menus Standardized Width (same as extension puzzle menu: 320px)', () => {
     const ctx = createMockContext(1400, 800);
     const fs = require('fs');

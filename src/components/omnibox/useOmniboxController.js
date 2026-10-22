@@ -1114,10 +1114,15 @@ export function useOmniboxController({ currentTabId, tabsData, searchEngine = 'g
       };
     } else if (action.opensPopup === OMNIBOX_POPUP.DOWNLOAD) {
       payload = { domain: displayParts?.domain || '' };
+    } else if (action.opensPopup === OMNIBOX_POPUP.ZOOM) {
+      payload = {
+        tabId: currentTabId,
+        zoomFactor: tab?.zoomFactor != null ? tab.zoomFactor : 1.0,
+      };
     }
     activePopupAnchorElRef.current = event?.currentTarget || null;
     void openPopup(action.opensPopup, anchorRect, payload);
-  }, [displayParts, isSecure, openPopup, tab?.favicon, tab?.url]);
+  }, [currentTabId, displayParts, isSecure, openPopup, tab?.favicon, tab?.url, tab?.zoomFactor]);
 
   return {
     barRef,

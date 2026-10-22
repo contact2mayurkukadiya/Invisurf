@@ -56,6 +56,7 @@ const SHELL_MENU_OVERLAY_KINDS = new Set([
     'permissionPrompt',
     'extensionInstallPrompt',
     'extensionMenu',
+    'zoomReset',
 ]);
 
 const COOKIE_CONFIG_DEFAULTS = {

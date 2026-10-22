@@ -106,6 +106,27 @@
   background: rgba(0, 0, 0, 0.1);
 }
 
+.omnibox-suffix {
+  margin-right: 4px;
+}
+
+.omnibox-action-btn--suffix {
+  background-color: transparent;
+  color: var(--chrome-toolbar-icon, var(--chrome-fg));
+  opacity: 0.85;
+  transition: background-color 0.15s ease, opacity 0.15s ease, transform 0.1s ease;
+}
+
+.omnibox-action-btn--suffix:hover {
+  background-color: var(--chrome-tab-hover-bg, rgba(0, 0, 0, 0.08));
+  opacity: 1;
+}
+
+.omnibox-action-btn--suffix.omnibox-action-btn--active {
+  background-color: var(--chrome-close-hover, rgba(0, 0, 0, 0.12));
+  opacity: 1;
+}
+
 @media (prefers-color-scheme: dark) {
   .omnibox-search-chip {
     background-color: var(--neutral-hover, rgba(255, 255, 255, 0.08));
