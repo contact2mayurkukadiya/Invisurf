@@ -37,7 +37,7 @@ function buildExtensionWebPreferences(options = {}) {
         nodeIntegration: false,
         contextIsolation: false,
         enableRemoteModule: false,
-        sandbox: false,
+        sandbox: true,
         nodeIntegrationInSubFrames: false,
         preload,
         ...additional,

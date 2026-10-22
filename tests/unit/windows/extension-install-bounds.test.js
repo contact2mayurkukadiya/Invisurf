@@ -29,10 +29,10 @@ describe('Extension Installation Overlay & Downloader', () => {
     });
 
     assert.ok(bounds);
-    assert.equal(bounds.x, 0);
-    assert.equal(bounds.y, 0);
-    assert.equal(bounds.width, 1280);
-    assert.equal(bounds.height, 850);
+    assert.equal(bounds.x, 404);
+    assert.equal(bounds.y, 26);
+    assert.equal(bounds.width, 472);
+    assert.equal(bounds.height, 592);
     assert.equal(bounds.viewportWidth, 1280);
     assert.equal(bounds.viewportHeight, 850);
   });

@@ -496,7 +496,7 @@ function computeMenuOverlayBounds(context, patch) {
 
     if (kind === 'bookmarkEditor') {
         const ar = patch.anchorRect || {};
-        const panelWidth = Math.min(340, Math.max(280, windowW - 16));
+        const panelWidth = Math.min(320, Math.max(280, windowW - 16));
         const left0 = Math.round(Number(ar.left) || 0);
         const top0 = Math.round(Number(ar.top) || 0);
         const w0 = Math.max(1, Math.round(Number(ar.width) || 32));
@@ -509,7 +509,7 @@ function computeMenuOverlayBounds(context, patch) {
 
     if (kind === 'profileMenu') {
         const r = patch.menuRect || {};
-        const width = Math.round(Number(r.width) || 260);
+        const width = Math.round(Number(r.width) || 320);
         const left = clampNumber(Math.round(Number(r.left) || 0), pad, windowW - width - pad);
         const top = clampNumber(Math.round(Number(r.top) || 0), pad, windowH - 80 - pad);
         const items = Array.isArray(patch.items) ? patch.items : [];
@@ -526,7 +526,7 @@ function computeMenuOverlayBounds(context, patch) {
 
     if (kind === 'siteInfo') {
         const ar = patch.anchorRect || {};
-        const panelWidth = 340;
+        const panelWidth = 320;
         const left0 = Math.round(Number(ar.left) || 0);
         const top0 = Math.round(Number(ar.top) || 0);
         const h0 = Math.max(1, Math.round(Number(ar.height) || 32));
@@ -574,7 +574,7 @@ function computeMenuOverlayBounds(context, patch) {
 
     if (kind === 'downloadPanel') {
         const ar = patch.anchorRect || {};
-        const panelWidth = 360;
+        const panelWidth = 320;
         const left0 = Math.round(Number(ar.left) || 0);
         const w0 = Math.max(1, Math.round(Number(ar.width) || 32));
         const top0 = Math.round(Number(ar.top) || 0);
@@ -590,10 +590,27 @@ function computeMenuOverlayBounds(context, patch) {
         });
     }
 
-    if (kind === 'cookieControls' || kind === 'downloadPanel' || kind === 'extensionMenu') {
+    if (kind === 'cookieControls') {
         const ar = patch.anchorRect || {};
-        const isContextMenuOnly = kind === 'extensionMenu' && patch.contextMenuOnly;
-        const panelWidth = kind === 'cookieControls' ? 340 : (kind === 'extensionMenu' ? (isContextMenuOnly ? 240 : 320) : 300);
+        const panelWidth = 320;
+        const left0 = Math.round(Number(ar.left) || 0);
+        const top0 = Math.round(Number(ar.top) || 0);
+        const h0 = Math.max(1, Math.round(Number(ar.height) || 32));
+        const left = clampNumber(left0, pad, windowW - panelWidth - pad);
+        const top = clampNumber(top0 + h0 + 6, pad, windowH - 220 - pad);
+        const height = Math.max(240, Math.min(windowH * 0.65, windowH - top - pad));
+        return menuOverlayBoundsFromPanel(context, { left, top, width: panelWidth, height }, {
+            shadowMarginTop: 16,
+            shadowMarginBottom: 32,
+            shadowMarginLeft: 24,
+            shadowMarginRight: 24,
+        });
+    }
+
+    if (kind === 'extensionMenu') {
+        const ar = patch.anchorRect || {};
+        const isContextMenuOnly = patch.contextMenuOnly;
+        const panelWidth = isContextMenuOnly ? 240 : 320;
         const left0 = Math.round(Number(ar.right != null ? ar.right - panelWidth : ar.left) || 0);
         const top0 = Math.round(Number(ar.top) || 0);
         const h0 = Math.max(1, Math.round(Number(ar.height) || 32));
@@ -601,8 +618,8 @@ function computeMenuOverlayBounds(context, patch) {
         const top = clampNumber(top0 + h0 + 6, pad, windowH - 220 - pad);
         const height = Math.max(240, Math.min(windowH * 0.65, windowH - top - pad));
         return menuOverlayBoundsFromPanel(context, { left, top, width: panelWidth, height }, {
-            extraLeft: kind === 'extensionMenu' ? 560 : 0,
-            extraRight: kind === 'extensionMenu' ? 280 : 0,
+            extraLeft: 560,
+            extraRight: 280,
             shadowMarginTop: 16,
             shadowMarginBottom: 32,
             shadowMarginLeft: 24,
@@ -640,7 +657,7 @@ function computeMenuOverlayBounds(context, patch) {
 
     if (kind === 'transparencyMenu') {
         const ar = patch.anchorRect || {};
-        const panelWidth = 260;
+        const panelWidth = 320;
         const panelHeight = 52;
         const anchorL = Math.round(Number(ar.left) || 0);
         const anchorW = Math.max(1, Math.round(Number(ar.width) || 32));
@@ -1272,6 +1289,30 @@ async function showExtensionPopup(context, extension, anchorRect) {
     });
     popupView.webContents.on('console-message', (event, level, message, line, sourceId) => {
         console.log(`[EXT-POPUP ${extension.id}] [lvl=${level}] ${message} (${sourceId}:${line})`);
+    });
+
+    // Restrict popup navigation strictly to its own extension origin
+    popupView.webContents.on('will-navigate', (event, targetNavUrl) => {
+        if (!targetNavUrl.startsWith(`chrome-extension://${actualId}/`)) {
+            event.preventDefault();
+            if (targetNavUrl.startsWith('http://') || targetNavUrl.startsWith('https://')) {
+                try {
+                    const { getTabRegistry } = require('../extensions/compat/TabRegistry');
+                    getTabRegistry().create({ url: targetNavUrl }, { profileId: context.profileId, extensionId: actualId });
+                } catch (_) {}
+            }
+        }
+    });
+
+    // Block popups from opening unvetted windows (deny file://, javascript:, invisurf://, etc.)
+    popupView.webContents.setWindowOpenHandler(({ url: openUrl }) => {
+        if (openUrl.startsWith('http://') || openUrl.startsWith('https://')) {
+            try {
+                const { getTabRegistry } = require('../extensions/compat/TabRegistry');
+                getTabRegistry().create({ url: openUrl }, { profileId: context.profileId, extensionId: actualId });
+            } catch (_) {}
+        }
+        return { action: 'deny' };
     });
     try {
         popupView.setBackgroundColor('#00000000');

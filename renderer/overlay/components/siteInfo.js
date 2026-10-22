@@ -5,7 +5,7 @@ import { AssetMaskIcon, getCompactMenuMetrics, toCompactMenuPoint } from '../uti
 export function renderSiteInfo(payload) {
     hideAll({ hideLens: false });
     const r = payload.anchorRect || {};
-    const width = 340;
+    const width = 320;
     const metrics = getCompactMenuMetrics(payload);
     const pad = 8;
     const left0 = Math.round(r.left != null ? r.left : 0);

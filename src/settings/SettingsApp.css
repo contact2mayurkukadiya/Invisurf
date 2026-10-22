@@ -127,7 +127,7 @@ body {
 .settings-section__title {
   font-size: 11px;
   font-weight: 600;
-  color: #1a73e8;
+  color: var(--chrome-accent, #1a73e8);
   text-transform: uppercase;
   letter-spacing: 0.09em;
   margin: 0 0 8px 4px;
@@ -199,7 +199,7 @@ body {
 }
 
 .toggle-switch--on {
-  background: #1a73e8;
+  background: var(--chrome-accent, #1a73e8);
 }
 
 .toggle-switch--on::after {
@@ -270,11 +270,11 @@ body {
 }
 
 .radio-row--checked {
-  background: #e8f0fe;
+  background: var(--settings-active-bg, #e8f0fe);
 }
 
 .radio-row--checked:hover {
-  background: #dce8fd;
+  background: var(--settings-hover-bg, #dce8fd);
 }
 
 .radio-input {
@@ -282,7 +282,7 @@ body {
   width: 16px;
   height: 16px;
   cursor: pointer;
-  accent-color: #1a73e8;
+  accent-color: var(--chrome-accent, #1a73e8);
   flex-shrink: 0;
 }
 
@@ -982,17 +982,17 @@ body {
     --settings-border-strong: #5f6368;
     --settings-muted-text: #9aa0a6;
     --settings-hover-bg: #3c4043;
-    --settings-subtle-bg: #292a2d;
+    --settings-subtle-bg: var(--chrome-content-surface, #292a2d);
     --settings-modal-overlay: rgba(0, 0, 0, 0.62);
     --settings-danger-bg: rgba(244, 67, 54, 0.16);
     --settings-danger-fg: #f28b82;
-    --settings-chip-bg: #202124;
+    --settings-chip-bg: var(--chrome-content-surface, #202124);
     --settings-chip-fg: #e8eaed;
     --settings-chip-selected-bg: rgba(138, 180, 248, 0.16);
     --settings-chip-selected-fg: #aecbfa;
     --settings-crash-row-hover: rgba(255, 255, 255, 0.06);
     --settings-crash-row-active: rgba(138, 180, 248, 0.14);
-    --settings-crash-popover-bg: #202124;
+    --settings-crash-popover-bg: var(--chrome-content-surface, #202124);
     --settings-code-bg: #11171d;
     --settings-code-fg: #d6e2ee;
   }
@@ -1210,17 +1210,17 @@ html[data-forced-appearance="dark"] body {
   --settings-border-strong: #5f6368;
   --settings-muted-text: #9aa0a6;
   --settings-hover-bg: #3c4043;
-  --settings-subtle-bg: #292a2d;
+  --settings-subtle-bg: var(--chrome-content-surface, #292a2d);
   --settings-modal-overlay: rgba(0, 0, 0, 0.62);
   --settings-danger-bg: rgba(244, 67, 54, 0.16);
   --settings-danger-fg: #f28b82;
-  --settings-chip-bg: #202124;
+  --settings-chip-bg: var(--chrome-content-surface, #202124);
   --settings-chip-fg: #e8eaed;
   --settings-chip-selected-bg: rgba(138, 180, 248, 0.16);
   --settings-chip-selected-fg: #aecbfa;
   --settings-crash-row-hover: rgba(255, 255, 255, 0.06);
   --settings-crash-row-active: rgba(138, 180, 248, 0.14);
-  --settings-crash-popover-bg: #202124;
+  --settings-crash-popover-bg: var(--chrome-content-surface, #202124);
   --settings-code-bg: #11171d;
   --settings-code-fg: #d6e2ee;
 }
@@ -1425,79 +1425,79 @@ body.settings-stealth-ui .settings-theme-select:focus-visible {
 body,
 body.settings-stealth-ui {
   overflow: hidden;
-  background: var(--settings-app-bg, #f8f8f8);
-  color: var(--settings-text, #202124);
-  --settings-app-bg: #f8f8f8;
-  --settings-surface: #fff;
-  --settings-sidebar-bg: #f8f8f8;
-  --settings-text: #202124;
-  --settings-muted-text: #5f6368;
-  --settings-border: #d7d2d5;
-  --settings-border-strong: #c9c4c8;
-  --settings-hover-bg: #eee9eb;
-  --settings-subtle-bg: #f8f6f7;
-  --settings-active-bg: #dfe7ff;
-  --settings-active-fg: #174ea6;
-  --settings-active-rail: #5f84ff;
+  background: var(--chrome-content-bg, var(--settings-app-bg, #f8f8f8));
+  color: var(--chrome-content-text, var(--chrome-fg, var(--settings-text, #202124)));
+  --settings-app-bg: var(--chrome-content-bg, #f8f8f8);
+  --settings-surface: var(--chrome-content-surface, #ffffff);
+  --settings-sidebar-bg: var(--chrome-content-sidebar-bg, var(--chrome-content-bg, #f8f8f8));
+  --settings-text: var(--chrome-content-text, var(--chrome-fg, #202124));
+  --settings-muted-text: var(--chrome-content-muted, #5f6368);
+  --settings-border: var(--chrome-content-border, rgba(0, 0, 0, 0.08));
+  --settings-border-strong: var(--chrome-content-border-strong, #c9c4c8);
+  --settings-hover-bg: var(--chrome-content-hover, #eee9eb);
+  --settings-subtle-bg: var(--chrome-content-subtle, #f8f6f7);
+  --settings-active-bg: var(--chrome-content-active-bg, #dfe7ff);
+  --settings-active-fg: var(--chrome-content-active-fg, #174ea6);
+  --settings-active-rail: var(--chrome-content-active-rail, var(--chrome-accent, #5f84ff));
   --settings-focus-ring: rgba(26, 115, 232, 0.28);
-  --settings-code-bg: #f8f9fa;
-  --settings-code-fg: #202124;
+  --settings-code-bg: var(--chrome-content-subtle, #f8f9fa);
+  --settings-code-fg: var(--chrome-content-text, var(--chrome-fg, #202124));
 }
 
 @media (prefers-color-scheme: dark) {
   body {
-    --settings-app-bg: #171719;
-    --settings-surface: #202124;
-    --settings-sidebar-bg: #1b1c1f;
-    --settings-text: #e8eaed;
-    --settings-muted-text: #a8adb4;
-    --settings-border: #3c4043;
-    --settings-border-strong: #5f6368;
-    --settings-hover-bg: #2b2d31;
-    --settings-subtle-bg: #25272b;
-    --settings-active-bg: rgba(138, 180, 248, 0.18);
-    --settings-active-fg: #aecbfa;
-    --settings-active-rail: #8ab4f8;
+    --settings-app-bg: var(--chrome-content-bg, #171719);
+    --settings-surface: var(--chrome-content-surface, #202124);
+    --settings-sidebar-bg: var(--chrome-content-sidebar-bg, var(--chrome-content-bg, #1b1c1f));
+    --settings-text: var(--chrome-content-text, var(--chrome-fg, #e8eaed));
+    --settings-muted-text: var(--chrome-content-muted, #a8adb4);
+    --settings-border: var(--chrome-content-border, #3c4043);
+    --settings-border-strong: var(--chrome-content-border-strong, #5f6368);
+    --settings-hover-bg: var(--chrome-content-hover, #2b2d31);
+    --settings-subtle-bg: var(--chrome-content-subtle, #25272b);
+    --settings-active-bg: var(--chrome-content-active-bg, rgba(138, 180, 248, 0.18));
+    --settings-active-fg: var(--chrome-content-active-fg, #aecbfa);
+    --settings-active-rail: var(--chrome-content-active-rail, var(--chrome-accent, #8ab4f8));
     --settings-focus-ring: rgba(138, 180, 248, 0.34);
-    --settings-code-bg: #11171d;
-    --settings-code-fg: #d6e2ee;
+    --settings-code-bg: var(--chrome-content-subtle, #11171d);
+    --settings-code-fg: var(--chrome-content-text, var(--chrome-fg, #d6e2ee));
   }
 }
 
 html[data-forced-appearance="light"] body,
 html[data-forced-appearance="light"] body.settings-stealth-ui {
-  --settings-app-bg: #f8f8f8;
-  --settings-surface: #fff;
-  --settings-sidebar-bg: #f8f8f8;
-  --settings-text: #202124;
-  --settings-muted-text: #5f6368;
-  --settings-border: #d7d2d5;
-  --settings-border-strong: #c9c4c8;
-  --settings-hover-bg: #eee9eb;
-  --settings-subtle-bg: #f8f6f7;
-  --settings-active-bg: #dfe7ff;
-  --settings-active-fg: #174ea6;
-  --settings-active-rail: #5f84ff;
-  --settings-code-bg: #f8f9fa;
-  --settings-code-fg: #202124;
+  --settings-app-bg: var(--chrome-content-bg, #f8f8f8);
+  --settings-surface: var(--chrome-content-surface, #ffffff);
+  --settings-sidebar-bg: var(--chrome-content-sidebar-bg, var(--chrome-content-bg, #f8f8f8));
+  --settings-text: var(--chrome-content-text, var(--chrome-fg, #202124));
+  --settings-muted-text: var(--chrome-content-muted, #5f6368);
+  --settings-border: var(--chrome-content-border, rgba(0, 0, 0, 0.08));
+  --settings-border-strong: var(--chrome-content-border-strong, #c9c4c8);
+  --settings-hover-bg: var(--chrome-content-hover, #eee9eb);
+  --settings-subtle-bg: var(--chrome-content-subtle, #f8f6f7);
+  --settings-active-bg: var(--chrome-content-active-bg, #dfe7ff);
+  --settings-active-fg: var(--chrome-content-active-fg, #174ea6);
+  --settings-active-rail: var(--chrome-content-active-rail, var(--chrome-accent, #5f84ff));
+  --settings-code-bg: var(--chrome-content-subtle, #f8f9fa);
+  --settings-code-fg: var(--chrome-content-text, var(--chrome-fg, #202124));
 }
 
 html[data-forced-appearance="dark"] body,
 html[data-forced-appearance="dark"] body.settings-stealth-ui {
-  --settings-app-bg: #171719;
-  --settings-surface: #202124;
-  --settings-sidebar-bg: #1b1c1f;
-  --settings-text: #e8eaed;
-  --settings-muted-text: #a8adb4;
-  --settings-border: #3c4043;
-  --settings-border-strong: #5f6368;
-  --settings-hover-bg: #2b2d31;
-  --settings-subtle-bg: #25272b;
-  --settings-active-bg: rgba(138, 180, 248, 0.18);
-  --settings-active-fg: #aecbfa;
-  --settings-active-rail: #8ab4f8;
-  --settings-code-bg: #11171d;
-  --settings-code-fg: #d6e2ee;
+  --settings-app-bg: var(--chrome-content-bg, #171719);
+  --settings-surface: var(--chrome-content-surface, #202124);
+  --settings-sidebar-bg: var(--chrome-content-sidebar-bg, var(--chrome-content-bg, #1b1c1f));
+  --settings-text: var(--chrome-content-text, var(--chrome-fg, #e8eaed));
+  --settings-muted-text: var(--chrome-content-muted, #a8adb4);
+  --settings-border: var(--chrome-content-border, #3c4043);
+  --settings-border-strong: var(--chrome-content-border-strong, #5f6368);
+  --settings-hover-bg: var(--chrome-content-hover, #2b2d31);
+  --settings-subtle-bg: var(--chrome-content-subtle, #25272b);
+  --settings-active-bg: var(--chrome-content-active-bg, rgba(138, 180, 248, 0.18));
+  --settings-active-fg: var(--chrome-content-active-fg, #aecbfa);
+  --settings-active-rail: var(--chrome-content-active-rail, var(--chrome-accent, #8ab4f8));
+  --settings-code-bg: var(--chrome-content-subtle, #11171d);
+  --settings-code-fg: var(--chrome-content-text, var(--chrome-fg, #d6e2ee));
 }
 
 .settings-page,
@@ -1535,16 +1535,23 @@ body.settings-stealth-ui .settings-header__title {
 }
 
 .settings-search-field {
-  height: 30px;
+  height: 38px;
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 0 10px;
-  border: 1px solid var(--settings-border-strong);
-  border-radius: 8px;
-  background: var(--settings-surface);
+  gap: 10px;
+  padding: 0 16px;
+  border: 1px solid var(--settings-border);
+  border-radius: 20px;
+  background: var(--settings-subtle-bg);
   color: var(--settings-muted-text);
-  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.04);
+  box-shadow: none;
+  transition: all 150ms ease;
+}
+
+.settings-search-field:focus-within {
+  border-color: var(--chrome-accent, #1a73e8);
+  box-shadow: 0 0 0 3px var(--settings-focus-ring);
+  background: var(--settings-surface);
 }
 
 .settings-header-search {
@@ -1643,23 +1650,27 @@ body.settings-stealth-ui .settings-header__title {
 
 .settings-sidebar-item,
 .settings-sidebar-subitem {
-  width: 100%;
-  min-height: 36px;
+  width: calc(100% - 24px);
+  margin: 2px 12px;
+  min-height: 38px;
+  border-radius: 20px;
   border: 0;
   background: transparent;
   color: var(--settings-muted-text);
   cursor: pointer;
   font: inherit;
   text-align: left;
+  transition: background 150ms ease, color 150ms ease;
+  box-sizing: border-box;
 }
 
 .settings-sidebar-item {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 17px;
+  gap: 16px;
   padding: 0 16px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
 }
 
@@ -1672,16 +1683,11 @@ body.settings-stealth-ui .settings-header__title {
 .settings-sidebar-item--active {
   background: var(--settings-active-bg);
   color: var(--settings-active-fg);
+  font-weight: 500;
 }
 
 .settings-sidebar-item--active::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 3px;
-  height: 100%;
-  background: var(--settings-active-rail);
+  display: none;
 }
 
 .settings-sidebar-icon {
@@ -1745,16 +1751,11 @@ body.settings-stealth-ui .settings-header__title {
 .settings-sidebar-subitem--active {
   background: var(--settings-active-bg);
   color: var(--settings-active-fg);
+  font-weight: 500;
 }
 
 .settings-sidebar-subitem--active::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 3px;
-  height: 100%;
-  background: var(--settings-active-rail);
+  display: none;
 }
 
 .settings-scroll-root,
@@ -1766,6 +1767,7 @@ body.settings-stealth-ui .settings-scroll-root {
   box-sizing: border-box;
   overflow-y: auto;
   overflow-x: hidden;
+  background: var(--settings-app-bg);
 }
 
 .settings-content,
@@ -2009,7 +2011,7 @@ body.settings-stealth-ui .text-highlight {
   width: 16px;
   height: 16px;
   margin: 2px 0 0;
-  accent-color: #1a73e8;
+  accent-color: var(--chrome-accent, #1a73e8);
 }
 
 .cookie-policy-row>span {
@@ -2034,7 +2036,7 @@ body.settings-stealth-ui .text-highlight {
 }
 
 .cookie-link-icon {
-  color: #1a73e8;
+  color: var(--chrome-accent, #1a73e8);
 }
 
 .cookie-exception-section {

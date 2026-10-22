@@ -124,6 +124,16 @@ export default function DownloadToolbarButton({ onOpenDownloads }) {
     void postPatch();
   }, [activeDownloads, postPatch]);
 
+  // Reposition on window resize if open so popup follows download trigger button
+  useEffect(() => {
+    if (!open) return undefined;
+    const onResize = () => {
+      void postPatch();
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [open, postPatch]);
+
   // ── Handle events routed back from the overlay renderer ─────────────────
   useEffect(() => {
     const unsubHost = window.electronAPI?.onChromeOverlayV1HostEvent?.(async (data) => {

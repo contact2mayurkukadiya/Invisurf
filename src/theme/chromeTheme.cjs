@@ -820,23 +820,78 @@ function applyLightChromeSliderNavWellLayering(next, tabBarFrameHex) {
   next['--chrome-bookmark-bar'] = sheet;
 }
 
-/** Settings / internal pages: strict canvas + scrollbar thumb/track with guaranteed separation. */
-function contentLayerTokens(effectiveDark) {
+/** Settings / internal pages: canvas background matches profile's chosen theme color. */
+function contentLayerTokens(effectiveDark, tokens = {}) {
+  const accent = (typeof tokens['--chrome-accent'] === 'string' && tokens['--chrome-accent'])
+    || (effectiveDark ? '#8ab4f8' : '#1a73e8');
+
   if (effectiveDark) {
+    const themeBg = (typeof tokens['--chrome-body-bg'] === 'string' && tokens['--chrome-body-bg'])
+      || (typeof tokens['--chrome-shell-bg'] === 'string' && tokens['--chrome-shell-bg'])
+      || '#202124';
+    const themeSurface = (typeof tokens['--chrome-slider'] === 'string' && tokens['--chrome-slider'])
+      || (typeof tokens['--chrome-nav-bg'] === 'string' && tokens['--chrome-nav-bg'])
+      || mixHex(themeBg, '#ffffff', 0.08);
+    const subtle = (typeof tokens['--chrome-url-well'] === 'string' && tokens['--chrome-url-well'])
+      || mixHex(themeBg, '#ffffff', 0.05);
+    const hover = mixHex(themeBg, '#ffffff', 0.08);
+    const border = mixHex(themeBg, '#ffffff', 0.12);
+    const borderStrong = mixHex(themeBg, '#ffffff', 0.22);
+    const activeBg = mixHex(themeBg, accent, 0.22);
+    const activeFg = mixHex(accent, '#ffffff', 0.25);
+    const text = (typeof tokens['--chrome-fg'] === 'string' && tokens['--chrome-fg']) || 'rgba(255, 255, 255, 0.95)';
+    const muted = (typeof tokens['--chrome-secondary-fg'] === 'string' && tokens['--chrome-secondary-fg']) || 'rgba(255, 255, 255, 0.68)';
+
     return {
-      '--chrome-content-bg': '#121212',
-      '--chrome-content-surface': '#1e1e1e',
-      '--chrome-scrollbar-track': '#1a1a1a',
-      '--chrome-scrollbar-thumb': '#6b6b6b',
-      '--chrome-scrollbar-thumb-hover': '#8a8a8a',
+      '--chrome-content-bg': themeBg,
+      '--chrome-content-surface': themeSurface,
+      '--chrome-content-sidebar-bg': themeBg,
+      '--chrome-content-subtle': subtle,
+      '--chrome-content-hover': hover,
+      '--chrome-content-border': border,
+      '--chrome-content-border-strong': borderStrong,
+      '--chrome-content-active-bg': activeBg,
+      '--chrome-content-active-fg': activeFg,
+      '--chrome-content-active-rail': accent,
+      '--chrome-content-text': text,
+      '--chrome-content-muted': muted,
+      '--chrome-scrollbar-track': mixHex(themeBg, '#000000', 0.25),
+      '--chrome-scrollbar-thumb': mixHex(themeBg, '#ffffff', 0.35),
+      '--chrome-scrollbar-thumb-hover': mixHex(themeBg, '#ffffff', 0.5),
     };
   }
+
+  // Light appearance
+  const themeBg = (typeof tokens['--chrome-shell-tint'] === 'string' && tokens['--chrome-shell-tint'])
+    || (typeof tokens['--chrome-body-bg'] === 'string' && tokens['--chrome-body-bg'])
+    || '#f1f3f4';
+  const themeSurface = '#ffffff';
+  const subtle = (typeof tokens['--chrome-url-well'] === 'string' && tokens['--chrome-url-well'])
+    || mixHex(themeBg, '#000000', 0.04);
+  const hover = mixHex(themeBg, '#000000', 0.05);
+  const border = mixHex(themeBg, '#000000', 0.10);
+  const borderStrong = mixHex(themeBg, '#000000', 0.20);
+  const activeBg = mixHex(themeBg, accent, 0.16);
+  const activeFg = mixHex(accent, '#000000', 0.25);
+  const text = (typeof tokens['--chrome-fg'] === 'string' && tokens['--chrome-fg']) || '#202124';
+  const muted = (typeof tokens['--chrome-secondary-fg'] === 'string' && tokens['--chrome-secondary-fg']) || 'rgba(23, 27, 32, 0.65)';
+
   return {
-    '--chrome-content-bg': '#ffffff',
-    '--chrome-content-surface': '#ffffff',
-    '--chrome-scrollbar-track': '#e8eaed',
-    '--chrome-scrollbar-thumb': '#9aa0a6',
-    '--chrome-scrollbar-thumb-hover': '#80868b',
+    '--chrome-content-bg': themeBg,
+    '--chrome-content-surface': themeSurface,
+    '--chrome-content-sidebar-bg': themeBg,
+    '--chrome-content-subtle': subtle,
+    '--chrome-content-hover': hover,
+    '--chrome-content-border': border,
+    '--chrome-content-border-strong': borderStrong,
+    '--chrome-content-active-bg': activeBg,
+    '--chrome-content-active-fg': activeFg,
+    '--chrome-content-active-rail': accent,
+    '--chrome-content-text': text,
+    '--chrome-content-muted': muted,
+    '--chrome-scrollbar-track': mixHex(themeBg, '#000000', 0.05),
+    '--chrome-scrollbar-thumb': mixHex(themeBg, '#000000', 0.3),
+    '--chrome-scrollbar-thumb-hover': mixHex(themeBg, '#000000', 0.45),
   };
 }
 
@@ -917,7 +972,6 @@ function omniboxFocusTokens(urlWellHex, effectiveDark, accentHintHex) {
  */
 function enrichUnifiedToolbarTokens(tokens, effectiveDark) {
   const next = { ...tokens };
-  Object.assign(next, contentLayerTokens(effectiveDark));
 
   const navBg = next['--chrome-nav-bg'];
   const accentHint =
@@ -952,6 +1006,8 @@ function enrichUnifiedToolbarTokens(tokens, effectiveDark) {
   const accentColor = focus['--chrome-omnibox-selection-bg'] || (effectiveDark ? '#8ab4f8' : '#1a73e8');
   next['--chrome-accent'] = accentColor;
   next['--chrome-secondary-fg'] = effectiveDark ? 'rgba(255, 255, 255, 0.68)' : 'rgba(23, 27, 32, 0.65)';
+
+  Object.assign(next, contentLayerTokens(effectiveDark, next));
 
   return next;
 }

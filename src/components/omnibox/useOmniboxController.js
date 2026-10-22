@@ -166,6 +166,8 @@ export function useOmniboxController({ currentTabId, tabsData, searchEngine = 'g
   const popupOpenRef = useRef(false);
   const popupKindRef = useRef(null);
   const pendingOwnPopupResetRef = useRef(false);
+  const activePopupAnchorElRef = useRef(null);
+  const activePopupPayloadRef = useRef(null);
 
   const controller = useMemo(() => new AutocompleteController(), []);
   useEffect(() => () => controller.dispose(), [controller]);
@@ -826,6 +828,8 @@ export function useOmniboxController({ currentTabId, tabsData, searchEngine = 'g
     if (!popupOpenRef.current) return;
     popupOpenRef.current = false;
     popupKindRef.current = null;
+    activePopupAnchorElRef.current = null;
+    activePopupPayloadRef.current = null;
     setPopup(null);
     if (!pendingOwnPopupResetRef.current) {
       try {
@@ -851,6 +855,7 @@ export function useOmniboxController({ currentTabId, tabsData, searchEngine = 'g
       await shellAcquire();
       popupOpenRef.current = true;
       popupKindRef.current = kind;
+      activePopupPayloadRef.current = payload;
       setPopup(kind);
       await shellPost({
         kind,
@@ -861,6 +866,8 @@ export function useOmniboxController({ currentTabId, tabsData, searchEngine = 'g
       console.error('[useOmniboxController] popup overlay open', err);
       popupOpenRef.current = false;
       popupKindRef.current = null;
+      activePopupAnchorElRef.current = null;
+      activePopupPayloadRef.current = null;
       setPopup(null);
       try {
         await shellRelease();
@@ -878,6 +885,33 @@ export function useOmniboxController({ currentTabId, tabsData, searchEngine = 'g
     });
     return () => unsub?.();
   }, [closePopup]);
+
+  useEffect(() => {
+    const unsub = window.electronAPI?.onChromeShellMenuOverlaySuperseded?.(() => {
+      if (pendingOwnPopupResetRef.current) return;
+      if (!popupOpenRef.current) return;
+      void closePopup();
+    });
+    return () => unsub?.();
+  }, [closePopup]);
+
+  // Reposition popup on window resize so it follows its omnibox trigger button
+  useEffect(() => {
+    if (!popup) return undefined;
+    const onResize = () => {
+      if (!popupOpenRef.current || !activePopupAnchorElRef.current || !popupKindRef.current) return;
+      const br = activePopupAnchorElRef.current.getBoundingClientRect();
+      const anchorRect = rectToPlain(br);
+      const payload = activePopupPayloadRef.current || {};
+      void shellPost({
+        kind: popupKindRef.current,
+        anchorRect,
+        ...payload,
+      });
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [popup, shellPost]);
 
   useEffect(() => {
     const handleGlobalMouseDown = (e) => {
@@ -1081,6 +1115,7 @@ export function useOmniboxController({ currentTabId, tabsData, searchEngine = 'g
     } else if (action.opensPopup === OMNIBOX_POPUP.DOWNLOAD) {
       payload = { domain: displayParts?.domain || '' };
     }
+    activePopupAnchorElRef.current = event?.currentTarget || null;
     void openPopup(action.opensPopup, anchorRect, payload);
   }, [displayParts, isSecure, openPopup, tab?.favicon, tab?.url]);
 

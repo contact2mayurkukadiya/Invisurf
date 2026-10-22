@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import './SettingsApp.css';
 import { getAccentPresetsForUi, normalizeAccentHex } from '../theme/index.js';
-import { useChromeTheme } from '../hooks/useChromeTheme';
+import { useChromeTheme, applyChromeThemeFromSettings } from '../hooks/useChromeTheme';
 import { useInvsurfDocumentFavicon } from '../hooks/useInvsurfLogoFavicon';
 import { SETTINGS } from '../constants/conditionStrings.js';
 import { HighlightedText, textMatchesQuery } from '../utils/textHighlighter.jsx';
@@ -301,6 +301,9 @@ export default function SettingsApp() {
       if (cancelled) return;
       setSettings(s);
       setIsStealthWindow(!!stealth);
+      if (s && !stealth) {
+        applyChromeThemeFromSettings(s);
+      }
       setContextReady(true);
     });
     return () => {
@@ -340,8 +343,11 @@ export default function SettingsApp() {
 
   const persist = useCallback(async (updated) => {
     setSettings(updated);
+    if (!isStealthWindow) {
+      applyChromeThemeFromSettings(updated);
+    }
     await window.electronAPI.settingsSave(updated);
-  }, []);
+  }, [isStealthWindow]);
 
   const currentShortcuts = useMemo(() => {
     return { ...DEFAULT_SHORTCUTS, ...(settings?.shortcuts || {}) };

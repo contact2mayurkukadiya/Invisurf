@@ -175,6 +175,7 @@ export default function NavBar({
   const starEditorActiveRef = useRef(false);
   const pendingOwnStarResetRef = useRef(false);
   const starAnchorRef = useRef(null);
+  const starAnchorElRef = useRef(null);
   const starEditorSessionRef = useRef({ url: '', bookmarkId: null, favicon: null });
   const moreBtnRef = useRef(null);
 
@@ -277,6 +278,7 @@ export default function NavBar({
   const closeStarBookmarkEditor = useCallback(async () => {
     if (!starEditorActiveRef.current) return;
     starEditorActiveRef.current = false;
+    starAnchorElRef.current = null;
     try {
       await release();
     } catch (err) {
@@ -303,6 +305,7 @@ export default function NavBar({
   }, [post]);
 
   const openStarBookmarkEditor = useCallback(async (anchorEl, bookmarkDraft) => {
+    starAnchorElRef.current = anchorEl;
     const br = anchorEl.getBoundingClientRect();
     starAnchorRef.current = { left: br.left, top: br.top, width: br.width, height: br.height };
     starEditorSessionRef.current = {
@@ -319,6 +322,7 @@ export default function NavBar({
     } catch (err) {
       console.error('star bookmark overlay open', err);
       starEditorActiveRef.current = false;
+      starAnchorElRef.current = null;
       try {
         await release();
       } catch (releaseErr) {
@@ -328,6 +332,20 @@ export default function NavBar({
       pendingOwnStarResetRef.current = false;
     }
   }, [reset, acquire, release, postStarEditorPatch]);
+
+  // Reposition bookmark editor on window resize so it follows star button
+  useEffect(() => {
+    const onResize = () => {
+      if (!starEditorActiveRef.current || !starAnchorElRef.current) return;
+      const br = starAnchorElRef.current.getBoundingClientRect();
+      starAnchorRef.current = { left: br.left, top: br.top, width: br.width, height: br.height };
+      if (starEditorSessionRef.current) {
+        void postStarEditorPatch(starEditorSessionRef.current, bookmarksBarRef.current);
+      }
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [postStarEditorPatch]);
 
   const openBookmarkEditorForCurrentPage = useCallback(async (anchorEl) => {
     if (!canBookmark || !anchorEl) return;
@@ -553,6 +571,18 @@ export default function NavBar({
       pendingOwnAppMenuResetRef.current = false;
     }
   }, [acquire, closeAppMenu, loadProfileAvatars, loadProfiles, loadRecentlyClosed, postAppMenuPatch, release, reset]);
+
+  // Reposition app menu on window resize so it follows the 3-dots trigger button
+  useEffect(() => {
+    if (!appMenuOpen) return undefined;
+    const onResize = () => {
+      if (!moreBtnRef.current) return;
+      appMenuAnchorRef.current = moreBtnRef.current.getBoundingClientRect();
+      void postAppMenuPatch();
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [appMenuOpen, postAppMenuPatch]);
 
   useEffect(() => {
     const unsub = window.electronAPI?.onChromeOverlayV1HostEvent?.((data) => {

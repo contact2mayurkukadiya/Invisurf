@@ -53,7 +53,7 @@ export function renderCompactMenuPanel(payload, options) {
 export function renderCookieControls(payload) {
     const domain = payload.domain || '';
     renderCompactMenuPanel(payload, {
-        width: 340,
+        width: 320,
         title: 'Cookies and site data',
         body: domain
             ? ('Cookie controls for ' + domain + ' will appear here. Open Site information for full cookie management.')

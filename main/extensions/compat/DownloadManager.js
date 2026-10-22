@@ -3,6 +3,19 @@ const { shell, app } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
+const DANGEROUS_EXECUTABLE_EXTENSIONS = new Set([
+    // Windows executables, binaries, scripts, and installers
+    '.exe', '.bat', '.cmd', '.com', '.msi', '.msp', '.scr', '.pif',
+    '.vbs', '.vbe', '.js', '.jse', '.wsf', '.wsh', '.ps1', '.ps1xml',
+    '.ps2', '.psc1', '.psc2', '.msh', '.msh1', '.msh2', '.reg',
+    '.hta', '.cpl', '.jar', '.lnk', '.inf', '.scf', '.gadget',
+    // macOS / Linux binaries, packages, and scripts
+    '.app', '.sh', '.command', '.action', '.bin', '.pkg', '.dmg',
+    '.workflow', '.terminal', '.tool', '.run', '.csh', '.bash', '.zsh',
+    // Dynamic libraries
+    '.dll', '.dylib', '.so'
+]);
+
 /**
  * DownloadManager
  * Complete implementation of chrome.downloads API for InviSurf extensions.
@@ -292,6 +305,13 @@ class DownloadManager extends EventEmitter {
     open(downloadId) {
         const d = this.downloads.get(Number(downloadId));
         if (d && d.filename && fs.existsSync(d.filename)) {
+            const ext = path.extname(d.filename).toLowerCase();
+            if (DANGEROUS_EXECUTABLE_EXTENSIONS.has(ext)) {
+                console.warn(`[Security] Blocked extension from launching executable download: ${d.filename}`);
+                // Safely highlight/reveal in folder instead of executing
+                shell.showItemInFolder(d.filename);
+                return false;
+            }
             shell.openPath(d.filename);
             return true;
         }

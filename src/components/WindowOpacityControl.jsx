@@ -91,6 +91,16 @@ export default function WindowOpacityControl() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opacityPercent]);
 
+  // Reposition on window resize if open so transparency popup follows trigger button
+  useEffect(() => {
+    if (!open) return undefined;
+    const onResize = () => {
+      void postPatch();
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [open, postPatch]);
+
   // ── Handle events routed back from the overlay renderer ─────────────────
   useEffect(() => {
     const unsub = window.electronAPI?.onChromeOverlayV1HostEvent?.((data) => {

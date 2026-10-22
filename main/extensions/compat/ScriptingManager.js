@@ -88,13 +88,16 @@ class ScriptingManager {
                 resolvedExtPath = ext?.path || null;
             }
 
+            const extRoot = path.resolve(resolvedExtPath);
             for (const file of files) {
                 let code = '';
                 const cleanFile = String(file || '').replace(/^\/+/, '');
                 if (resolvedExtPath) {
-                    const fullPath = path.join(resolvedExtPath, cleanFile);
-                    if (fs.existsSync(fullPath)) {
+                    const fullPath = path.resolve(resolvedExtPath, cleanFile);
+                    if ((fullPath.startsWith(extRoot + path.sep) || fullPath === extRoot) && fs.existsSync(fullPath)) {
                         code = fs.readFileSync(fullPath, 'utf-8');
+                    } else if (!fullPath.startsWith(extRoot + path.sep) && fullPath !== extRoot) {
+                        console.warn(`[Security] Blocked path traversal attempt in executeScript: "${file}"`);
                     }
                 }
 
@@ -188,10 +191,14 @@ class ScriptingManager {
         let cssContent = css || '';
 
         if (Array.isArray(files) && files.length > 0 && extensionPath) {
+            const extRoot = path.resolve(extensionPath);
             for (const file of files) {
-                const fullPath = path.join(extensionPath, file);
-                if (fs.existsSync(fullPath)) {
+                const cleanFile = String(file || '').replace(/^\/+/, '');
+                const fullPath = path.resolve(extensionPath, cleanFile);
+                if ((fullPath.startsWith(extRoot + path.sep) || fullPath === extRoot) && fs.existsSync(fullPath)) {
                     cssContent += '\n' + fs.readFileSync(fullPath, 'utf-8');
+                } else if (!fullPath.startsWith(extRoot + path.sep) && fullPath !== extRoot) {
+                    console.warn(`[Security] Blocked path traversal attempt in insertCSS: "${file}"`);
                 }
             }
         }

@@ -419,6 +419,19 @@ class IpcBridge {
             const senderWc = event.sender;
             const senderTabId = senderWc ? senderWc.id : null;
 
+            // Security: Determine caller's genuine extensionId from senderFrame / sender URL to prevent impersonation
+            let callerExtId = extensionId;
+            const senderUrl = event.senderFrame?.url || (senderWc && !senderWc.isDestroyed() ? senderWc.getURL() : '');
+            if (senderUrl && senderUrl.startsWith('chrome-extension://')) {
+                try {
+                    const { getExtensionIdFromUrl } = require('../ExtensionSecurity');
+                    const originExtId = getExtensionIdFromUrl(senderUrl);
+                    if (originExtId) {
+                        callerExtId = originExtId;
+                    }
+                } catch (_) {}
+            }
+
             // Resolve context & profile from sender
             let resolvedProfile = profileId;
             if (!resolvedProfile && senderWc) {
@@ -431,7 +444,7 @@ class IpcBridge {
             if (!resolvedProfile) resolvedProfile = State.defaultProfileId;
 
             return this.dispatch(method, args, {
-                extensionId,
+                extensionId: callerExtId,
                 profileId: resolvedProfile,
                 senderTabId,
                 senderWebContents: senderWc,
