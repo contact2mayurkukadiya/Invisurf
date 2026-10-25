@@ -1,397 +1,404 @@
 <?xml version="1.0" encoding="utf-8"?>
 <testsuites>
-	<testsuite name="Ghost Native Mode Router" time="0.003831" disabled="0" errors="0" tests="5" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-		<testcase name="applyGhostMode returns false for null or undefined window" time="0.001069" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/native/ghost-mode.test.js"/>
-		<testcase name="applyGhostMode returns false for destroyed window" time="0.000114" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/native/ghost-mode.test.js"/>
-		<testcase name="applyGhostMode catches exceptions in getNativeWindowHandle gracefully" time="0.000129" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/native/ghost-mode.test.js"/>
-		<testcase name="hookWindowChildren returns false for destroyed window or null" time="0.000234" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/native/ghost-mode.test.js"/>
-		<testcase name="setClickThrough returns false for null or destroyed window" time="0.000214" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/native/ghost-mode.test.js"/>
+	<testsuite name="Ghost Native Mode Router" time="0.002356" disabled="0" errors="0" tests="5" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+		<testcase name="applyGhostMode returns false for null or undefined window" time="0.000511" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/native/ghost-mode.test.js"/>
+		<testcase name="applyGhostMode returns false for destroyed window" time="0.000080" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/native/ghost-mode.test.js"/>
+		<testcase name="applyGhostMode catches exceptions in getNativeWindowHandle gracefully" time="0.000903" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/native/ghost-mode.test.js"/>
+		<testcase name="hookWindowChildren returns false for destroyed window or null" time="0.000080" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/native/ghost-mode.test.js"/>
+		<testcase name="setClickThrough returns false for null or destroyed window" time="0.000072" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/native/ghost-mode.test.js"/>
 	</testsuite>
-	<testsuite name="Overscroll Navigation Constants and Physics" time="0.003636" disabled="0" errors="0" tests="5" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-		<testcase name="conditionStrings defines required overscroll IPC constants" time="0.000873" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/navigation/overscroll.test.js"/>
-		<testcase name="single swipe session direction locking and pause behavior" time="0.000276" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/navigation/overscroll.test.js"/>
-		<testcase name="displacement calculation smoothly reveals to half circle and caps at threshold" time="0.000377" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/navigation/overscroll.test.js"/>
-		<testcase name="instant release and momentum rejection during navigation lockout" time="0.000174" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/navigation/overscroll.test.js"/>
-		<testcase name="rapid input-event debouncing within 50ms window" time="0.000126" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/navigation/overscroll.test.js"/>
+	<testsuite name="Overscroll Navigation Constants and Physics" time="0.001783" disabled="0" errors="0" tests="5" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+		<testcase name="conditionStrings defines required overscroll IPC constants" time="0.000464" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/navigation/overscroll.test.js"/>
+		<testcase name="single swipe session direction locking and pause behavior" time="0.000128" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/navigation/overscroll.test.js"/>
+		<testcase name="displacement calculation smoothly reveals to half circle and caps at threshold" time="0.000118" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/navigation/overscroll.test.js"/>
+		<testcase name="instant release and momentum rejection during navigation lockout" time="0.000100" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/navigation/overscroll.test.js"/>
+		<testcase name="rapid input-event debouncing within 50ms window" time="0.000073" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/navigation/overscroll.test.js"/>
 	</testsuite>
-	<testsuite name="PermissionDatabase" time="0.012994" disabled="0" errors="0" tests="8" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-		<testcase name="initializes with empty data when storage file does not exist" time="0.003712" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/permission-database.test.js"/>
-		<testcase name="sets and gets permission for a valid origin and permission name" time="0.001280" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/permission-database.test.js"/>
-		<testcase name="ignores invalid permission names or states" time="0.000552" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/permission-database.test.js"/>
-		<testcase name="persists to disk and reloads on startup" time="0.001393" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/permission-database.test.js"/>
-		<testcase name="supports ephemeral / incognito profiles strictly in-memory" time="0.000475" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/permission-database.test.js"/>
-		<testcase name="deletes specific permission and cleans up empty origin maps" time="0.001856" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/permission-database.test.js"/>
-		<testcase name="clears origin and clears all profile permissions" time="0.000609" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/permission-database.test.js"/>
-		<testcase name="handles corrupted storage file gracefully without crashing" time="0.001813" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/permission-database.test.js"/>
+	<testsuite name="PermissionDatabase" time="0.009533" disabled="0" errors="0" tests="8" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+		<testcase name="initializes with empty data when storage file does not exist" time="0.002079" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/permission-database.test.js"/>
+		<testcase name="sets and gets permission for a valid origin and permission name" time="0.000659" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/permission-database.test.js"/>
+		<testcase name="ignores invalid permission names or states" time="0.000345" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/permission-database.test.js"/>
+		<testcase name="persists to disk and reloads on startup" time="0.000941" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/permission-database.test.js"/>
+		<testcase name="supports ephemeral / incognito profiles strictly in-memory" time="0.000414" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/permission-database.test.js"/>
+		<testcase name="deletes specific permission and cleans up empty origin maps" time="0.002965" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/permission-database.test.js"/>
+		<testcase name="clears origin and clears all profile permissions" time="0.000771" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/permission-database.test.js"/>
+		<testcase name="handles corrupted storage file gracefully without crashing" time="0.000524" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/permission-database.test.js"/>
 	</testsuite>
-	<testsuite name="PermissionPromptQueue" time="0.016586" disabled="0" errors="0" tests="8" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-		<testcase name="resolves deny immediately when webContents is already destroyed" time="0.002115" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/permission-prompt-queue.test.js"/>
-		<testcase name="resolves deny when window context is missing or destroyed" time="0.001760" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/permission-prompt-queue.test.js"/>
-		<testcase name="enqueues and presents prompt immediately for first request" time="0.009100" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/permission-prompt-queue.test.js"/>
-		<testcase name="queues subsequent requests and processes them in FIFO order" time="0.001568" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/permission-prompt-queue.test.js"/>
-		<testcase name="deduplicates simultaneous identical requests by chaining onResolve" time="0.000302" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/permission-prompt-queue.test.js"/>
-		<testcase name="cancels all pending requests on webContents navigation" time="0.000271" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/permission-prompt-queue.test.js"/>
-		<testcase name="cancels all pending requests when webContents is destroyed" time="0.000340" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/permission-prompt-queue.test.js"/>
-		<testcase name="isolates queues across multiple distinct webContents" time="0.000288" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/permission-prompt-queue.test.js"/>
+	<testsuite name="PermissionPromptQueue" time="0.016757" disabled="0" errors="0" tests="8" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+		<testcase name="resolves deny immediately when webContents is already destroyed" time="0.002809" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/permission-prompt-queue.test.js"/>
+		<testcase name="resolves deny when window context is missing or destroyed" time="0.001572" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/permission-prompt-queue.test.js"/>
+		<testcase name="enqueues and presents prompt immediately for first request" time="0.009581" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/permission-prompt-queue.test.js"/>
+		<testcase name="queues subsequent requests and processes them in FIFO order" time="0.000996" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/permission-prompt-queue.test.js"/>
+		<testcase name="deduplicates simultaneous identical requests by chaining onResolve" time="0.000372" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/permission-prompt-queue.test.js"/>
+		<testcase name="cancels all pending requests on webContents navigation" time="0.000185" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/permission-prompt-queue.test.js"/>
+		<testcase name="cancels all pending requests when webContents is destroyed" time="0.000238" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/permission-prompt-queue.test.js"/>
+		<testcase name="isolates queues across multiple distinct webContents" time="0.000177" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/permission-prompt-queue.test.js"/>
 	</testsuite>
-	<testsuite name="Permission Types &amp; Origin Normalization" time="0.007907" disabled="0" errors="0" tests="4" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-		<testsuite name="normalizeOrigin" time="0.003482" disabled="0" errors="0" tests="6" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="normalizes standard https origin" time="0.001174" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/types.test.js"/>
-			<testcase name="normalizes standard http origin with port" time="0.000132" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/types.test.js"/>
-			<testcase name="prepends https:// when no protocol scheme is given" time="0.000123" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/types.test.js"/>
-			<testcase name="normalizes uppercase letters in origin to lowercase" time="0.000269" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/types.test.js"/>
-			<testcase name="handles edge cases: null, undefined, empty, invalid strings" time="0.000221" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/types.test.js"/>
-			<testcase name="handles custom app and file schemes" time="0.000244" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/types.test.js"/>
+	<testsuite name="Permission Types &amp; Origin Normalization" time="0.006631" disabled="0" errors="0" tests="4" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+		<testsuite name="normalizeOrigin" time="0.003143" disabled="0" errors="0" tests="6" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="normalizes standard https origin" time="0.001395" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/types.test.js"/>
+			<testcase name="normalizes standard http origin with port" time="0.000172" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/types.test.js"/>
+			<testcase name="prepends https:// when no protocol scheme is given" time="0.000161" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/types.test.js"/>
+			<testcase name="normalizes uppercase letters in origin to lowercase" time="0.000170" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/types.test.js"/>
+			<testcase name="handles edge cases: null, undefined, empty, invalid strings" time="0.000129" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/types.test.js"/>
+			<testcase name="handles custom app and file schemes" time="0.000237" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/types.test.js"/>
 		</testsuite>
-		<testsuite name="isValidPermission" time="0.000469" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="returns true for all registered permission names" time="0.000197" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/types.test.js"/>
-			<testcase name="returns false for unknown or invalid permission names" time="0.000106" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/types.test.js"/>
+		<testsuite name="isValidPermission" time="0.000528" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="returns true for all registered permission names" time="0.000206" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/types.test.js"/>
+			<testcase name="returns false for unknown or invalid permission names" time="0.000127" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/types.test.js"/>
 		</testsuite>
-		<testsuite name="isValidState" time="0.000381" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="returns true for all registered permission states" time="0.000140" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/types.test.js"/>
-			<testcase name="returns false for unknown permission states" time="0.000131" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/types.test.js"/>
+		<testsuite name="isValidState" time="0.000549" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="returns true for all registered permission states" time="0.000176" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/types.test.js"/>
+			<testcase name="returns false for unknown permission states" time="0.000207" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/types.test.js"/>
 		</testsuite>
-		<testsuite name="PERMISSION_METADATA" time="0.001887" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="provides human-readable labels and descriptions for core permissions" time="0.000125" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/types.test.js"/>
-			<testcase name="metadata is immutable / frozen" time="0.001654" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/types.test.js"/>
-		</testsuite>
-	</testsuite>
-	<testsuite name="Runtime Secure WebPreferences" time="0.003686" disabled="0" errors="0" tests="4" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-		<testcase name="enforces strict enterprise sandbox defaults" time="0.001265" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/runtime/web-preferences.test.js"/>
-		<testcase name="attaches partition string when specified" time="0.000198" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/runtime/web-preferences.test.js"/>
-		<testcase name="allows custom preload path and merges additional options" time="0.000216" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/runtime/web-preferences.test.js"/>
-		<testcase name="enforces sandbox and disables nodeIntegration for extensions" time="0.000216" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/runtime/web-preferences.test.js"/>
-	</testsuite>
-	<testsuite name="Security &amp; Encryption" time="0.074448" disabled="0" errors="0" tests="5" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-		<testcase name="encrypts and decrypts strings correctly" time="0.065028" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/security/encryption.test.js"/>
-		<testcase name="handles empty or falsy text gracefully" time="0.000138" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/security/encryption.test.js"/>
-		<testcase name="decrypts unencrypted legacy payload via fallback" time="0.000942" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/security/encryption.test.js"/>
-		<testcase name="handles corrupt ciphertext gracefully without crashing" time="0.006723" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/security/encryption.test.js"/>
-		<testcase name="handles corrupt authTag gracefully without crashing" time="0.000254" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/security/encryption.test.js"/>
-	</testsuite>
-	<testsuite name="Session Policy &amp; Anti-Tracking Security" time="0.005225" disabled="0" errors="0" tests="5" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-		<testsuite name="normalizeCookieConfig" time="0.001609" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="normalizes global policy and validates exception rules" time="0.000806" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/security/session-policy.test.js"/>
-			<testcase name="falls back to allow for unknown global policy" time="0.000143" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/security/session-policy.test.js"/>
-		</testsuite>
-		<testsuite name="cookiePatternMatchesHost &amp; patternToRegExp" time="0.000412" disabled="0" errors="0" tests="1" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="matches exact host and wildcards correctly" time="0.000316" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/security/session-policy.test.js"/>
-		</testsuite>
-		<testsuite name="shouldBlockCookieForHost" time="0.001687" disabled="0" errors="0" tests="4" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="blocks when host matches an explicit block rule" time="0.000201" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/security/session-policy.test.js"/>
-			<testcase name="allows when host matches an explicit allow rule even if third-party" time="0.000143" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/security/session-policy.test.js"/>
-			<testcase name="blocks third-party cookies when globalPolicy is block_third_party" time="0.001037" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/security/session-policy.test.js"/>
-			<testcase name="blocks all cookies when globalPolicy is block_all" time="0.000108" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/security/session-policy.test.js"/>
-		</testsuite>
-		<testsuite name="getRegisterableDomain" time="0.000332" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="extracts top-level registrable domain for standard TLDs" time="0.000136" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/security/session-policy.test.js"/>
-			<testcase name="handles two-letter second-level TLDs (co.uk, com.au, etc.)" time="0.000080" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/security/session-policy.test.js"/>
-		</testsuite>
-		<testsuite name="getBrowserIdentity" time="0.000302" disabled="0" errors="0" tests="1" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="provides realistic Chrome User-Agent and Accept-Language" time="0.000248" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/security/session-policy.test.js"/>
+		<testsuite name="PERMISSION_METADATA" time="0.001401" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="provides human-readable labels and descriptions for core permissions" time="0.000102" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/types.test.js"/>
+			<testcase name="metadata is immutable / frozen" time="0.001172" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/permissions/types.test.js"/>
 		</testsuite>
 	</testsuite>
-	<testsuite name="BookmarkService" time="0.061560" disabled="0" errors="0" tests="7" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-		<testcase name="returns empty default bookmarks when file does not exist" time="0.002972" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/bookmark-service.test.js"/>
-		<testcase name="saves and loads encrypted bookmarks correctly" time="0.050535" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/bookmark-service.test.js"/>
-		<testcase name="supports legacy plaintext bookmarks format" time="0.001591" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/bookmark-service.test.js"/>
-		<testcase name="getFolderItems returns paginated results" time="0.001468" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/bookmark-service.test.js"/>
-		<testcase name="searches bookmarks by title or URL across folders with pagination" time="0.000918" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/bookmark-service.test.js"/>
-		<testcase name="updates bookmark title and url" time="0.000719" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/bookmark-service.test.js"/>
-		<testcase name="deletes bookmarks by IDs across nested folders" time="0.000629" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/bookmark-service.test.js"/>
+	<testsuite name="Runtime Secure WebPreferences" time="0.002995" disabled="0" errors="0" tests="4" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+		<testcase name="enforces strict enterprise sandbox defaults" time="0.001363" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/runtime/web-preferences.test.js"/>
+		<testcase name="attaches partition string when specified" time="0.000094" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/runtime/web-preferences.test.js"/>
+		<testcase name="allows custom preload path and merges additional options" time="0.000086" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/runtime/web-preferences.test.js"/>
+		<testcase name="enforces sandbox and disables nodeIntegration for extensions" time="0.000081" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/runtime/web-preferences.test.js"/>
 	</testsuite>
-	<testsuite name="CookieService" time="0.004398" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-		<testsuite name="partition and domain utilities" time="0.002848" disabled="0" errors="0" tests="6" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="getProfilePartition generates partitioned storage strings" time="0.000964" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/cookie-service.test.js"/>
-			<testcase name="cookieDomainToHost cleans leading periods and whitespace" time="0.000203" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/cookie-service.test.js"/>
-			<testcase name="cookieMatchesDomain handles exact and subdomain matches" time="0.000141" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/cookie-service.test.js"/>
-			<testcase name="cookieUrlForRemoval constructs appropriate protocol and paths" time="0.000136" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/cookie-service.test.js"/>
-			<testcase name="cookieStoreKey creates unique identifier per host, path, and name" time="0.000143" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/cookie-service.test.js"/>
-			<testcase name="normalizeSinceTimestamp parses valid positive timestamps" time="0.000116" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/cookie-service.test.js"/>
-		</testsuite>
-		<testsuite name="cookie modification tracking in State" time="0.000323" disabled="0" errors="0" tests="1" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="tracks and forgets cookie timestamps per session" time="0.000212" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/cookie-service.test.js"/>
-		</testsuite>
+	<testsuite name="Security &amp; Encryption" time="0.050451" disabled="0" errors="0" tests="5" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+		<testcase name="encrypts and decrypts strings correctly" time="0.043906" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/security/encryption.test.js"/>
+		<testcase name="handles empty or falsy text gracefully" time="0.000150" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/security/encryption.test.js"/>
+		<testcase name="decrypts unencrypted legacy payload via fallback" time="0.001195" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/security/encryption.test.js"/>
+		<testcase name="handles corrupt ciphertext gracefully without crashing" time="0.000147" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/security/encryption.test.js"/>
+		<testcase name="handles corrupt authTag gracefully without crashing" time="0.000396" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/security/encryption.test.js"/>
 	</testsuite>
-	<testsuite name="DownloadService" time="0.091279" disabled="0" errors="0" tests="5" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-		<testsuite name="getUnusedFilePath" time="0.003010" disabled="0" errors="0" tests="4" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="returns original filename when no collision exists" time="0.000890" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/download-service.test.js"/>
-			<testcase name="increments filename with (1), (2) when file already exists" time="0.000700" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/download-service.test.js"/>
-			<testcase name="increments filename when in-progress .invdownload file exists" time="0.000586" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/download-service.test.js"/>
-			<testcase name="sanitizes unsafe characters in filename" time="0.000256" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/download-service.test.js"/>
+	<testsuite name="Session Policy &amp; Anti-Tracking Security" time="0.004204" disabled="0" errors="0" tests="5" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+		<testsuite name="normalizeCookieConfig" time="0.000933" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="normalizes global policy and validates exception rules" time="0.000513" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/security/session-policy.test.js"/>
+			<testcase name="falls back to allow for unknown global policy" time="0.000071" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/security/session-policy.test.js"/>
 		</testsuite>
-		<testsuite name="cleanupPartialDownloadFile" time="0.002227" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="removes partial file, partial .invdownload file, and .crdownload file" time="0.001795" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/download-service.test.js"/>
-			<testcase name="handles non-existent file gracefully without throwing" time="0.000231" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/download-service.test.js"/>
+		<testsuite name="cookiePatternMatchesHost &amp; patternToRegExp" time="0.000250" disabled="0" errors="0" tests="1" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="matches exact host and wildcards correctly" time="0.000197" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/security/session-policy.test.js"/>
 		</testsuite>
-		<testsuite name="History Persistence" time="0.082278" disabled="0" errors="0" tests="6" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="saves and loads encrypted download records for a profile" time="0.076757" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/download-service.test.js"/>
-			<testcase name="removes single download from history" time="0.000949" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/download-service.test.js"/>
-			<testcase name="clearAllHistory wipes history clean" time="0.001702" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/download-service.test.js"/>
-			<testcase name="deduplicates entries with identical id when loading or saving history" time="0.000681" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/download-service.test.js"/>
-			<testcase name="retryDownload removes the old record from history" time="0.001001" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/download-service.test.js"/>
-			<testcase name="getAll attaches fileExists: true when file exists on disk and false when deleted" time="0.000795" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/download-service.test.js"/>
+		<testsuite name="shouldBlockCookieForHost" time="0.000481" disabled="0" errors="0" tests="4" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="blocks when host matches an explicit block rule" time="0.000126" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/security/session-policy.test.js"/>
+			<testcase name="allows when host matches an explicit allow rule even if third-party" time="0.000092" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/security/session-policy.test.js"/>
+			<testcase name="blocks third-party cookies when globalPolicy is block_third_party" time="0.000079" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/security/session-policy.test.js"/>
+			<testcase name="blocks all cookies when globalPolicy is block_all" time="0.000063" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/security/session-policy.test.js"/>
 		</testsuite>
-		<testsuite name="broadcastDownloadEvent" time="0.000465" disabled="0" errors="0" tests="1" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="broadcasts download events to window webContents and all tab webContents" time="0.000323" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/download-service.test.js"/>
+		<testsuite name="getRegisterableDomain" time="0.001480" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="extracts top-level registrable domain for standard TLDs" time="0.001060" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/security/session-policy.test.js"/>
+			<testcase name="handles two-letter second-level TLDs (co.uk, com.au, etc.)" time="0.000153" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/security/session-policy.test.js"/>
 		</testsuite>
-		<testsuite name="pauseDownload &amp; resumeDownload" time="0.000404" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="pauseDownload returns error when download is not active" time="0.000187" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/download-service.test.js"/>
-			<testcase name="resumeDownload returns error when download is not active" time="0.000122" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/download-service.test.js"/>
+		<testsuite name="getBrowserIdentity" time="0.000464" disabled="0" errors="0" tests="1" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="provides realistic Chrome User-Agent and Accept-Language" time="0.000371" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/security/session-policy.test.js"/>
 		</testsuite>
 	</testsuite>
-	<testsuite name="HistoryService (SQLCipher Encrypted)" time="3.115053" disabled="0" errors="0" tests="5" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-		<testcase name="records visits and retrieves them via search" time="0.802393" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/history-service.test.js"/>
-		<testcase name="calculates suggestions and scores based on visit counts and recency" time="0.328497" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/history-service.test.js"/>
-		<testcase name="ranks and returns top visited sites by domain" time="0.481230" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/history-service.test.js"/>
-		<testcase name="updates titles for existing URLs" time="0.483673" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/history-service.test.js"/>
-		<testcase name="deletes individual visits and clears history completely" time="1.017100" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/history-service.test.js"/>
+	<testsuite name="BookmarkService" time="0.055154" disabled="0" errors="0" tests="7" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+		<testcase name="returns empty default bookmarks when file does not exist" time="0.002408" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/bookmark-service.test.js"/>
+		<testcase name="saves and loads encrypted bookmarks correctly" time="0.047298" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/bookmark-service.test.js"/>
+		<testcase name="supports legacy plaintext bookmarks format" time="0.000664" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/bookmark-service.test.js"/>
+		<testcase name="getFolderItems returns paginated results" time="0.000764" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/bookmark-service.test.js"/>
+		<testcase name="searches bookmarks by title or URL across folders with pagination" time="0.001351" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/bookmark-service.test.js"/>
+		<testcase name="updates bookmark title and url" time="0.000573" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/bookmark-service.test.js"/>
+		<testcase name="deletes bookmarks by IDs across nested folders" time="0.000506" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/bookmark-service.test.js"/>
 	</testsuite>
-	<testsuite name="NetworkService" time="0.006495" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-		<testsuite name="pickResponseHeadersForDiag" time="0.003533" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="extracts and normalizes target diagnostic response headers" time="0.001215" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/network-service.test.js"/>
-			<testcase name="handles empty or null headers safely" time="0.001490" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/network-service.test.js"/>
+	<testsuite name="CookieService" time="0.012524" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+		<testsuite name="partition and domain utilities" time="0.008992" disabled="0" errors="0" tests="6" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="getProfilePartition generates partitioned storage strings" time="0.005558" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/cookie-service.test.js"/>
+			<testcase name="cookieDomainToHost cleans leading periods and whitespace" time="0.000176" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/cookie-service.test.js"/>
+			<testcase name="cookieMatchesDomain handles exact and subdomain matches" time="0.001337" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/cookie-service.test.js"/>
+			<testcase name="cookieUrlForRemoval constructs appropriate protocol and paths" time="0.000233" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/cookie-service.test.js"/>
+			<testcase name="cookieStoreKey creates unique identifier per host, path, and name" time="0.000211" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/cookie-service.test.js"/>
+			<testcase name="normalizeSinceTimestamp parses valid positive timestamps" time="0.000144" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/cookie-service.test.js"/>
 		</testsuite>
-		<testsuite name="getSessionPolicyDeps" time="0.000494" disabled="0" errors="0" tests="1" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="constructs policy dependencies with profile and stealth flags" time="0.000351" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/network-service.test.js"/>
-		</testsuite>
-		<testsuite name="clearAppAssetCache" time="0.000359" disabled="0" errors="0" tests="1" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="clears in-memory prewarmed assets without throwing" time="0.000233" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/network-service.test.js"/>
-		</testsuite>
-	</testsuite>
-	<testsuite name="ProfileService" time="0.082322" disabled="0" errors="0" tests="8" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-		<testcase name="ensureProfile registers a valid profile and assigns default ID" time="0.001658" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/profile-service.test.js"/>
-		<testcase name="ensureProfile sanitizes profile IDs with special characters" time="0.000286" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/profile-service.test.js"/>
-		<testcase name="ensureProfile returns null for empty/invalid profile IDs" time="0.000468" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/profile-service.test.js"/>
-		<testcase name="saveProfiles encrypts and writes profiles to disk, and loadProfiles restores them" time="0.072304" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/profile-service.test.js"/>
-		<testcase name="loadProfiles gracefully handles missing file or corrupt JSON" time="0.003117" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/profile-service.test.js"/>
-		<testcase name="validateAvatarDataUrl validates supported image types and rejects invalid data" time="0.000575" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/profile-service.test.js"/>
-		<testcase name="setProfileAvatarFromDataUrl saves avatar to disk and updates profile metadata" time="0.001668" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/profile-service.test.js"/>
-		<testcase name="setProfileAvatarFromDataUrl fails when profile is not registered" time="0.000131" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/profile-service.test.js"/>
-	</testsuite>
-	<testsuite name="SessionService &amp; Recently Closed Tabs" time="0.010653" disabled="0" errors="0" tests="4" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-		<testsuite name="truncateMenuLabel" time="0.001629" disabled="0" errors="0" tests="1" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="truncates strings exceeding maxLength with an ellipsis" time="0.001027" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/session-service.test.js"/>
-		</testsuite>
-		<testsuite name="recentlyClosedEntryLabel and Tooltip" time="0.003615" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="formats single tab labels and tooltips" time="0.000782" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/session-service.test.js"/>
-			<testcase name="formats multi-tab window labels and tooltips" time="0.002305" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/session-service.test.js"/>
-			<testcase name="formats ghost window labels and tooltips" time="0.000270" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/session-service.test.js"/>
-		</testsuite>
-		<testsuite name="pushRecentlyClosedEntry stack management" time="0.003412" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="pushes entries and limits to MAX_RECENTLY_CLOSED_TABS" time="0.003029" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/session-service.test.js"/>
-			<testcase name="rejects non-storable URLs" time="0.000199" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/session-service.test.js"/>
-		</testsuite>
-		<testsuite name="buildRecentlyClosedMenuItems" time="0.000647" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="returns disabled item when stack is empty" time="0.000283" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/session-service.test.js"/>
-			<testcase name="returns mapped menu items when recently closed tabs exist" time="0.000235" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/session-service.test.js"/>
+		<testsuite name="cookie modification tracking in State" time="0.000713" disabled="0" errors="0" tests="1" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="tracks and forgets cookie timestamps per session" time="0.000561" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/cookie-service.test.js"/>
 		</testsuite>
 	</testsuite>
-	<testsuite name="SettingsService" time="0.064877" disabled="0" errors="0" tests="7" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-		<testcase name="normalizeColorTheme validates allowed theme values" time="0.016720" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/settings-service.test.js"/>
-		<testcase name="normalizeProfileId sanitizes profile identifiers" time="0.000226" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/settings-service.test.js"/>
-		<testcase name="colorThemeSettingToElectronSource maps themes to electron system settings" time="0.000108" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/settings-service.test.js"/>
-		<testcase name="loadSettings returns normalized defaults when settings file does not exist" time="0.000401" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/settings-service.test.js"/>
-		<testcase name="saveSettings persists configuration and loadSettings merges custom values" time="0.012649" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/settings-service.test.js"/>
-		<testcase name="updateCookieConfigForProfile stores profile-specific cookie settings" time="0.028402" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/settings-service.test.js"/>
-		<testcase name="handles corrupted settings.json gracefully and falls back to defaults" time="0.000834" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/settings-service.test.js"/>
-	</testsuite>
-	<testsuite name="SiteSettingsService" time="0.012639" disabled="0" errors="0" tests="6" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-		<testcase name="getOriginState returns standardized permission metadata with prompt default" time="0.004110" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/site-settings-service.test.js"/>
-		<testcase name="getOriginState returns empty for invalid origin" time="0.002435" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/site-settings-service.test.js"/>
-		<testcase name="setOriginPermission updates state and reflects in getOriginState" time="0.001792" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/site-settings-service.test.js"/>
-		<testcase name="deletePermission removes single permission override" time="0.001022" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/site-settings-service.test.js"/>
-		<testcase name="resetOrigin clears all permissions for that origin" time="0.000808" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/site-settings-service.test.js"/>
-		<testcase name="getAllPermissions and clearAllPermissions manage profile-level permissions" time="0.000806" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/site-settings-service.test.js"/>
-	</testsuite>
-	<testsuite name="Internal Pages Real Computed CSS Colors (Playwright Automated Test)" time="12.709399" disabled="0" errors="0" tests="26" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-		<testcase name="launches browser instance" time="0.803451" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
-		<testcase name="downloads computes to neutral light (#f7f8f9) in light mode" time="0.975390" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
-		<testcase name="downloads computes to neutral black (#121316) in dark mode" time="0.503840" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
-		<testcase name="downloads obeys forced light appearance ([data-forced-appearance=&amp;quot;light&amp;quot;])" time="0.592696" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
-		<testcase name="downloads obeys forced dark appearance ([data-forced-appearance=&amp;quot;dark&amp;quot;])" time="0.544154" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
-		<testcase name="history computes to neutral light (#f7f8f9) in light mode" time="0.518030" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
-		<testcase name="history computes to neutral black (#121316) in dark mode" time="0.441807" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
-		<testcase name="history obeys forced light appearance ([data-forced-appearance=&amp;quot;light&amp;quot;])" time="0.552347" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
-		<testcase name="history obeys forced dark appearance ([data-forced-appearance=&amp;quot;dark&amp;quot;])" time="0.397405" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
-		<testcase name="bookmark computes to neutral light (#f7f8f9) in light mode" time="0.622926" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
-		<testcase name="bookmark computes to neutral black (#121316) in dark mode" time="0.602136" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
-		<testcase name="bookmark obeys forced light appearance ([data-forced-appearance=&amp;quot;light&amp;quot;])" time="0.591497" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
-		<testcase name="bookmark obeys forced dark appearance ([data-forced-appearance=&amp;quot;dark&amp;quot;])" time="0.606173" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
-		<testcase name="settings computes to neutral light (#f7f8f9) in light mode" time="0.538890" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
-		<testcase name="settings computes to neutral black (#121316) in dark mode" time="0.367986" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
-		<testcase name="settings obeys forced light appearance ([data-forced-appearance=&amp;quot;light&amp;quot;])" time="0.390250" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
-		<testcase name="settings obeys forced dark appearance ([data-forced-appearance=&amp;quot;dark&amp;quot;])" time="0.286799" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
-		<testcase name="extensions computes to neutral light (#f7f8f9) in light mode" time="0.281726" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
-		<testcase name="extensions computes to neutral black (#121316) in dark mode" time="0.280525" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
-		<testcase name="extensions obeys forced light appearance ([data-forced-appearance=&amp;quot;light&amp;quot;])" time="0.313101" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
-		<testcase name="extensions obeys forced dark appearance ([data-forced-appearance=&amp;quot;dark&amp;quot;])" time="0.321631" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
-		<testcase name="newtab computes to neutral light (#f7f8f9) in light mode" time="0.284600" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
-		<testcase name="newtab computes to neutral black (#121316) in dark mode" time="0.766104" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
-		<testcase name="newtab obeys forced light appearance ([data-forced-appearance=&amp;quot;light&amp;quot;])" time="0.231553" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
-		<testcase name="newtab obeys forced dark appearance ([data-forced-appearance=&amp;quot;dark&amp;quot;])" time="0.577417" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
-		<testcase name="shuts down browser instance" time="0.310075" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
-	</testsuite>
-	<testsuite name="Internal Pages (invisurf://) Neutral Black &amp; White Background Test Suite" time="0.014134" disabled="0" errors="0" tests="7" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-		<testsuite name="1. Chrome Theme Content Tokens Contract (chromeTheme.cjs)" time="0.005195" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="all built-in themes provide neutral dark background (#121316) in dark mode" time="0.002611" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-theme.test.js"/>
-			<testcase name="all built-in themes provide neutral light background (#f7f8f9) in light mode" time="0.000790" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-theme.test.js"/>
-			<testcase name="custom accent color themes resolve to neutral background rather than accent tint" time="0.000940" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-theme.test.js"/>
+	<testsuite name="DownloadService" time="0.070255" disabled="0" errors="0" tests="5" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+		<testsuite name="getUnusedFilePath" time="0.003557" disabled="0" errors="0" tests="4" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="returns original filename when no collision exists" time="0.000812" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/download-service.test.js"/>
+			<testcase name="increments filename with (1), (2) when file already exists" time="0.001161" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/download-service.test.js"/>
+			<testcase name="increments filename when in-progress .invdownload file exists" time="0.000693" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/download-service.test.js"/>
+			<testcase name="sanitizes unsafe characters in filename" time="0.000193" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/download-service.test.js"/>
 		</testsuite>
-		<testsuite name="2. Downloads Page Reference Tokens (DownloadsApp.css)" time="0.000694" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="defines light mode reference tokens in :root and [data-forced-appearance=&amp;quot;light&amp;quot;]" time="0.000378" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-theme.test.js"/>
-			<testcase name="defines dark mode reference tokens in @media (prefers-color-scheme: dark) and [data-forced-appearance=&amp;quot;dark&amp;quot;]" time="0.000163" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-theme.test.js"/>
+		<testsuite name="cleanupPartialDownloadFile" time="0.002721" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="removes partial file, partial .invdownload file, and .crdownload file" time="0.002048" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/download-service.test.js"/>
+			<testcase name="handles non-existent file gracefully without throwing" time="0.000509" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/download-service.test.js"/>
 		</testsuite>
-		<testsuite name="3. History Page Theme Alignment (HistoryApp.css)" time="0.001003" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="defines neutral background in :root and light mode" time="0.000214" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-theme.test.js"/>
-			<testcase name="defines neutral background in dark mode and forced dark appearance" time="0.000305" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-theme.test.js"/>
-			<testcase name="body binds to neutral background variable and does not leak accent-tinted variables" time="0.000286" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-theme.test.js"/>
+		<testsuite name="History Persistence" time="0.061837" disabled="0" errors="0" tests="6" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="saves and loads encrypted download records for a profile" time="0.056400" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/download-service.test.js"/>
+			<testcase name="removes single download from history" time="0.001898" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/download-service.test.js"/>
+			<testcase name="clearAllHistory wipes history clean" time="0.000903" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/download-service.test.js"/>
+			<testcase name="deduplicates entries with identical id when loading or saving history" time="0.000592" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/download-service.test.js"/>
+			<testcase name="retryDownload removes the old record from history" time="0.000486" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/download-service.test.js"/>
+			<testcase name="getAll attaches fileExists: true when file exists on disk and false when deleted" time="0.001004" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/download-service.test.js"/>
 		</testsuite>
-		<testsuite name="4. Bookmark Page Theme Alignment (BookmarkApp.css)" time="0.000791" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="defines neutral background in :root and light mode" time="0.000147" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-theme.test.js"/>
-			<testcase name="defines neutral background in dark mode and forced dark appearance" time="0.000252" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-theme.test.js"/>
-			<testcase name="body binds to neutral background variable and does not leak accent-tinted variables" time="0.000243" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-theme.test.js"/>
+		<testsuite name="broadcastDownloadEvent" time="0.000231" disabled="0" errors="0" tests="1" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="broadcasts download events to window webContents and all tab webContents" time="0.000180" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/download-service.test.js"/>
 		</testsuite>
-		<testsuite name="5. Settings Page Theme Alignment (SettingsApp.css)" time="0.000999" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="body canvas uses --chrome-content-bg with neutral fallbacks" time="0.000378" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-theme.test.js"/>
-			<testcase name="sidebar and cards bind to neutral surface tokens" time="0.000236" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-theme.test.js"/>
-			<testcase name="does not use --chrome-shell-tint or --chrome-header-bg for canvas background" time="0.000275" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-theme.test.js"/>
-		</testsuite>
-		<testsuite name="6. Extensions Page Theme Alignment (ExtensionsPage.css &amp; extensions.html)" time="0.002049" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="defines neutral background tokens in :root and light mode" time="0.000135" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-theme.test.js"/>
-			<testcase name="defines neutral background tokens in dark mode and forced dark appearance" time="0.000204" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-theme.test.js"/>
-			<testcase name="html shell does not use --chrome-shell-tint fallback" time="0.000158" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-theme.test.js"/>
-		</testsuite>
-		<testsuite name="7. New Tab Page Theme Alignment (NewTabApp.css)" time="0.001546" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="defines neutral surface tokens in :root and light mode" time="0.000192" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-theme.test.js"/>
-			<testcase name="defines neutral surface tokens in dark mode and forced dark appearance" time="0.000498" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-theme.test.js"/>
-			<testcase name="body and ntp background gradient bind directly to --ntp-surface without accent overrides" time="0.000709" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-theme.test.js"/>
+		<testsuite name="pauseDownload &amp; resumeDownload" time="0.000183" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="pauseDownload returns error when download is not active" time="0.000089" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/download-service.test.js"/>
+			<testcase name="resumeDownload returns error when download is not active" time="0.000054" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/download-service.test.js"/>
 		</testsuite>
 	</testsuite>
-	<testsuite name="Internal Pages Unified Header &amp; Sidebar Layout (Playwright Automated Test)" time="8.217160" disabled="0" errors="0" tests="11" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-		<testcase name="launches browser instance" time="0.776255" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-unified-layout.test.js"/>
-		<testcase name="downloads: renders unified header (logo, title, search box)" time="1.167287" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-unified-layout.test.js"/>
-		<testcase name="history: renders unified header (logo, title, search box)" time="0.919779" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-unified-layout.test.js"/>
-		<testcase name="history: left sidebar width is exactly 256px" time="0.634331" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-unified-layout.test.js"/>
-		<testcase name="bookmark: renders unified header (logo, title, search box)" time="0.902876" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-unified-layout.test.js"/>
-		<testcase name="bookmark: left sidebar width is exactly 256px" time="0.667885" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-unified-layout.test.js"/>
-		<testcase name="settings: renders unified header (logo, title, search box)" time="0.835324" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-unified-layout.test.js"/>
-		<testcase name="settings: left sidebar width is exactly 256px" time="0.599424" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-unified-layout.test.js"/>
-		<testcase name="extensions: renders unified header (logo, title, search box)" time="0.680234" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-unified-layout.test.js"/>
-		<testcase name="extensions: left sidebar width is exactly 256px" time="0.612035" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-unified-layout.test.js"/>
-		<testcase name="closes browser instance" time="0.415162" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-unified-layout.test.js"/>
+	<testsuite name="HistoryService (SQLCipher Encrypted)" time="1.236498" disabled="0" errors="0" tests="5" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+		<testcase name="records visits and retrieves them via search" time="0.385139" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/history-service.test.js"/>
+		<testcase name="calculates suggestions and scores based on visit counts and recency" time="0.205172" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/history-service.test.js"/>
+		<testcase name="ranks and returns top visited sites by domain" time="0.142619" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/history-service.test.js"/>
+		<testcase name="updates titles for existing URLs" time="0.163818" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/history-service.test.js"/>
+		<testcase name="deletes individual visits and clears history completely" time="0.338613" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/history-service.test.js"/>
 	</testsuite>
-	<testsuite name="Navigation Utils" time="0.009457" disabled="0" errors="0" tests="7" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-		<testsuite name="getHostnameSafe" time="0.002801" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="extracts hostname safely from valid urls" time="0.001134" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/utils/navigation.test.js"/>
-			<testcase name="returns empty string for invalid URLs" time="0.001000" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/utils/navigation.test.js"/>
+	<testsuite name="NetworkService" time="0.005058" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+		<testsuite name="pickResponseHeadersForDiag" time="0.003266" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="extracts and normalizes target diagnostic response headers" time="0.001315" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/network-service.test.js"/>
+			<testcase name="handles empty or null headers safely" time="0.001119" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/network-service.test.js"/>
 		</testsuite>
-		<testsuite name="isLikelyTrackingRedirectUrl" time="0.000924" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="detects tracking redirect markers on recognized domains" time="0.000392" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/utils/navigation.test.js"/>
-			<testcase name="returns false for ordinary URLs without tracking redirect queries" time="0.000313" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/utils/navigation.test.js"/>
+		<testsuite name="getSessionPolicyDeps" time="0.000242" disabled="0" errors="0" tests="1" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="constructs policy dependencies with profile and stealth flags" time="0.000170" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/network-service.test.js"/>
 		</testsuite>
-		<testsuite name="classifyNavigationError" time="0.001595" disabled="0" errors="0" tests="4" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="classifies certificate error -201" time="0.000307" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/utils/navigation.test.js"/>
-			<testcase name="classifies connection refused -102" time="0.000124" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/utils/navigation.test.js"/>
-			<testcase name="classifies site not found DNS error -105" time="0.000193" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/utils/navigation.test.js"/>
-			<testcase name="provides generic fallback error" time="0.000222" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/utils/navigation.test.js"/>
-		</testsuite>
-		<testsuite name="isAllowedTabNavigationUrl" time="0.000967" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="allows standard web protocols" time="0.000450" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/utils/navigation.test.js"/>
-			<testcase name="rejects unsafe or non-allowed schemes" time="0.000247" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/utils/navigation.test.js"/>
-		</testsuite>
-		<testsuite name="internal scheme resolution and display URL" time="0.000668" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="normalizes stealth and invisurf schemes" time="0.000242" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/utils/navigation.test.js"/>
-			<testcase name="resolves internal URLs to local application assets" time="0.000147" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/utils/navigation.test.js"/>
-			<testcase name="toDisplayUrl cleans app asset paths into friendly pseudo-schemes" time="0.000139" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/utils/navigation.test.js"/>
-		</testsuite>
-		<testsuite name="isBlankTab and isGoogleLensSearchableUrl" time="0.000440" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="identifies blank and newtab states for omnibox autofocus" time="0.000241" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/utils/navigation.test.js"/>
-			<testcase name="isGoogleLensSearchableUrl only allows http/https pages" time="0.000113" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/utils/navigation.test.js"/>
-		</testsuite>
-		<testsuite name="transitionFromNavigationSource" time="0.000207" disabled="0" errors="0" tests="1" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="maps sources correctly to transitions" time="0.000135" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/utils/navigation.test.js"/>
+		<testsuite name="clearAppAssetCache" time="0.000311" disabled="0" errors="0" tests="1" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="clears in-memory prewarmed assets without throwing" time="0.000202" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/network-service.test.js"/>
 		</testsuite>
 	</testsuite>
-	<testsuite name="Extension Installation Overlay &amp; Downloader" time="0.008503" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-		<testcase name="computeMenuOverlayBounds returns full modal viewport bounds for extensionInstallPrompt" time="0.001902" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/extension-install-bounds.test.js"/>
-		<testcase name="ExtensionInstaller exports required download and extraction functions" time="0.000173" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/extension-install-bounds.test.js"/>
-		<testcase name="extractZipBufferFromCrx rejects non-archive buffers cleanly" time="0.000620" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/extension-install-bounds.test.js"/>
+	<testsuite name="ProfileService" time="0.059713" disabled="0" errors="0" tests="8" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+		<testcase name="ensureProfile registers a valid profile and assigns default ID" time="0.002043" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/profile-service.test.js"/>
+		<testcase name="ensureProfile sanitizes profile IDs with special characters" time="0.000427" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/profile-service.test.js"/>
+		<testcase name="ensureProfile returns null for empty/invalid profile IDs" time="0.000368" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/profile-service.test.js"/>
+		<testcase name="saveProfiles encrypts and writes profiles to disk, and loadProfiles restores them" time="0.050587" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/profile-service.test.js"/>
+		<testcase name="loadProfiles gracefully handles missing file or corrupt JSON" time="0.001920" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/profile-service.test.js"/>
+		<testcase name="validateAvatarDataUrl validates supported image types and rejects invalid data" time="0.000466" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/profile-service.test.js"/>
+		<testcase name="setProfileAvatarFromDataUrl saves avatar to disk and updates profile metadata" time="0.001611" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/profile-service.test.js"/>
+		<testcase name="setProfileAvatarFromDataUrl fails when profile is not registered" time="0.000100" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/profile-service.test.js"/>
 	</testsuite>
-	<testsuite name="LensManager Layout and Session State" time="0.006702" disabled="0" errors="0" tests="5" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-		<testcase name="getLensSession initializes and retrieves tab session state" time="0.001238" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/lens-layout.test.js"/>
-		<testcase name="getLensLayoutMetrics computes content geometry without sidebar" time="0.000372" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/lens-layout.test.js"/>
-		<testcase name="computeLensChromeOverlayBounds returns full content bounds when no sidebar is open" time="0.001625" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/lens-layout.test.js"/>
-		<testcase name="getFirstActiveLensTabId finds tab with active selection" time="0.000851" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/lens-layout.test.js"/>
-		<testcase name="repairLensChromeOverlayAcquireCount synchronizes overlay counters" time="0.000209" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/lens-layout.test.js"/>
-	</testsuite>
-	<testsuite name="Overlay Menus Window Resize &amp; Anchor Following" time="0.026646" disabled="0" errors="0" tests="11" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-		<testsuite name="Download Panel Overlay (Requirements 1 &amp; 3)" time="0.006749" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="downloadPanel bounds follow trigger anchor when window resizes" time="0.002299" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
-			<testcase name="download panel items slicing guarantees max 3 items total" time="0.000624" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
+	<testsuite name="SessionService &amp; Recently Closed Tabs" time="0.010931" disabled="0" errors="0" tests="4" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+		<testsuite name="truncateMenuLabel" time="0.000895" disabled="0" errors="0" tests="1" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="truncates strings exceeding maxLength with an ellipsis" time="0.000563" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/session-service.test.js"/>
 		</testsuite>
-		<testsuite name="Extension Menu Overlay (Requirement 3)" time="0.001198" disabled="0" errors="0" tests="1" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="extensionMenu follows trigger puzzle icon button on window resize" time="0.000278" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
+		<testsuite name="recentlyClosedEntryLabel and Tooltip" time="0.000488" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="formats single tab labels and tooltips" time="0.000164" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/session-service.test.js"/>
+			<testcase name="formats multi-tab window labels and tooltips" time="0.000101" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/session-service.test.js"/>
+			<testcase name="formats ghost window labels and tooltips" time="0.000104" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/session-service.test.js"/>
 		</testsuite>
-		<testsuite name="Profile Menu Overlay (Requirement 3)" time="0.000534" disabled="0" errors="0" tests="1" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="profileMenu follows profile trigger button on window resize" time="0.000358" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
+		<testsuite name="pushRecentlyClosedEntry stack management" time="0.008369" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="pushes entries and limits to MAX_RECENTLY_CLOSED_TABS" time="0.008119" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/session-service.test.js"/>
+			<testcase name="rejects non-storable URLs" time="0.000138" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/session-service.test.js"/>
 		</testsuite>
-		<testsuite name="App Menu Overlay (Requirement 3)" time="0.000621" disabled="0" errors="0" tests="1" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="appMenu follows 3-dots more menu button on window resize" time="0.000448" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
-		</testsuite>
-		<testsuite name="Bookmark Folder &amp; Overflow Menus (Requirement 3)" time="0.000469" disabled="0" errors="0" tests="1" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="bookmarkFolderMenu follows folder button on window resize" time="0.000296" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
-		</testsuite>
-		<testsuite name="Bookmark Star Editor (Requirement 3)" time="0.000309" disabled="0" errors="0" tests="1" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="bookmarkEditor follows star button on window resize" time="0.000200" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
-		</testsuite>
-		<testsuite name="Omnibox Popups: Site Info &amp; Cookie Controls (Requirement 3)" time="0.000480" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="siteInfo follows padlock icon on window resize" time="0.000214" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
-			<testcase name="cookieControls follows cookie icon on window resize" time="0.000151" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
-		</testsuite>
-		<testsuite name="Transparency Control Menu (Requirement 3)" time="0.000380" disabled="0" errors="0" tests="1" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="transparencyMenu follows opacity icon on window resize" time="0.000281" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
-		</testsuite>
-		<testsuite name="Zoom Reset Popup Overlay &amp; Omnibox Action" time="0.000657" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="zoomReset follows magnifier icon in omnibox on window resize" time="0.000164" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
-			<testcase name="SHELL_MENU_OVERLAY_KINDS includes zoomReset" time="0.000228" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
-		</testsuite>
-		<testsuite name="Toolbar Menus Standardized Width (same as extension puzzle menu: 320px)" time="0.005510" disabled="0" errors="0" tests="8" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="extensionMenu panel width is 320px and overlay bounds accommodate 320px panel" time="0.000638" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
-			<testcase name="downloadPanel panel width is 320px (matching extension puzzle menu)" time="0.002004" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
-			<testcase name="appMenu panel width is 320px" time="0.000838" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
-			<testcase name="profileMenu panel width is 320px" time="0.000471" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
-			<testcase name="bookmarkEditor panel width is 320px" time="0.000267" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
-			<testcase name="siteInfo panel width is 320px" time="0.000279" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
-			<testcase name="cookieControls panel width is 320px" time="0.000321" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
-			<testcase name="transparencyMenu panel width is 320px" time="0.000352" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
-		</testsuite>
-		<testsuite name="Settings Page Theme Color Alignment" time="0.006464" disabled="0" errors="0" tests="4" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-			<testcase name="derives settings content background as neutral dark black in dark mode" time="0.002292" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
-			<testcase name="derives settings content background as neutral light white in light mode" time="0.000984" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
-			<testcase name="derives settings content background for custom accent color as neutral" time="0.002280" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
-			<testcase name="SettingsApp.css binds unified settings shell background to --chrome-content-bg" time="0.000717" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
+		<testsuite name="buildRecentlyClosedMenuItems" time="0.000369" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="returns disabled item when stack is empty" time="0.000163" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/session-service.test.js"/>
+			<testcase name="returns mapped menu items when recently closed tabs exist" time="0.000128" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/session-service.test.js"/>
 		</testsuite>
 	</testsuite>
-	<testsuite name="WindowContextUtils" time="0.007574" disabled="0" errors="0" tests="5" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-		<testcase name="getWindowContextById retrieves context from State" time="0.002824" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/window-context-utils.test.js"/>
-		<testcase name="getWindowContextByBrowserWindow retrieves context and rejects destroyed window" time="0.000344" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/window-context-utils.test.js"/>
-		<testcase name="getWindowContextByTabId maps tabId to its host window context" time="0.000293" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/window-context-utils.test.js"/>
-		<testcase name="isViewWebContentsAlive verifies webContents destruction status" time="0.000296" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/window-context-utils.test.js"/>
-		<testcase name="getWindowContextByChromeOverlaySender locates context by overlay view webContents" time="0.000480" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/window-context-utils.test.js"/>
+	<testsuite name="SettingsService" time="0.005496" disabled="0" errors="0" tests="7" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+		<testcase name="normalizeColorTheme validates allowed theme values" time="0.001262" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/settings-service.test.js"/>
+		<testcase name="normalizeProfileId sanitizes profile identifiers" time="0.000250" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/settings-service.test.js"/>
+		<testcase name="colorThemeSettingToElectronSource maps themes to electron system settings" time="0.000161" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/settings-service.test.js"/>
+		<testcase name="loadSettings returns normalized defaults when settings file does not exist" time="0.000510" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/settings-service.test.js"/>
+		<testcase name="saveSettings persists configuration and loadSettings merges custom values" time="0.000949" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/settings-service.test.js"/>
+		<testcase name="updateCookieConfigForProfile stores profile-specific cookie settings" time="0.000350" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/settings-service.test.js"/>
+		<testcase name="handles corrupted settings.json gracefully and falls back to defaults" time="0.000183" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/settings-service.test.js"/>
 	</testsuite>
-	<testsuite name="Zoom Omnibox Action &amp; Overlay Panel" time="0.006064" disabled="0" errors="0" tests="4" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
-		<testcase name="omniboxActions source includes zoom-reset logic and conditions" time="0.001993" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/zoom-omnibox-action.test.js"/>
-		<testcase name="OmniboxSuffix renders minus and plus magnifier SVG icons" time="0.000370" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/zoom-omnibox-action.test.js"/>
-		<testcase name="zoomReset overlay component handles minus, plus, and reset actions" time="0.000330" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/zoom-omnibox-action.test.js"/>
-		<testcase name="menus.css contains zoom bubble styles matching design requirements" time="0.000790" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/zoom-omnibox-action.test.js"/>
+	<testsuite name="SiteSettingsService" time="0.012021" disabled="0" errors="0" tests="6" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+		<testcase name="getOriginState returns standardized permission metadata with prompt default" time="0.003170" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/site-settings-service.test.js"/>
+		<testcase name="getOriginState returns empty for invalid origin" time="0.003569" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/site-settings-service.test.js"/>
+		<testcase name="setOriginPermission updates state and reflects in getOriginState" time="0.000871" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/site-settings-service.test.js"/>
+		<testcase name="deletePermission removes single permission override" time="0.000555" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/site-settings-service.test.js"/>
+		<testcase name="resetOrigin clears all permissions for that origin" time="0.000420" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/site-settings-service.test.js"/>
+		<testcase name="getAllPermissions and clearAllPermissions manage profile-level permissions" time="0.000557" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/services/site-settings-service.test.js"/>
 	</testsuite>
-	<!-- tests 239 -->
-	<!-- suites 73 -->
-	<!-- pass 239 -->
+	<testsuite name="Internal Pages Real Computed CSS Colors (Playwright Automated Test)" time="7.003944" disabled="0" errors="0" tests="26" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+		<testcase name="launches browser instance" time="0.875313" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
+		<testcase name="downloads computes to neutral light (#f7f8f9) in light mode" time="0.709624" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
+		<testcase name="downloads computes to neutral black (#121316) in dark mode" time="0.301546" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
+		<testcase name="downloads obeys forced light appearance ([data-forced-appearance=&amp;quot;light&amp;quot;])" time="0.375559" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
+		<testcase name="downloads obeys forced dark appearance ([data-forced-appearance=&amp;quot;dark&amp;quot;])" time="0.272019" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
+		<testcase name="history computes to neutral light (#f7f8f9) in light mode" time="0.222295" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
+		<testcase name="history computes to neutral black (#121316) in dark mode" time="0.295767" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
+		<testcase name="history obeys forced light appearance ([data-forced-appearance=&amp;quot;light&amp;quot;])" time="0.251229" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
+		<testcase name="history obeys forced dark appearance ([data-forced-appearance=&amp;quot;dark&amp;quot;])" time="0.347965" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
+		<testcase name="bookmark computes to neutral light (#f7f8f9) in light mode" time="0.281303" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
+		<testcase name="bookmark computes to neutral black (#121316) in dark mode" time="0.268438" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
+		<testcase name="bookmark obeys forced light appearance ([data-forced-appearance=&amp;quot;light&amp;quot;])" time="0.333476" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
+		<testcase name="bookmark obeys forced dark appearance ([data-forced-appearance=&amp;quot;dark&amp;quot;])" time="0.227907" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
+		<testcase name="settings computes to neutral light (#f7f8f9) in light mode" time="0.248006" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
+		<testcase name="settings computes to neutral black (#121316) in dark mode" time="0.197791" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
+		<testcase name="settings obeys forced light appearance ([data-forced-appearance=&amp;quot;light&amp;quot;])" time="0.167999" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
+		<testcase name="settings obeys forced dark appearance ([data-forced-appearance=&amp;quot;dark&amp;quot;])" time="0.172438" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
+		<testcase name="extensions computes to neutral light (#f7f8f9) in light mode" time="0.149911" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
+		<testcase name="extensions computes to neutral black (#121316) in dark mode" time="0.165039" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
+		<testcase name="extensions obeys forced light appearance ([data-forced-appearance=&amp;quot;light&amp;quot;])" time="0.174460" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
+		<testcase name="extensions obeys forced dark appearance ([data-forced-appearance=&amp;quot;dark&amp;quot;])" time="0.167061" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
+		<testcase name="newtab computes to neutral light (#f7f8f9) in light mode" time="0.151861" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
+		<testcase name="newtab computes to neutral black (#121316) in dark mode" time="0.156817" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
+		<testcase name="newtab obeys forced light appearance ([data-forced-appearance=&amp;quot;light&amp;quot;])" time="0.161857" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
+		<testcase name="newtab obeys forced dark appearance ([data-forced-appearance=&amp;quot;dark&amp;quot;])" time="0.152920" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
+		<testcase name="shuts down browser instance" time="0.171121" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-computed-styles.test.js"/>
+	</testsuite>
+	<testsuite name="Internal Pages (invisurf://) Neutral Black &amp; White Background Test Suite" time="0.011994" disabled="0" errors="0" tests="7" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+		<testsuite name="1. Chrome Theme Content Tokens Contract (chromeTheme.cjs)" time="0.003655" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="all built-in themes provide neutral dark background (#121316) in dark mode" time="0.002061" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-theme.test.js"/>
+			<testcase name="all built-in themes provide neutral light background (#f7f8f9) in light mode" time="0.000594" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-theme.test.js"/>
+			<testcase name="custom accent color themes resolve to neutral background rather than accent tint" time="0.000596" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-theme.test.js"/>
+		</testsuite>
+		<testsuite name="2. Downloads Page Reference Tokens (DownloadsApp.css)" time="0.003567" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="defines light mode reference tokens in :root and [data-forced-appearance=&amp;quot;light&amp;quot;]" time="0.003336" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-theme.test.js"/>
+			<testcase name="defines dark mode reference tokens in @media (prefers-color-scheme: dark) and [data-forced-appearance=&amp;quot;dark&amp;quot;]" time="0.000133" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-theme.test.js"/>
+		</testsuite>
+		<testsuite name="3. History Page Theme Alignment (HistoryApp.css)" time="0.000939" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="defines neutral background in :root and light mode" time="0.000412" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-theme.test.js"/>
+			<testcase name="defines neutral background in dark mode and forced dark appearance" time="0.000188" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-theme.test.js"/>
+			<testcase name="body binds to neutral background variable and does not leak accent-tinted variables" time="0.000158" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-theme.test.js"/>
+		</testsuite>
+		<testsuite name="4. Bookmark Page Theme Alignment (BookmarkApp.css)" time="0.000382" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="defines neutral background in :root and light mode" time="0.000083" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-theme.test.js"/>
+			<testcase name="defines neutral background in dark mode and forced dark appearance" time="0.000165" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-theme.test.js"/>
+			<testcase name="body binds to neutral background variable and does not leak accent-tinted variables" time="0.000066" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-theme.test.js"/>
+		</testsuite>
+		<testsuite name="5. Settings Page Theme Alignment (SettingsApp.css)" time="0.000546" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="body canvas uses --chrome-content-bg with neutral fallbacks" time="0.000202" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-theme.test.js"/>
+			<testcase name="sidebar and cards bind to neutral surface tokens" time="0.000126" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-theme.test.js"/>
+			<testcase name="does not use --chrome-shell-tint or --chrome-header-bg for canvas background" time="0.000159" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-theme.test.js"/>
+		</testsuite>
+		<testsuite name="6. Extensions Page Theme Alignment (ExtensionsPage.css &amp; extensions.html)" time="0.001109" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="defines neutral background tokens in :root and light mode" time="0.000100" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-theme.test.js"/>
+			<testcase name="defines neutral background tokens in dark mode and forced dark appearance" time="0.000132" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-theme.test.js"/>
+			<testcase name="html shell does not use --chrome-shell-tint fallback" time="0.000825" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-theme.test.js"/>
+		</testsuite>
+		<testsuite name="7. New Tab Page Theme Alignment (NewTabApp.css)" time="0.000352" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="defines neutral surface tokens in :root and light mode" time="0.000094" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-theme.test.js"/>
+			<testcase name="defines neutral surface tokens in dark mode and forced dark appearance" time="0.000114" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-theme.test.js"/>
+			<testcase name="body and ntp background gradient bind directly to --ntp-surface without accent overrides" time="0.000095" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-theme.test.js"/>
+		</testsuite>
+	</testsuite>
+	<testsuite name="Internal Pages Unified Header &amp; Sidebar Layout (Playwright Automated Test)" time="5.122879" disabled="0" errors="0" tests="11" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+		<testcase name="launches browser instance" time="0.830241" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-unified-layout.test.js"/>
+		<testcase name="downloads: renders unified header (logo, title, search box)" time="0.841449" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-unified-layout.test.js"/>
+		<testcase name="history: renders unified header (logo, title, search box)" time="0.573963" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-unified-layout.test.js"/>
+		<testcase name="history: left sidebar width is exactly 256px" time="0.302192" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-unified-layout.test.js"/>
+		<testcase name="bookmark: renders unified header (logo, title, search box)" time="0.466683" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-unified-layout.test.js"/>
+		<testcase name="bookmark: left sidebar width is exactly 256px" time="0.334199" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-unified-layout.test.js"/>
+		<testcase name="settings: renders unified header (logo, title, search box)" time="0.543927" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-unified-layout.test.js"/>
+		<testcase name="settings: left sidebar width is exactly 256px" time="0.300079" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-unified-layout.test.js"/>
+		<testcase name="extensions: renders unified header (logo, title, search box)" time="0.417232" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-unified-layout.test.js"/>
+		<testcase name="extensions: left sidebar width is exactly 256px" time="0.290957" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-unified-layout.test.js"/>
+		<testcase name="closes browser instance" time="0.220171" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/internal-pages-unified-layout.test.js"/>
+	</testsuite>
+	<testsuite name="Settings Tables and Subpages Layout &amp; Sorting (Playwright Automated Test)" time="4.447378" disabled="0" errors="0" tests="5" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+		<testcase name="launches browser instance" time="0.874610" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/settings-tables-and-subpages.test.js"/>
+		<testcase name="Cookies and other site data: renders stacked header and search toolbar" time="0.979643" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/settings-tables-and-subpages.test.js"/>
+		<testcase name="Cookies and site data: renders unified toolbar and sortable table" time="1.402016" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/settings-tables-and-subpages.test.js"/>
+		<testcase name="Site settings and permissions: renders unified toolbar and sortable table" time="0.961248" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/settings-tables-and-subpages.test.js"/>
+		<testcase name="closes browser instance" time="0.227260" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/theme/settings-tables-and-subpages.test.js"/>
+	</testsuite>
+	<testsuite name="Navigation Utils" time="0.005473" disabled="0" errors="0" tests="7" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+		<testsuite name="getHostnameSafe" time="0.001096" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="extracts hostname safely from valid urls" time="0.000651" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/utils/navigation.test.js"/>
+			<testcase name="returns empty string for invalid URLs" time="0.000090" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/utils/navigation.test.js"/>
+		</testsuite>
+		<testsuite name="isLikelyTrackingRedirectUrl" time="0.002159" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="detects tracking redirect markers on recognized domains" time="0.001084" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/utils/navigation.test.js"/>
+			<testcase name="returns false for ordinary URLs without tracking redirect queries" time="0.000981" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/utils/navigation.test.js"/>
+		</testsuite>
+		<testsuite name="classifyNavigationError" time="0.000419" disabled="0" errors="0" tests="4" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="classifies certificate error -201" time="0.000139" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/utils/navigation.test.js"/>
+			<testcase name="classifies connection refused -102" time="0.000058" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/utils/navigation.test.js"/>
+			<testcase name="classifies site not found DNS error -105" time="0.000056" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/utils/navigation.test.js"/>
+			<testcase name="provides generic fallback error" time="0.000053" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/utils/navigation.test.js"/>
+		</testsuite>
+		<testsuite name="isAllowedTabNavigationUrl" time="0.000235" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="allows standard web protocols" time="0.000097" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/utils/navigation.test.js"/>
+			<testcase name="rejects unsafe or non-allowed schemes" time="0.000075" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/utils/navigation.test.js"/>
+		</testsuite>
+		<testsuite name="internal scheme resolution and display URL" time="0.000323" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="normalizes stealth and invisurf schemes" time="0.000111" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/utils/navigation.test.js"/>
+			<testcase name="resolves internal URLs to local application assets" time="0.000081" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/utils/navigation.test.js"/>
+			<testcase name="toDisplayUrl cleans app asset paths into friendly pseudo-schemes" time="0.000075" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/utils/navigation.test.js"/>
+		</testsuite>
+		<testsuite name="isBlankTab and isGoogleLensSearchableUrl" time="0.000192" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="identifies blank and newtab states for omnibox autofocus" time="0.000078" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/utils/navigation.test.js"/>
+			<testcase name="isGoogleLensSearchableUrl only allows http/https pages" time="0.000060" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/utils/navigation.test.js"/>
+		</testsuite>
+		<testsuite name="transitionFromNavigationSource" time="0.000100" disabled="0" errors="0" tests="1" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="maps sources correctly to transitions" time="0.000071" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/utils/navigation.test.js"/>
+		</testsuite>
+	</testsuite>
+	<testsuite name="Extension Installation Overlay &amp; Downloader" time="0.004980" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+		<testcase name="computeMenuOverlayBounds returns full modal viewport bounds for extensionInstallPrompt" time="0.001352" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/extension-install-bounds.test.js"/>
+		<testcase name="ExtensionInstaller exports required download and extraction functions" time="0.000906" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/extension-install-bounds.test.js"/>
+		<testcase name="extractZipBufferFromCrx rejects non-archive buffers cleanly" time="0.000613" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/extension-install-bounds.test.js"/>
+	</testsuite>
+	<testsuite name="LensManager Layout and Session State" time="0.002760" disabled="0" errors="0" tests="5" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+		<testcase name="getLensSession initializes and retrieves tab session state" time="0.000573" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/lens-layout.test.js"/>
+		<testcase name="getLensLayoutMetrics computes content geometry without sidebar" time="0.000170" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/lens-layout.test.js"/>
+		<testcase name="computeLensChromeOverlayBounds returns full content bounds when no sidebar is open" time="0.000784" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/lens-layout.test.js"/>
+		<testcase name="getFirstActiveLensTabId finds tab with active selection" time="0.000095" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/lens-layout.test.js"/>
+		<testcase name="repairLensChromeOverlayAcquireCount synchronizes overlay counters" time="0.000083" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/lens-layout.test.js"/>
+	</testsuite>
+	<testsuite name="Overlay Menus Window Resize &amp; Anchor Following" time="0.007656" disabled="0" errors="0" tests="11" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+		<testsuite name="Download Panel Overlay (Requirements 1 &amp; 3)" time="0.001383" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="downloadPanel bounds follow trigger anchor when window resizes" time="0.000905" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
+			<testcase name="download panel items slicing guarantees max 3 items total" time="0.000115" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
+		</testsuite>
+		<testsuite name="Extension Menu Overlay (Requirement 3)" time="0.000166" disabled="0" errors="0" tests="1" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="extensionMenu follows trigger puzzle icon button on window resize" time="0.000108" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
+		</testsuite>
+		<testsuite name="Profile Menu Overlay (Requirement 3)" time="0.000148" disabled="0" errors="0" tests="1" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="profileMenu follows profile trigger button on window resize" time="0.000099" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
+		</testsuite>
+		<testsuite name="App Menu Overlay (Requirement 3)" time="0.000200" disabled="0" errors="0" tests="1" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="appMenu follows 3-dots more menu button on window resize" time="0.000139" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
+		</testsuite>
+		<testsuite name="Bookmark Folder &amp; Overflow Menus (Requirement 3)" time="0.000171" disabled="0" errors="0" tests="1" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="bookmarkFolderMenu follows folder button on window resize" time="0.000108" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
+		</testsuite>
+		<testsuite name="Bookmark Star Editor (Requirement 3)" time="0.000116" disabled="0" errors="0" tests="1" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="bookmarkEditor follows star button on window resize" time="0.000079" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
+		</testsuite>
+		<testsuite name="Omnibox Popups: Site Info &amp; Cookie Controls (Requirement 3)" time="0.000214" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="siteInfo follows padlock icon on window resize" time="0.000085" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
+			<testcase name="cookieControls follows cookie icon on window resize" time="0.000077" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
+		</testsuite>
+		<testsuite name="Transparency Control Menu (Requirement 3)" time="0.000149" disabled="0" errors="0" tests="1" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="transparencyMenu follows opacity icon on window resize" time="0.000115" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
+		</testsuite>
+		<testsuite name="Zoom Reset Popup Overlay &amp; Omnibox Action" time="0.000228" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="zoomReset follows magnifier icon in omnibox on window resize" time="0.000083" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
+			<testcase name="SHELL_MENU_OVERLAY_KINDS includes zoomReset" time="0.000105" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
+		</testsuite>
+		<testsuite name="Toolbar Menus Standardized Width (same as extension puzzle menu: 320px)" time="0.002122" disabled="0" errors="0" tests="8" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="extensionMenu panel width is 320px and overlay bounds accommodate 320px panel" time="0.000276" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
+			<testcase name="downloadPanel panel width is 320px (matching extension puzzle menu)" time="0.001069" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
+			<testcase name="appMenu panel width is 320px" time="0.000116" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
+			<testcase name="profileMenu panel width is 320px" time="0.000097" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
+			<testcase name="bookmarkEditor panel width is 320px" time="0.000125" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
+			<testcase name="siteInfo panel width is 320px" time="0.000103" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
+			<testcase name="cookieControls panel width is 320px" time="0.000131" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
+			<testcase name="transparencyMenu panel width is 320px" time="0.000088" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
+		</testsuite>
+		<testsuite name="Settings Page Theme Color Alignment" time="0.001784" disabled="0" errors="0" tests="4" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+			<testcase name="derives settings content background as neutral dark black in dark mode" time="0.000797" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
+			<testcase name="derives settings content background as neutral light white in light mode" time="0.000328" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
+			<testcase name="derives settings content background for custom accent color as neutral" time="0.000283" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
+			<testcase name="SettingsApp.css binds unified settings shell background to --chrome-content-bg" time="0.000323" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/overlay-resize-anchors.test.js"/>
+		</testsuite>
+	</testsuite>
+	<testsuite name="WindowContextUtils" time="0.003445" disabled="0" errors="0" tests="5" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+		<testcase name="getWindowContextById retrieves context from State" time="0.001245" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/window-context-utils.test.js"/>
+		<testcase name="getWindowContextByBrowserWindow retrieves context and rejects destroyed window" time="0.000287" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/window-context-utils.test.js"/>
+		<testcase name="getWindowContextByTabId maps tabId to its host window context" time="0.000111" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/window-context-utils.test.js"/>
+		<testcase name="isViewWebContentsAlive verifies webContents destruction status" time="0.000229" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/window-context-utils.test.js"/>
+		<testcase name="getWindowContextByChromeOverlaySender locates context by overlay view webContents" time="0.000207" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/window-context-utils.test.js"/>
+	</testsuite>
+	<testsuite name="Zoom Omnibox Action &amp; Overlay Panel" time="0.002756" disabled="0" errors="0" tests="4" failures="0" skipped="0" hostname="Mayurs-MacBook-Pro.local">
+		<testcase name="omniboxActions source includes zoom-reset logic and conditions" time="0.001112" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/zoom-omnibox-action.test.js"/>
+		<testcase name="OmniboxSuffix renders minus and plus magnifier SVG icons" time="0.000153" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/zoom-omnibox-action.test.js"/>
+		<testcase name="zoomReset overlay component handles minus, plus, and reset actions" time="0.000152" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/zoom-omnibox-action.test.js"/>
+		<testcase name="menus.css contains zoom bubble styles matching design requirements" time="0.000614" classname="test" file="/Users/mayurkukadiya/Code/Electron/invisurf/tests/unit/windows/zoom-omnibox-action.test.js"/>
+	</testsuite>
+	<!-- tests 244 -->
+	<!-- suites 74 -->
+	<!-- pass 244 -->
 	<!-- fail 0 -->
 	<!-- cancelled 0 -->
 	<!-- skipped 0 -->
 	<!-- todo 0 -->
-	<!-- duration_ms 14026.51075 -->
+	<!-- duration_ms 7809.814792 -->
 </testsuites>

@@ -36,9 +36,30 @@ function SidebarIcon({ icon, fallback }) {
 
 function BackIconButton({ onClick, label = 'Back' }) {
   return (
-    <button type="button" className="settings-back-icon-btn" onClick={onClick} aria-label={label}>
-      <AssetMaskIcon icon={angleLeftSvg} size={25} />
+    <button type="button" className="settings-back-icon-btn" onClick={onClick} aria-label={label} title={label}>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <polyline points="15 18 9 12 15 6"></polyline>
+      </svg>
     </button>
+  );
+}
+
+function SiteGlobeIcon({ size = 15 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="10"></circle>
+      <line x1="2" y1="12" x2="22" y2="12"></line>
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+    </svg>
+  );
+}
+
+function TrashIcon({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <polyline points="3 6 5 6 21 6"></polyline>
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+    </svg>
   );
 }
 
@@ -70,6 +91,39 @@ function SettingsSearchField({
         </button>
       ) : null}
     </label>
+  );
+}
+
+function TableSortHeader({
+  field,
+  currentField,
+  currentDir,
+  label,
+  onSort,
+  style,
+  className = '',
+}) {
+  const isActive = currentField === field;
+  return (
+    <span
+      role="columnheader"
+      tabIndex={0}
+      aria-sort={isActive ? (currentDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+      className={`table-header-col table-header-col--sortable${isActive ? ' table-header-col--active' : ''} ${className}`.trim()}
+      style={style}
+      onClick={() => onSort(field)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSort(field);
+        }
+      }}
+    >
+      <span>{label}</span>
+      <span className="table-sort-indicator" aria-hidden="true">
+        {isActive ? (currentDir === 'asc' ? '▲' : '▼') : '↕'}
+      </span>
+    </span>
   );
 }
 
@@ -725,6 +779,36 @@ export default function SettingsApp() {
     return cookieSites.filter((site) => site.domain.toLowerCase().includes(query));
   }, [cookieSearch, cookieSites]);
 
+  const [cookieSortField, setCookieSortField] = useState('domain');
+  const [cookieSortDir, setCookieSortDir] = useState('asc');
+
+  const handleCookieSort = useCallback((field) => {
+    setCookieSortField((prevField) => {
+      if (prevField === field) {
+        setCookieSortDir((prevDir) => (prevDir === 'asc' ? 'desc' : 'asc'));
+        return prevField;
+      }
+      setCookieSortDir('asc');
+      return field;
+    });
+  }, []);
+
+  const sortedCookieSites = useMemo(() => {
+    const list = [...filteredCookieSites];
+    list.sort((a, b) => {
+      let comparison = 0;
+      if (cookieSortField === 'domain') {
+        comparison = (a.domain || '').localeCompare(b.domain || '');
+      } else if (cookieSortField === 'count') {
+        comparison = (Number(a.count) || 0) - (Number(b.count) || 0);
+      } else if (cookieSortField === 'storageBytes') {
+        comparison = (Number(a.storageBytes) || 0) - (Number(b.storageBytes) || 0);
+      }
+      return cookieSortDir === 'desc' ? -comparison : comparison;
+    });
+    return list;
+  }, [filteredCookieSites, cookieSortField, cookieSortDir]);
+
   const visibleCookiePolicyOptions = useMemo(() => {
     const query = cookiePageSearch.trim();
     if (!query) return COOKIE_POLICY_OPTIONS;
@@ -1034,17 +1118,21 @@ export default function SettingsApp() {
 
   const renderCookiesPanel = () => (
     <section className="settings-section">
-      <div className="settings-subpage-header">
-        <div className="settings-subpage-title">
-          <BackIconButton onClick={() => setActiveView('privacy/main')} />
+      <div className="settings-subpage-header settings-subpage-header--stacked">
+        <BackIconButton onClick={() => setActiveView('privacy/main')} />
+        <div className="settings-subpage-heading-text">
           <h2>Cookies and other site data</h2>
+          <p>Sites can use cookies to improve your browsing experience and manage local data</p>
         </div>
+      </div>
+
+      <div className="cookies-toolbar">
         <SettingsSearchField
           value={cookiePageSearch}
           onChange={setCookiePageSearch}
           placeholder="Search this page"
           label="Search cookies settings"
-          className="cookies-page-search"
+          className="cookies-search"
         />
       </div>
 
@@ -1123,7 +1211,7 @@ export default function SettingsApp() {
                 <div className="cookie-exception-list">
                   {rules.map((rule) => (
                     <div className="cookie-exception-row" key={`${rule.setting}:${rule.pattern}`}>
-                      <AssetMaskIcon icon={earthAmericasSvg} size={16} className="cookie-exception-site-icon" />
+                      <SiteGlobeIcon />
                       <span className="cookie-exception-pattern">
                         <HighlightedText text={rule.pattern} query={cookiePageSearch} />
                       </span>
@@ -1131,7 +1219,7 @@ export default function SettingsApp() {
                         <HighlightedText text={group.status} query={cookiePageSearch} />
                       </span>
                       <button type="button" onClick={() => removeCookieException(rule)} aria-label={`Remove ${rule.pattern}`}>
-                        <AssetMaskIcon icon={trashSvg} size={16} />
+                        <TrashIcon />
                       </button>
                     </div>
                   ))}
@@ -1154,8 +1242,8 @@ export default function SettingsApp() {
       <div className="settings-subpage-header settings-subpage-header--stacked">
         <BackIconButton onClick={() => setActiveView('privacy/cookies')} />
         <div className="settings-subpage-heading-text">
-          <h2>All cookies and site data</h2>
-          <p>View and manage local storage from specific websites</p>
+          <h2>Cookies and site data</h2>
+          <p>View and manage cookies and local storage from websites</p>
         </div>
       </div>
 
@@ -1163,7 +1251,7 @@ export default function SettingsApp() {
         <SettingsSearchField
           value={cookieSearch}
           onChange={setCookieSearch}
-          placeholder="Search for a site"
+          placeholder="Search for a site or domain"
           label="Search for a site"
           className="cookies-search"
         />
@@ -1182,31 +1270,51 @@ export default function SettingsApp() {
             onClick={() => setCookieDeleteConfirm({ type: 'all' })}
             disabled={cookieSites.length === 0}
           >
-            Remove all
+            Clear all
           </button>
         </div>
       </div>
 
       <div className="cookies-table-card">
-        <div className="cookies-table cookies-table--header" role="row">
-          <span>Site</span>
-          <span>Cookies</span>
-          <span>Storage</span>
-          <span>Actions</span>
+        <div className="cookies-table cookies-table--header cookies-table--cookie-cols" role="row">
+          <TableSortHeader
+            field="domain"
+            currentField={cookieSortField}
+            currentDir={cookieSortDir}
+            label="Site Origin"
+            onSort={handleCookieSort}
+          />
+          <TableSortHeader
+            field="count"
+            currentField={cookieSortField}
+            currentDir={cookieSortDir}
+            label="Cookies"
+            onSort={handleCookieSort}
+          />
+          <TableSortHeader
+            field="storageBytes"
+            currentField={cookieSortField}
+            currentDir={cookieSortDir}
+            label="Storage"
+            onSort={handleCookieSort}
+          />
+          <span style={{ textAlign: 'right' }}>Actions</span>
         </div>
         <div className="cookies-table-body">
           {cookieLoading ? (
             <div className="cookies-empty">Loading cookies…</div>
           ) : cookieError ? (
             <div className="cookies-empty cookies-empty--error">{cookieError}</div>
-          ) : filteredCookieSites.length === 0 ? (
-            <div className="cookies-empty">No sites listed for the active session.</div>
+          ) : sortedCookieSites.length === 0 ? (
+            <div className="cookies-empty">
+              {cookieSearch ? 'No sites matched your search.' : 'No sites listed for the active session.'}
+            </div>
           ) : (
-            filteredCookieSites.map((site) => (
-              <div className="cookies-table cookies-table--row" role="row" key={site.domain}>
+            sortedCookieSites.map((site) => (
+              <div className="cookies-table cookies-table--row cookies-table--cookie-cols" role="row" key={site.domain}>
                 <span className="cookies-site">
-                  <span className="cookies-site__favicon" aria-hidden="true">
-                    {site.domain.charAt(0).toUpperCase()}
+                  <span className="cookies-site__icon-box" aria-hidden="true">
+                    <SiteGlobeIcon size={15} />
                   </span>
                   <span>{site.domain}</span>
                 </span>
@@ -1217,8 +1325,9 @@ export default function SettingsApp() {
                     type="button"
                     onClick={() => setCookieDeleteConfirm({ type: 'domain', domain: site.domain })}
                     aria-label={`Remove cookies for ${site.domain}`}
+                    title={`Delete cookies for ${site.domain}`}
                   >
-                    <AssetMaskIcon icon={trashSvg} size={16} />
+                    <TrashIcon size={16} />
                   </button>
                 </span>
               </div>
@@ -1230,7 +1339,7 @@ export default function SettingsApp() {
       <div className="cookies-footer-note">
         <span className="cookies-info" aria-hidden="true">i</span>
         <span>Deleting cookies will sign you out of most sites.</span>
-        <strong>{filteredCookieSites.length} total sites listed</strong>
+        <strong>{sortedCookieSites.length} total sites listed</strong>
       </div>
     </section>
   );
@@ -1370,6 +1479,40 @@ export default function SettingsApp() {
     return list;
   }, [filteredPermissions]);
 
+  const [permSortField, setPermSortField] = useState('origin');
+  const [permSortDir, setPermSortDir] = useState('asc');
+
+  const handlePermSort = useCallback((field) => {
+    setPermSortField((prevField) => {
+      if (prevField === field) {
+        setPermSortDir((prevDir) => (prevDir === 'asc' ? 'desc' : 'asc'));
+        return prevField;
+      }
+      setPermSortDir('asc');
+      return field;
+    });
+  }, []);
+
+  const sortedPermissions = useMemo(() => {
+    const list = [...flattenedPermissions];
+    list.sort((a, b) => {
+      let comparison = 0;
+      if (permSortField === 'origin') {
+        comparison = (a.origin || '').localeCompare(b.origin || '');
+      } else if (permSortField === 'permName') {
+        const nameA = formatPermissionName(a.permName);
+        const nameB = formatPermissionName(b.permName);
+        comparison = nameA.localeCompare(nameB);
+      } else if (permSortField === 'state') {
+        const stateA = a.state || '';
+        const stateB = b.state || '';
+        comparison = stateA.localeCompare(stateB);
+      }
+      return permSortDir === 'desc' ? -comparison : comparison;
+    });
+    return list;
+  }, [flattenedPermissions, permSortField, permSortDir]);
+
   const renderPermissionsPanel = () => (
     <section className="settings-section settings-section--cookies">
       <div className="settings-subpage-header settings-subpage-header--stacked">
@@ -1409,27 +1552,45 @@ export default function SettingsApp() {
       </div>
 
       <div className="cookies-table-card">
-        <div className="cookies-table cookies-table--header" role="row">
-          <span>Site Origin</span>
-          <span>Permission</span>
-          <span></span>
+        <div className="cookies-table cookies-table--header cookies-table--perm-cols" role="row">
+          <TableSortHeader
+            field="origin"
+            currentField={permSortField}
+            currentDir={permSortDir}
+            label="Site Origin"
+            onSort={handlePermSort}
+          />
+          <TableSortHeader
+            field="permName"
+            currentField={permSortField}
+            currentDir={permSortDir}
+            label="Permission"
+            onSort={handlePermSort}
+          />
+          <TableSortHeader
+            field="state"
+            currentField={permSortField}
+            currentDir={permSortDir}
+            label="Status"
+            onSort={handlePermSort}
+          />
           <span style={{ textAlign: 'right' }}>Actions</span>
         </div>
         <div className="cookies-table-body">
           {permissionsLoading ? (
             <div className="cookies-empty">Loading site permissions…</div>
-          ) : flattenedPermissions.length === 0 ? (
+          ) : sortedPermissions.length === 0 ? (
             <div className="cookies-empty">
               {permissionsSearch ? 'No site permissions matched your search.' : 'No customized site permissions found.'}
             </div>
           ) : (
-            flattenedPermissions.map((item) => {
+            sortedPermissions.map((item) => {
               const chip = getPermissionChipProps(item.state);
               return (
-                <div className="cookies-table cookies-table--row" role="row" key={`${item.origin}-${item.permName}`}>
+                <div className="cookies-table cookies-table--row cookies-table--perm-cols" role="row" key={`${item.origin}-${item.permName}`}>
                   <span className="cookies-site">
-                    <span className="cookies-site__favicon" aria-hidden="true">
-                      🌐
+                    <span className="cookies-site__icon-box" aria-hidden="true">
+                      <SiteGlobeIcon size={15} />
                     </span>
                     <span style={{ fontWeight: 500 }}>{item.origin}</span>
                   </span>
@@ -1455,11 +1616,12 @@ export default function SettingsApp() {
                       {chip.label}
                     </span>
                   </span>
-                  <span className="cookies-actions" style={{ justifyContent: 'flex-end' }}>
+                  <span className="cookies-actions">
                     <button
                       type="button"
                       className="cookies-action-btn"
                       title={`Reset ${formatPermissionName(item.permName)} permission for ${item.origin}`}
+                      aria-label={`Reset ${formatPermissionName(item.permName)} permission for ${item.origin}`}
                       onClick={() =>
                         setPermissionDeleteConfirm({
                           type: 'single',
@@ -1468,7 +1630,7 @@ export default function SettingsApp() {
                         })
                       }
                     >
-                      <AssetMaskIcon icon={trashSvg} size={16} />
+                      <TrashIcon size={16} />
                     </button>
                   </span>
                 </div>
