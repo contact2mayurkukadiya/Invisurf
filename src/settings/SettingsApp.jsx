@@ -325,11 +325,11 @@ export default function SettingsApp() {
   useEffect(() => {
     if (!isStealthWindow) return undefined;
     const root = document.documentElement;
-    root.style.setProperty('--chrome-content-bg', '#253035');
-    root.style.setProperty('--chrome-content-surface', '#2f3c42');
-    root.style.setProperty('--chrome-scrollbar-track', '#1e2a30');
-    root.style.setProperty('--chrome-scrollbar-thumb', '#6b7780');
-    root.style.setProperty('--chrome-scrollbar-thumb-hover', '#8a9399');
+    root.style.setProperty('--chrome-content-bg', '#121316');
+    root.style.setProperty('--chrome-content-surface', '#18191d');
+    root.style.setProperty('--chrome-scrollbar-track', '#121316');
+    root.style.setProperty('--chrome-scrollbar-thumb', '#2d3039');
+    root.style.setProperty('--chrome-scrollbar-thumb-hover', '#3c4043');
     document.body.classList.add('settings-stealth-ui');
     return () => {
       root.style.removeProperty('--chrome-content-bg');

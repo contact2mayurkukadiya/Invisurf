@@ -1,4 +1,68 @@
-/* Chrome-style Extensions Page Styles driven by semantic Chrome Theme Tokens */
+/* Chrome-style Extensions Page Styles aligned with Downloads page reference */
+
+:root {
+  --ext-bg-page: #f7f8f9;
+  --ext-bg-header: #ffffff;
+  --ext-bg-card: #ffffff;
+  --ext-well: #f0f2f5;
+  --ext-border: #e2e8f0;
+  --ext-text-primary: #1e2025;
+  --ext-text-secondary: #5f6368;
+  --ext-text-muted: #80868b;
+  --ext-accent: #315cf5;
+  --ext-accent-hover: #1e4ad6;
+  --ext-accent-subtle: rgba(49, 92, 245, 0.1);
+  --ext-btn-hover: rgba(0, 0, 0, 0.05);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ext-bg-page: #121316;
+    --ext-bg-header: #18191d;
+    --ext-bg-card: #18191d;
+    --ext-well: #202228;
+    --ext-border: #2d3039;
+    --ext-text-primary: #f3f4f6;
+    --ext-text-secondary: #9ca3af;
+    --ext-text-muted: #6b7280;
+    --ext-accent: #4f75ff;
+    --ext-accent-hover: #3b63f6;
+    --ext-accent-subtle: rgba(79, 117, 255, 0.15);
+    --ext-btn-hover: rgba(255, 255, 255, 0.08);
+  }
+}
+
+html[data-forced-appearance="dark"],
+body.dark {
+  --ext-bg-page: #121316;
+  --ext-bg-header: #18191d;
+  --ext-bg-card: #18191d;
+  --ext-well: #202228;
+  --ext-border: #2d3039;
+  --ext-text-primary: #f3f4f6;
+  --ext-text-secondary: #9ca3af;
+  --ext-text-muted: #6b7280;
+  --ext-accent: #4f75ff;
+  --ext-accent-hover: #3b63f6;
+  --ext-accent-subtle: rgba(79, 117, 255, 0.15);
+  --ext-btn-hover: rgba(255, 255, 255, 0.08);
+}
+
+html[data-forced-appearance="light"],
+body.light {
+  --ext-bg-page: #f7f8f9;
+  --ext-bg-header: #ffffff;
+  --ext-bg-card: #ffffff;
+  --ext-well: #f0f2f5;
+  --ext-border: #e2e8f0;
+  --ext-text-primary: #1e2025;
+  --ext-text-secondary: #5f6368;
+  --ext-text-muted: #80868b;
+  --ext-accent: #315cf5;
+  --ext-accent-hover: #1e4ad6;
+  --ext-accent-subtle: rgba(49, 92, 245, 0.1);
+  --ext-btn-hover: rgba(0, 0, 0, 0.05);
+}
 
 html,
 body,
@@ -15,6 +79,34 @@ body,
   box-sizing: border-box;
 }
 
+body {
+  background-color: var(--ext-bg-page);
+  color: var(--ext-text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  scrollbar-color: var(--ext-border) var(--ext-bg-page);
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--ext-bg-page);
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--ext-border);
+  border-radius: 6px;
+  border: 2px solid var(--ext-bg-page);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--ext-text-muted);
+}
+
 .extensions-page {
   width: 100%;
   height: 100vh;
@@ -24,11 +116,8 @@ body,
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background-color: var(--chrome-content-bg, var(--chrome-shell-tint, #f1f3f4));
-  color: var(--chrome-fg, #202124);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  font-size: 14px;
-  -webkit-font-smoothing: antialiased;
+  background-color: var(--ext-bg-page);
+  color: var(--ext-text-primary);
 }
 
 /* ── Top Header ────────────────────────────────────────── */
@@ -40,8 +129,8 @@ body,
   z-index: 100;
   height: 56px;
   flex-shrink: 0;
-  background-color: var(--chrome-nav-bg, #ffffff);
-  border-bottom: 1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.12));
+  background-color: var(--ext-bg-header);
+  border-bottom: 1px solid var(--ext-border);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -65,13 +154,13 @@ body,
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--chrome-fg, #202124);
+  color: var(--ext-text-primary);
   cursor: pointer;
   transition: background-color 0.15s ease;
 }
 
 .extensions-header__menu-btn:hover {
-  background-color: var(--chrome-tab-hover-bg, rgba(0, 0, 0, 0.06));
+  background-color: var(--ext-btn-hover);
 }
 
 .extensions-header__title {
@@ -80,7 +169,7 @@ body,
   gap: 10px;
   font-size: 18px;
   font-weight: 500;
-  color: var(--chrome-fg, #202124);
+  color: var(--ext-text-primary);
   letter-spacing: -0.01em;
 }
 
@@ -88,7 +177,7 @@ body,
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--chrome-accent, #1a73e8);
+  color: var(--ext-accent);
 }
 
 .extensions-header__search-container {
@@ -100,8 +189,8 @@ body,
 .extensions-header__search-box {
   display: flex;
   align-items: center;
-  background-color: var(--chrome-url-well, #f1f3f4);
-  border: 1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.08));
+  background-color: var(--ext-well);
+  border: 1px solid var(--ext-border);
   border-radius: 24px;
   padding: 0 16px;
   height: 38px;
@@ -109,13 +198,13 @@ body,
 }
 
 .extensions-header__search-box:focus-within {
-  background-color: var(--chrome-nav-bg, #ffffff);
-  border-color: var(--chrome-accent, #1a73e8);
+  background-color: var(--ext-bg-header);
+  border-color: var(--ext-accent);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
 }
 
 .extensions-header__search-icon {
-  color: var(--chrome-secondary-fg, #5f6368);
+  color: var(--ext-text-muted);
   margin-right: 10px;
   display: flex;
   align-items: center;
@@ -126,19 +215,19 @@ body,
   background: transparent;
   border: none;
   outline: none;
-  color: var(--chrome-fg, #202124);
+  color: var(--ext-text-primary);
   font-size: 14px;
 }
 
 .extensions-header__search-input::placeholder {
-  color: var(--chrome-secondary-fg, #5f6368);
+  color: var(--ext-text-muted);
   opacity: 0.8;
 }
 
 .extensions-header__search-clear {
   background: transparent;
   border: none;
-  color: var(--chrome-secondary-fg, #5f6368);
+  color: var(--ext-text-muted);
   cursor: pointer;
   padding: 4px;
   display: flex;
@@ -147,8 +236,8 @@ body,
 }
 
 .extensions-header__search-clear:hover {
-  color: var(--chrome-fg, #202124);
-  background-color: var(--chrome-tab-hover-bg, rgba(0, 0, 0, 0.08));
+  color: var(--ext-text-primary);
+  background-color: var(--ext-btn-hover);
 }
 
 .extensions-header__right {
@@ -164,7 +253,7 @@ body,
   align-items: center;
   gap: 10px;
   font-size: 13px;
-  color: var(--chrome-fg, #202124);
+  color: var(--ext-text-primary);
   user-select: none;
   cursor: pointer;
 }
@@ -172,8 +261,8 @@ body,
 /* ── Developer Mode Toolbar ────────────────────────────── */
 .extensions-dev-toolbar {
   flex-shrink: 0;
-  background-color: var(--chrome-nav-bg, #ffffff);
-  border-bottom: 1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.12));
+  background-color: var(--ext-bg-header);
+  border-bottom: 1px solid var(--ext-border);
   padding: 8px 24px;
   display: flex;
   align-items: center;
@@ -188,9 +277,9 @@ body,
 
 .extensions-dev-btn {
   background: transparent;
-  border: 1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.2));
+  border: 1px solid var(--ext-border);
   border-radius: 6px;
-  color: var(--chrome-accent, #1a73e8);
+  color: var(--ext-accent);
   font-size: 13px;
   font-weight: 500;
   padding: 6px 14px;
@@ -199,8 +288,8 @@ body,
 }
 
 .extensions-dev-btn:hover {
-  background-color: var(--chrome-tab-hover-bg, rgba(26, 115, 232, 0.08));
-  border-color: var(--chrome-accent, #1a73e8);
+  background-color: var(--ext-accent-subtle);
+  border-color: var(--ext-accent);
 }
 
 /* ── Layout & Body ─────────────────────────────────────── */
@@ -216,8 +305,8 @@ body,
 .extensions-sidebar {
   width: 240px;
   height: 100%;
-  background-color: var(--chrome-nav-bg, #ffffff);
-  border-right: 1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.12));
+  background-color: var(--ext-bg-header);
+  border-right: 1px solid var(--ext-border);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -250,7 +339,7 @@ body,
   border-radius: 20px;
   border: none;
   background: transparent;
-  color: var(--chrome-fg, #202124);
+  color: var(--ext-text-primary);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -259,18 +348,18 @@ body,
 }
 
 .extensions-sidebar__item:hover {
-  background-color: var(--chrome-tab-hover-bg, rgba(0, 0, 0, 0.05));
+  background-color: var(--ext-btn-hover);
 }
 
 .extensions-sidebar__item.active {
-  background-color: color-mix(in srgb, var(--chrome-accent, #1a73e8) 14%, transparent);
-  color: var(--chrome-accent, #1a73e8);
+  background-color: var(--ext-accent-subtle);
+  color: var(--ext-accent);
   font-weight: 600;
 }
 
 .extensions-sidebar__footer {
   padding: 12px 16px 0;
-  border-top: 1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.08));
+  border-top: 1px solid var(--ext-border);
 }
 
 .extensions-sidebar__store-link {
@@ -278,7 +367,7 @@ body,
   align-items: center;
   justify-content: space-between;
   padding: 10px 12px;
-  color: var(--chrome-accent, #1a73e8);
+  color: var(--ext-accent);
   font-size: 13px;
   font-weight: 500;
   text-decoration: none;
@@ -291,7 +380,7 @@ body,
 }
 
 .extensions-sidebar__store-link:hover {
-  background-color: var(--chrome-tab-hover-bg, rgba(26, 115, 232, 0.08));
+  background-color: var(--ext-accent-subtle);
 }
 
 /* Main Container */
@@ -316,7 +405,7 @@ body,
 .extensions-section-title {
   font-size: 15px;
   font-weight: 600;
-  color: var(--chrome-fg, #202124);
+  color: var(--ext-text-primary);
   margin: 0 0 16px 4px;
 }
 
@@ -329,8 +418,8 @@ body,
 
 /* Extension Card */
 .extension-card {
-  background-color: var(--chrome-nav-bg, #ffffff);
-  border: 1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.12));
+  background-color: var(--ext-bg-card);
+  border: 1px solid var(--ext-border);
   border-radius: 10px;
   padding: 16px;
   display: flex;
@@ -342,7 +431,7 @@ body,
 
 .extension-card:hover {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  border-color: var(--chrome-accent, rgba(26, 115, 232, 0.4));
+  border-color: var(--ext-accent);
 }
 
 .extension-card__top {
@@ -355,7 +444,7 @@ body,
   width: 40px;
   height: 40px;
   border-radius: 8px;
-  background-color: color-mix(in srgb, var(--chrome-nav-bg, #ffffff) 90%, var(--chrome-fg, #000000) 10%);
+  background-color: var(--ext-well);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -384,7 +473,7 @@ body,
 .extension-card__name {
   font-size: 14px;
   font-weight: 600;
-  color: var(--chrome-fg, #202124);
+  color: var(--ext-text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -393,13 +482,13 @@ body,
 
 .extension-card__version {
   font-size: 12px;
-  color: var(--chrome-secondary-fg, #5f6368);
+  color: var(--ext-text-muted);
   margin-top: 2px;
 }
 
 .extension-card__description {
   font-size: 13px;
-  color: var(--chrome-secondary-fg, #5f6368);
+  color: var(--ext-text-secondary);
   line-height: 1.4;
   margin: 8px 0 0;
   display: -webkit-box;
@@ -415,7 +504,7 @@ body,
   justify-content: space-between;
   margin-top: 16px;
   padding-top: 12px;
-  border-top: 1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.08));
+  border-top: 1px solid var(--ext-border);
 }
 
 .extension-card__actions {
@@ -426,9 +515,9 @@ body,
 
 .extension-btn-secondary {
   background: transparent;
-  border: 1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.2));
+  border: 1px solid var(--ext-border);
   border-radius: 6px;
-  color: var(--chrome-accent, #1a73e8);
+  color: var(--ext-accent);
   font-size: 12px;
   font-weight: 500;
   padding: 6px 14px;
@@ -437,15 +526,15 @@ body,
 }
 
 .extension-btn-secondary:hover {
-  background-color: var(--chrome-tab-hover-bg, rgba(26, 115, 232, 0.08));
-  border-color: var(--chrome-accent, #1a73e8);
+  background-color: var(--ext-accent-subtle);
+  border-color: var(--ext-accent);
 }
 
 .extension-btn-danger {
   background: transparent;
-  border: 1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.2));
+  border: 1px solid var(--ext-border);
   border-radius: 6px;
-  color: var(--chrome-secondary-fg, #5f6368);
+  color: var(--ext-text-secondary);
   font-size: 12px;
   font-weight: 500;
   padding: 6px 14px;
@@ -481,7 +570,7 @@ body,
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: var(--chrome-tab-separator, rgba(0, 0, 0, 0.25));
+  background-color: var(--ext-border);
   border-radius: 20px;
   transition: 0.2s ease;
 }
@@ -500,7 +589,7 @@ body,
 }
 
 .chrome-switch input:checked + .chrome-switch__slider {
-  background-color: var(--chrome-accent, #1a73e8);
+  background-color: var(--ext-accent);
 }
 
 .chrome-switch input:checked + .chrome-switch__slider::before {
@@ -523,9 +612,9 @@ body,
 }
 
 .extension-modal {
-  background-color: var(--chrome-nav-bg, #ffffff);
-  color: var(--chrome-fg, #202124);
-  border: 1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.12));
+  background-color: var(--ext-bg-card);
+  color: var(--ext-text-primary);
+  border: 1px solid var(--ext-border);
   border-radius: 12px;
   width: 540px;
   max-width: 90vw;
@@ -541,7 +630,7 @@ body,
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
-  border-bottom: 1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.08));
+  border-bottom: 1px solid var(--ext-border);
 }
 
 .extension-modal__body {
@@ -561,37 +650,38 @@ body,
 .extension-modal__label {
   font-size: 12px;
   font-weight: 600;
-  color: var(--chrome-secondary-fg, #5f6368);
+  color: var(--ext-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
 
 .extension-modal__value {
   font-size: 13px;
-  color: var(--chrome-fg, #202124);
+  color: var(--ext-text-primary);
   line-height: 1.4;
 }
 
 .extension-modal__footer {
   padding: 14px 20px;
-  border-top: 1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.08));
+  border-top: 1px solid var(--ext-border);
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  background-color: color-mix(in srgb, var(--chrome-nav-bg, #ffffff) 96%, var(--chrome-fg, #000000) 4%);
+  background-color: var(--ext-well);
 }
 
 /* Empty State */
 .extensions-empty {
   text-align: center;
   padding: 64px 24px;
-  background-color: color-mix(in srgb, var(--chrome-nav-bg, #ffffff) 50%, transparent);
-  border: 1px dashed var(--chrome-tab-separator, rgba(0, 0, 0, 0.15));
+  background-color: var(--ext-well);
+  border: 1px dashed var(--ext-border);
   border-radius: 12px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 12px;
+  color: var(--ext-text-secondary);
 }
 
 /* ==================== Extension Error Layer ==================== */
@@ -631,7 +721,7 @@ body,
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  background-color: var(--chrome-tab-hover-bg, rgba(0, 0, 0, 0.03));
+  background-color: var(--ext-well);
   border-radius: 8px;
   margin-bottom: 12px;
 }
@@ -664,9 +754,9 @@ body,
 }
 
 .extension-error-badge--context {
-  background-color: rgba(26, 115, 232, 0.1);
-  color: var(--chrome-accent, #1a73e8);
-  border: 1px solid rgba(26, 115, 232, 0.25);
+  background-color: var(--ext-accent-subtle);
+  color: var(--ext-accent);
+  border: 1px solid rgba(49, 92, 245, 0.25);
 }
 
 .extension-error-badge--count {
@@ -676,8 +766,8 @@ body,
 }
 
 .extension-error-badge--time {
-  background-color: var(--chrome-tab-hover-bg, rgba(0, 0, 0, 0.05));
-  color: var(--chrome-secondary-fg, #5f6368);
+  background-color: var(--ext-well);
+  color: var(--ext-text-secondary);
 }
 
 .extension-error-message-box {
@@ -708,22 +798,22 @@ body,
 
 .extension-error-location__label {
   font-weight: 600;
-  color: var(--chrome-secondary-fg, #5f6368);
+  color: var(--ext-text-secondary);
 }
 
 .extension-error-location__path {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 11.5px;
-  background-color: var(--chrome-tab-hover-bg, rgba(0, 0, 0, 0.05));
+  background-color: var(--ext-well);
   padding: 2px 6px;
   border-radius: 4px;
-  color: var(--chrome-fg, #202124);
+  color: var(--ext-text-primary);
 }
 
 /* Chrome-Style Code Preview Frame */
 .extension-code-frame {
   margin-top: 6px;
-  border: 1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.12));
+  border: 1px solid var(--ext-border);
   border-radius: 6px;
   background-color: #1e1e1e;
   color: #d4d4d4;
@@ -788,9 +878,9 @@ body,
 /* Stack Trace */
 .extension-error-stack-details {
   margin-top: 6px;
-  border: 1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.12));
+  border: 1px solid var(--ext-border);
   border-radius: 6px;
-  background-color: var(--chrome-tab-hover-bg, rgba(0, 0, 0, 0.02));
+  background-color: var(--ext-well);
   overflow: hidden;
 }
 
@@ -799,22 +889,21 @@ body,
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  color: var(--chrome-secondary-fg, #5f6368);
+  color: var(--ext-text-secondary);
   user-select: none;
 }
 
 .extension-error-stack-content {
   margin: 0;
   padding: 10px 12px;
-  background-color: var(--chrome-url-well, rgba(0, 0, 0, 0.04));
-  border-top: 1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.08));
+  background-color: var(--ext-bg-page);
+  border-top: 1px solid var(--ext-border);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 11px;
   line-height: 1.45;
-  color: var(--chrome-fg, #202124);
+  color: var(--ext-text-primary);
   max-height: 160px;
   overflow-y: auto;
   white-space: pre-wrap;
   word-break: break-all;
 }
-

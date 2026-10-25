@@ -820,32 +820,27 @@ function applyLightChromeSliderNavWellLayering(next, tabBarFrameHex) {
   next['--chrome-bookmark-bar'] = sheet;
 }
 
-/** Settings / internal pages: canvas background matches profile's chosen theme color. */
+/** Settings / internal pages: neutral white or black canvas aligned with downloads page reference. */
 function contentLayerTokens(effectiveDark, tokens = {}) {
   const accent = (typeof tokens['--chrome-accent'] === 'string' && tokens['--chrome-accent'])
-    || (effectiveDark ? '#8ab4f8' : '#1a73e8');
+    || (effectiveDark ? '#4f75ff' : '#315cf5');
 
   if (effectiveDark) {
-    const themeBg = (typeof tokens['--chrome-body-bg'] === 'string' && tokens['--chrome-body-bg'])
-      || (typeof tokens['--chrome-shell-bg'] === 'string' && tokens['--chrome-shell-bg'])
-      || '#202124';
-    const themeSurface = (typeof tokens['--chrome-slider'] === 'string' && tokens['--chrome-slider'])
-      || (typeof tokens['--chrome-nav-bg'] === 'string' && tokens['--chrome-nav-bg'])
-      || mixHex(themeBg, '#ffffff', 0.08);
-    const subtle = (typeof tokens['--chrome-url-well'] === 'string' && tokens['--chrome-url-well'])
-      || mixHex(themeBg, '#ffffff', 0.05);
-    const hover = mixHex(themeBg, '#ffffff', 0.08);
-    const border = mixHex(themeBg, '#ffffff', 0.12);
-    const borderStrong = mixHex(themeBg, '#ffffff', 0.22);
-    const activeBg = mixHex(themeBg, accent, 0.22);
-    const activeFg = mixHex(accent, '#ffffff', 0.25);
-    const text = (typeof tokens['--chrome-fg'] === 'string' && tokens['--chrome-fg']) || 'rgba(255, 255, 255, 0.95)';
-    const muted = (typeof tokens['--chrome-secondary-fg'] === 'string' && tokens['--chrome-secondary-fg']) || 'rgba(255, 255, 255, 0.68)';
+    const themeBg = '#121316';
+    const themeSurface = '#18191d';
+    const subtle = '#202228';
+    const hover = 'rgba(255, 255, 255, 0.08)';
+    const border = '#2d3039';
+    const borderStrong = '#3c4043';
+    const activeBg = 'rgba(79, 117, 255, 0.15)';
+    const activeFg = '#4f75ff';
+    const text = '#f3f4f6';
+    const muted = '#9ca3af';
 
     return {
       '--chrome-content-bg': themeBg,
       '--chrome-content-surface': themeSurface,
-      '--chrome-content-sidebar-bg': themeBg,
+      '--chrome-content-sidebar-bg': themeSurface,
       '--chrome-content-subtle': subtle,
       '--chrome-content-hover': hover,
       '--chrome-content-border': border,
@@ -855,31 +850,28 @@ function contentLayerTokens(effectiveDark, tokens = {}) {
       '--chrome-content-active-rail': accent,
       '--chrome-content-text': text,
       '--chrome-content-muted': muted,
-      '--chrome-scrollbar-track': mixHex(themeBg, '#000000', 0.25),
-      '--chrome-scrollbar-thumb': mixHex(themeBg, '#ffffff', 0.35),
-      '--chrome-scrollbar-thumb-hover': mixHex(themeBg, '#ffffff', 0.5),
+      '--chrome-scrollbar-track': '#121316',
+      '--chrome-scrollbar-thumb': '#2d3039',
+      '--chrome-scrollbar-thumb-hover': '#3c4043',
     };
   }
 
   // Light appearance
-  const themeBg = (typeof tokens['--chrome-shell-tint'] === 'string' && tokens['--chrome-shell-tint'])
-    || (typeof tokens['--chrome-body-bg'] === 'string' && tokens['--chrome-body-bg'])
-    || '#f1f3f4';
+  const themeBg = '#f7f8f9';
   const themeSurface = '#ffffff';
-  const subtle = (typeof tokens['--chrome-url-well'] === 'string' && tokens['--chrome-url-well'])
-    || mixHex(themeBg, '#000000', 0.04);
-  const hover = mixHex(themeBg, '#000000', 0.05);
-  const border = mixHex(themeBg, '#000000', 0.10);
-  const borderStrong = mixHex(themeBg, '#000000', 0.20);
-  const activeBg = mixHex(themeBg, accent, 0.16);
-  const activeFg = mixHex(accent, '#000000', 0.25);
-  const text = (typeof tokens['--chrome-fg'] === 'string' && tokens['--chrome-fg']) || '#202124';
-  const muted = (typeof tokens['--chrome-secondary-fg'] === 'string' && tokens['--chrome-secondary-fg']) || 'rgba(23, 27, 32, 0.65)';
+  const subtle = '#f0f2f5';
+  const hover = 'rgba(0, 0, 0, 0.05)';
+  const border = '#e2e8f0';
+  const borderStrong = '#dadce0';
+  const activeBg = 'rgba(49, 92, 245, 0.1)';
+  const activeFg = '#315cf5';
+  const text = '#1e2025';
+  const muted = '#5f6368';
 
   return {
     '--chrome-content-bg': themeBg,
     '--chrome-content-surface': themeSurface,
-    '--chrome-content-sidebar-bg': themeBg,
+    '--chrome-content-sidebar-bg': themeSurface,
     '--chrome-content-subtle': subtle,
     '--chrome-content-hover': hover,
     '--chrome-content-border': border,
@@ -889,9 +881,9 @@ function contentLayerTokens(effectiveDark, tokens = {}) {
     '--chrome-content-active-rail': accent,
     '--chrome-content-text': text,
     '--chrome-content-muted': muted,
-    '--chrome-scrollbar-track': mixHex(themeBg, '#000000', 0.05),
-    '--chrome-scrollbar-thumb': mixHex(themeBg, '#000000', 0.3),
-    '--chrome-scrollbar-thumb-hover': mixHex(themeBg, '#000000', 0.45),
+    '--chrome-scrollbar-track': '#f7f8f9',
+    '--chrome-scrollbar-thumb': '#dadce0',
+    '--chrome-scrollbar-thumb-hover': '#c6c6cd',
   };
 }
 

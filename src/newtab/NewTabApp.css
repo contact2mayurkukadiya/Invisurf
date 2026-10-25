@@ -1,15 +1,15 @@
 /* ── Tokens (aligned with supplied NTP reference, CSP-safe — no CDN) ─────── */
 
 :root {
-  --ntp-surface: #f8f9ff;
-  --ntp-surface-low: #eff4ff;
-  --ntp-on-surface: #0b1c30;
-  --ntp-on-variant: #45464d;
-  --ntp-primary: #000000;
-  --ntp-secondary: #5c5f61;
-  --ntp-outline-variant: #c6c6cd;
+  --ntp-surface: #f7f8f9;
+  --ntp-surface-low: #f0f2f5;
+  --ntp-on-surface: #1e2025;
+  --ntp-on-variant: #5f6368;
+  --ntp-primary: #1e2025;
+  --ntp-secondary: #5f6368;
+  --ntp-outline-variant: #e2e8f0;
   --ntp-white: #ffffff;
-  --ntp-container: #e5eeff;
+  --ntp-container: #ffffff;
   --ntp-shadow-soft: 0 4px 20px rgba(15, 23, 42, 0.05);
   --ntp-shadow-hover: 0 8px 30px rgba(15, 23, 42, 0.08);
   --ntp-ring: rgba(0, 0, 0, 0.05);
@@ -18,15 +18,15 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --ntp-surface: #12141a;
-    --ntp-surface-low: #1a2030;
-    --ntp-on-surface: #eaf1ff;
-    --ntp-on-variant: #a8acb8;
-    --ntp-primary: #f8f9ff;
-    --ntp-secondary: #9399a9;
-    --ntp-outline-variant: #3f4555;
-    --ntp-white: #1c2433;
-    --ntp-container: #252e40;
+    --ntp-surface: #121316;
+    --ntp-surface-low: #18191d;
+    --ntp-on-surface: #f3f4f6;
+    --ntp-on-variant: #9ca3af;
+    --ntp-primary: #f3f4f6;
+    --ntp-secondary: #9ca3af;
+    --ntp-outline-variant: #2d3039;
+    --ntp-white: #18191d;
+    --ntp-container: #202228;
     --ntp-shadow-soft: 0 4px 24px rgba(0, 0, 0, 0.35);
     --ntp-shadow-hover: 0 8px 36px rgba(0, 0, 0, 0.45);
     --ntp-ring: rgba(255, 255, 255, 0.08);
@@ -34,31 +34,33 @@
 }
 
 /* When Settings forces light/dark, OS colour scheme media queries can disagree — mirror tokens here. */
-html[data-forced-appearance="dark"] {
-  --ntp-surface: #12141a;
-  --ntp-surface-low: #1a2030;
-  --ntp-on-surface: #eaf1ff;
-  --ntp-on-variant: #a8acb8;
-  --ntp-primary: #f8f9ff;
-  --ntp-secondary: #9399a9;
-  --ntp-outline-variant: #3f4555;
-  --ntp-white: #1c2433;
-  --ntp-container: #252e40;
+html[data-forced-appearance="dark"],
+body.dark {
+  --ntp-surface: #121316;
+  --ntp-surface-low: #18191d;
+  --ntp-on-surface: #f3f4f6;
+  --ntp-on-variant: #9ca3af;
+  --ntp-primary: #f3f4f6;
+  --ntp-secondary: #9ca3af;
+  --ntp-outline-variant: #2d3039;
+  --ntp-white: #18191d;
+  --ntp-container: #202228;
   --ntp-shadow-soft: 0 4px 24px rgba(0, 0, 0, 0.35);
   --ntp-shadow-hover: 0 8px 36px rgba(0, 0, 0, 0.45);
   --ntp-ring: rgba(255, 255, 255, 0.08);
 }
 
-html[data-forced-appearance="light"] {
-  --ntp-surface: #f8f9ff;
-  --ntp-surface-low: #eff4ff;
-  --ntp-on-surface: #0b1c30;
-  --ntp-on-variant: #45464d;
-  --ntp-primary: #000000;
-  --ntp-secondary: #5c5f61;
-  --ntp-outline-variant: #c6c6cd;
+html[data-forced-appearance="light"],
+body.light {
+  --ntp-surface: #f7f8f9;
+  --ntp-surface-low: #f0f2f5;
+  --ntp-on-surface: #1e2025;
+  --ntp-on-variant: #5f6368;
+  --ntp-primary: #1e2025;
+  --ntp-secondary: #5f6368;
+  --ntp-outline-variant: #e2e8f0;
   --ntp-white: #ffffff;
-  --ntp-container: #e5eeff;
+  --ntp-container: #ffffff;
   --ntp-shadow-soft: 0 4px 20px rgba(15, 23, 42, 0.05);
   --ntp-shadow-hover: 0 8px 30px rgba(15, 23, 42, 0.08);
   --ntp-ring: rgba(0, 0, 0, 0.05);
@@ -80,12 +82,12 @@ body,
 }
 
 body {
-  background: var(--chrome-slider, var(--chrome-body-bg, var(--ntp-surface)));
+  background: var(--ntp-surface);
   color: var(--ntp-on-surface);
   font-family: var(--ntp-font);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  scrollbar-color: var(--chrome-scrollbar-thumb, #9aa0a6) var(--chrome-scrollbar-track, #e8eaed);
+  scrollbar-color: var(--ntp-outline-variant) var(--ntp-surface);
 }
 
 *::-webkit-scrollbar {
@@ -114,7 +116,7 @@ body {
   display: flex;
   flex-direction: column;
   min-height: 100%;
-  background: var(--chrome-slider, var(--chrome-body-bg, var(--ntp-surface)));
+  background: var(--ntp-surface);
 }
 
 /* Logos and favicons: avoid accidental drag into chromed UI / OS */
@@ -128,7 +130,7 @@ body {
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background: var(--chrome-slider, var(--chrome-body-bg, var(--ntp-surface)));
+  background: var(--ntp-surface);
   opacity: 1;
 }
 

@@ -386,7 +386,7 @@ describe('Overlay Menus Window Resize & Anchor Following', () => {
   describe('Settings Page Theme Color Alignment', () => {
     const { resolveAppliedTokens } = require('../../../src/theme/chromeTheme.cjs');
 
-    test('derives settings content background from profile dark theme colors', () => {
+    test('derives settings content background as neutral dark black in dark mode', () => {
       const darkThemes = ['ocean', 'forest', 'sunset', 'violet', 'amber', 'indigo', 'mint', 'slate', 'default'];
       for (const theme of darkThemes) {
         const tokens = resolveAppliedTokens({ accentTheme: theme, colorTheme: 'dark' }, true);
@@ -396,12 +396,12 @@ describe('Overlay Menus Window Resize & Anchor Following', () => {
         assert.ok(tokens['--chrome-content-active-bg'], `Theme ${theme} must set --chrome-content-active-bg`);
         assert.ok(tokens['--chrome-content-active-fg'], `Theme ${theme} must set --chrome-content-active-fg`);
         assert.ok(tokens['--chrome-content-subtle'], `Theme ${theme} must set --chrome-content-subtle`);
-        // The content background should match the dark body/shell background of that theme
-        assert.equal(tokens['--chrome-content-bg'], tokens['--chrome-body-bg']);
+        // The content background should be clean neutral black #121316 matching downloads reference
+        assert.equal(tokens['--chrome-content-bg'], '#121316');
       }
     });
 
-    test('derives settings content background from profile light theme shell tint', () => {
+    test('derives settings content background as neutral light white in light mode', () => {
       const lightThemes = ['ocean', 'forest', 'sunset', 'violet', 'amber', 'indigo', 'mint', 'slate'];
       for (const theme of lightThemes) {
         const tokens = resolveAppliedTokens({ accentTheme: theme, colorTheme: 'light' }, false);
@@ -411,21 +411,21 @@ describe('Overlay Menus Window Resize & Anchor Following', () => {
         assert.ok(tokens['--chrome-content-active-bg'], `Theme ${theme} must set --chrome-content-active-bg`);
         assert.ok(tokens['--chrome-content-active-fg'], `Theme ${theme} must set --chrome-content-active-fg`);
         assert.ok(tokens['--chrome-content-subtle'], `Theme ${theme} must set --chrome-content-subtle`);
-        // Light mode canvas background must follow the theme's shell-tint
-        assert.equal(tokens['--chrome-content-bg'], tokens['--chrome-shell-tint']);
+        // Light mode canvas background must be clean neutral white #f7f8f9 matching downloads reference
+        assert.equal(tokens['--chrome-content-bg'], '#f7f8f9');
       }
     });
 
-    test('derives settings content background for custom accent color', () => {
+    test('derives settings content background for custom accent color as neutral', () => {
       const customHex = '#e91e63';
       const darkTokens = resolveAppliedTokens({ accentTheme: 'custom', accentCustomHex: customHex, colorTheme: 'dark' }, true);
       assert.ok(darkTokens['--chrome-content-bg'], 'Custom dark must set --chrome-content-bg');
-      assert.equal(darkTokens['--chrome-content-bg'], darkTokens['--chrome-body-bg']);
+      assert.equal(darkTokens['--chrome-content-bg'], '#121316');
       assert.ok(darkTokens['--chrome-content-active-bg'], 'Custom dark must set --chrome-content-active-bg');
 
       const lightTokens = resolveAppliedTokens({ accentTheme: 'custom', accentCustomHex: customHex, colorTheme: 'light' }, false);
       assert.ok(lightTokens['--chrome-content-bg'], 'Custom light must set --chrome-content-bg');
-      assert.equal(lightTokens['--chrome-content-bg'], lightTokens['--chrome-shell-tint']);
+      assert.equal(lightTokens['--chrome-content-bg'], '#f7f8f9');
       assert.ok(lightTokens['--chrome-content-active-bg'], 'Custom light must set --chrome-content-active-bg');
     });
 
