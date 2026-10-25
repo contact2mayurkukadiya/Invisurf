@@ -122,6 +122,14 @@ function registerIpcHandlers() {
         return !!lensManager.findActiveLensTabForProfile(context.profileId);
     });
 
+    ipcMain.handle('lens:close', (event) => {
+        if (!isSenderTrusted(event)) return false;
+        const context = getWindowContextByEventSender(event.sender);
+        if (!context) return false;
+        lensManager.closeGoogleLensSelection(context, { closeSidebar: true });
+        return true;
+    });
+
     // === WINDOW MANAGEMENT ===
     ipcMain.handle(C.IPC_INVOKE.IS_STEALTH_WINDOW, (event) => {
         if (!isSenderTrusted(event)) return false;
@@ -920,7 +928,7 @@ function registerIpcHandlers() {
         }
 
         if (data?.type === 'lensSelectionCapture') {
-            lensManager.captureGoogleLensSelection(context, data.rect).catch((err) => { console.error('lensSelectionCapture', err?.message || err); });
+            lensManager.captureGoogleLensSelection(context, data).catch((err) => { console.error('lensSelectionCapture', err?.message || err); });
             return;
         }
         if (data?.type === 'lensSelectionCancel') {

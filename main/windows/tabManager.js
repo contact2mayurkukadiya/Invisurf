@@ -180,9 +180,12 @@ function layoutActiveTabView(context, tabId = context?.activeTabId) {
 
     if (lensSession?.selectionActive) {
         // Keep the live view hidden/collapsed during selection
-        try {
-            view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
-        } catch (_) { }
+        const cur = view.getBounds?.() || {};
+        if (cur.width !== 0 || cur.height !== 0) {
+            try { view.setBounds({ x: 0, y: 0, width: 0, height: 0 }); } catch (_) { }
+        }
+        const { postLensSelectionPatch } = require('./lensManager');
+        postLensSelectionPatch(context);
     } else {
         // Restore standard bounds on exit
         resetTabWebContentsScale(view);

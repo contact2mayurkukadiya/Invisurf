@@ -233,6 +233,29 @@ function isInternalPageUrl(url) {
     return false;
 }
 
+function extractDestinationUrl(url) {
+    if (!url || typeof url !== 'string') return url;
+    try {
+        const parsed = new URL(url);
+        if (parsed.hostname.includes('google.') && (parsed.pathname === '/url' || parsed.pathname.startsWith('/url/'))) {
+            const dest = parsed.searchParams.get('url') || parsed.searchParams.get('q');
+            if (dest && /^https?:\/\//i.test(dest)) {
+                return dest;
+            }
+        }
+    } catch (_) { }
+    return url;
+}
+
+function isGoogleHostname(hostname) {
+    if (!hostname) return false;
+    const h = hostname.toLowerCase();
+    return h === 'lens.google.com' ||
+           h === 'google.com' ||
+           h.endsWith('.google.com') ||
+           /(^|\.)google\.[a-z]{2,3}(\.[a-z]{2})?$/.test(h);
+}
+
 function isGoogleLensSidebarUrl(url) {
     if (!url || typeof url !== 'string') return false;
     if (url.startsWith('data:') || url === 'about:blank') return true;
@@ -240,13 +263,21 @@ function isGoogleLensSidebarUrl(url) {
     try {
         const parsed = new URL(url);
         if (parsed.protocol !== 'https:') return false;
+        // Result links routed through Google /url redirect are outbound navigation
+        if (parsed.pathname === '/url' || parsed.pathname.startsWith('/url/')) return false;
+
         if (parsed.hostname === 'lens.google.com') return true;
-        // Lens upload POST redirects to Google Search results in the sidebar.
-        if (parsed.hostname === 'www.google.com' || parsed.hostname === 'google.com') {
+        // Google Search & Visual matches across regional Google domains (google.com, google.co.in, etc.)
+        if (isGoogleHostname(parsed.hostname)) {
             const path = parsed.pathname || '/';
-            if (path === '/search' || path.startsWith('/search/')) return true;
-            // Result links often pass through Google's /url redirect wrapper first.
-            if (path === '/url' || path.startsWith('/url/')) return true;
+            if (
+                path === '/search' || path.startsWith('/search/') ||
+                path.startsWith('/imghp') || path.startsWith('/upload') ||
+                path.startsWith('/lens') || path.startsWith('/m') ||
+                path.startsWith('/webhp')
+            ) {
+                return true;
+            }
         }
         return false;
     } catch (_) {
@@ -294,6 +325,7 @@ module.exports = {
     transitionFromNavigationSource,
     isInternalPageUrl,
     isGoogleLensSidebarUrl,
+    extractDestinationUrl,
     buildSearchUrl,
     markNextNavigationTransition,
     consumeNextNavigationTransition

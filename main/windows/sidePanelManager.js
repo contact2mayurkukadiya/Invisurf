@@ -62,18 +62,43 @@ function isSidePanelOpen(context) {
     return !isSidePanelFullscreen(context);
 }
 
+function broadcastSidePanelState(context) {
+    if (!context?.window || context.window.isDestroyed() || !context.window.webContents) return;
+    const state = getSidePanelState(context);
+    if (!state) return;
+    const C = require('../../src/constants/conditionStrings.cjs');
+    try {
+        context.window.webContents.send(C.IPC_EVENT.SIDE_PANEL_STATE_CHANGED, {
+            isOpen: state.isOpen,
+            width: state.width,
+            activePanelId: state.activePanelId,
+            customUrl: state.customUrl,
+        });
+    } catch (_) { }
+}
+
 function setSidePanelWidth(context, width) {
     const state = getSidePanelState(context);
     if (!state) return;
-    state.width = clampSidePanelWidth(context, width);
+    const clamped = clampSidePanelWidth(context, width);
+    if (state.width === clamped) return;
+    state.width = clamped;
     layoutSidePanel(context);
 }
 
-function setSidePanelState(context, partial) {
+function setSidePanelState(context, partial = {}, options = {}) {
     const state = getSidePanelState(context);
     if (!state) return;
     if (typeof partial.isOpen === 'boolean') {
         state.isOpen = partial.isOpen;
+        if (!state.isOpen && context.activeTabId) {
+            try {
+                const lensManager = require('./lensManager');
+                if (lensManager.getLensSession(context, context.activeTabId, false)) {
+                    lensManager.closeGoogleLensSelection(context, { closeSidebar: true });
+                }
+            } catch (_) { }
+        }
     }
     if (partial.width != null) {
         state.width = clampSidePanelWidth(context, partial.width);
@@ -85,6 +110,9 @@ function setSidePanelState(context, partial) {
         state.customUrl = partial.customUrl;
     }
     layoutSidePanel(context);
+    if (options.broadcast === true) {
+        broadcastSidePanelState(context);
+    }
 }
 
 function layoutSidePanel(context) {
@@ -173,6 +201,7 @@ module.exports = {
     getSidePanelState,
     getSidePanelWidth,
     isSidePanelOpen,
+    broadcastSidePanelState,
     setSidePanelWidth,
     setSidePanelState,
     layoutSidePanel,

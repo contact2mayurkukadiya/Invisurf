@@ -10,11 +10,11 @@ const MAX_RECENTLY_CLOSED_TABS = 25;
 const LENS_SIDEBAR_MIN_WIDTH = 260;
 const LENS_SIDEBAR_DEFAULT_RATIO = 0.42;
 const LENS_SIDEBAR_MAX_RATIO = 0.7;
-const LENS_PANEL_GAP = 14;
+const LENS_PANEL_GAP = 12;
 const LENS_WORKSPACE_PADDING = 8;
 const LENS_SITE_CONTAINER_MAX_SCALE = 1;
 const LENS_PAGE_MIN_SCALE = 0.05;
-const LENS_PANEL_RADIUS = 24;
+const LENS_PANEL_RADIUS = 14;
 const LENS_MOBILE_USER_AGENT = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
 
 // Profile defaults

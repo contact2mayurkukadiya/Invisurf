@@ -9,6 +9,10 @@ import {
   setTabAudioMuted,
   setShowBookmarkBar,
   toggleSidePanel,
+  setSidePanelOpen,
+  setSidePanelActiveView,
+  setSidePanelWidth,
+  setSidePanelCustomUrl,
 } from './store/browserSlice';
 import { setBookmarks } from './store/bookmarksSlice';
 import { useElectronIPC } from './hooks/useElectronIPC';
@@ -750,12 +754,27 @@ function AppShell() {
   };
 
   useEffect(() => {
-    if (!window.electronAPI?.onSidePanelToggle) return undefined;
-    const unsub = window.electronAPI.onSidePanelToggle(() => {
+    const unsubToggle = window.electronAPI?.onSidePanelToggle?.(() => {
       dispatch(toggleSidePanel());
     });
+    const unsubState = window.electronAPI?.onSidePanelStateChanged?.((state) => {
+      if (!state) return;
+      if (typeof state.isOpen === 'boolean') {
+        dispatch(setSidePanelOpen(state.isOpen));
+      }
+      if (state.activePanelId) {
+        dispatch(setSidePanelActiveView(state.activePanelId));
+      }
+      if (state.width) {
+        dispatch(setSidePanelWidth(state.width));
+      }
+      if (typeof state.customUrl !== 'undefined') {
+        dispatch(setSidePanelCustomUrl(state.customUrl));
+      }
+    });
     return () => {
-      if (typeof unsub === 'function') unsub();
+      if (typeof unsubToggle === 'function') unsubToggle();
+      if (typeof unsubState === 'function') unsubState();
     };
   }, [dispatch]);
 

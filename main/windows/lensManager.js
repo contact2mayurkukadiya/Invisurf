@@ -41,6 +41,8 @@ function getLensSession(context, tabId = context?.activeTabId, create = false) {
             sourceWidth: null,
             sourceHeight: null,
             magnifierImage: null,
+            hasSearchResults: false,
+            snapshotSentToOverlay: false,
         };
         context.lensSessions.set(tabId, sessionState);
     }
@@ -50,9 +52,13 @@ function getLensSession(context, tabId = context?.activeTabId, create = false) {
 function destroyLensSidebarViews(context, lensSession) {
     if (!lensSession) return;
     const sidebarView = lensSession.sidebarView;
+    const hostView = lensSession.sidebarHostView || sidebarView;
+    if (hostView && context?.window?.contentView && typeof context.window.contentView.removeChildView === 'function') {
+        try { context.window.contentView.removeChildView(hostView); } catch (_) { }
+    }
     const { removeTabContentChildView } = require('./tabManager');
     if (sidebarView) {
-        removeTabContentChildView(context, lensSession.sidebarHostView || sidebarView);
+        removeTabContentChildView(context, hostView);
         const wc = sidebarView.webContents;
         if (wc && typeof wc.isDestroyed === 'function' && !wc.isDestroyed()) {
             try { wc.removeAllListeners(); } catch (_) { }
@@ -63,22 +69,26 @@ function destroyLensSidebarViews(context, lensSession) {
         }
         lensSession.sidebarView = null;
     }
-    const hostView = lensSession.sidebarHostView;
-    if (hostView) {
+    if (lensSession.sidebarHostView) {
         try {
-            if (sidebarView) hostView.removeChildView(sidebarView);
+            if (sidebarView) lensSession.sidebarHostView.removeChildView(sidebarView);
         } catch (_) { }
         lensSession.sidebarHostView = null;
     }
+    lensSession.hasSearchResults = false;
 }
 
 function suspendLensSessionPresentation(context, tabId = context?.activeTabId) {
     const lensSession = getLensSession(context, tabId, false);
     if (!context || !tabId || !lensSession?.selectionActive) return false;
+    const hostView = lensSession.sidebarHostView || lensSession.sidebarView;
+    if (hostView && context?.window?.contentView && typeof context.window.contentView.removeChildView === 'function') {
+        try { context.window.contentView.removeChildView(hostView); } catch (_) { }
+    }
     const { removeTabContentChildView } = require('./tabManager');
 
     if (lensSession.sidebarView) {
-        removeTabContentChildView(context, lensSession.sidebarHostView || lensSession.sidebarView);
+        removeTabContentChildView(context, hostView);
     }
 
     if (lensSession.overlayAcquired && context.chromeOverlayAcquireCount > 0) {
@@ -163,12 +173,15 @@ function restoreActiveLensTabPresentation(context, tabId = context?.activeTabId)
     layoutLensSidebar(context, tabId);
     ensureLensOverlayAcquired(context, tabId);
     repairLensChromeOverlayAcquireCount(context);
-    return postLensSelectionPatch(context);
+    return postLensSelectionPatch(context, { forceSnapshot: true });
 }
 
 function getLensSidebarWidth(context, tabId = context?.activeTabId) {
     const lensSession = getLensSession(context, tabId, false);
     if (!lensSession?.selectionActive || !lensSession.sidebarView || lensSession.sidebarView.webContents.isDestroyed()) return 0;
+    const sidePanelManager = require('./sidePanelManager');
+    const spWidth = sidePanelManager.getSidePanelWidth(context);
+    if (spWidth > 0) return spWidth;
     const { width } = context.window.getContentBounds();
     const maxWidth = Math.max(220, Math.floor(width * LENS_SIDEBAR_MAX_RATIO));
     const minWidth = Math.min(LENS_SIDEBAR_MIN_WIDTH, maxWidth);
@@ -185,16 +198,16 @@ function getLensLayoutMetrics(context, tabId = context?.activeTabId) {
     const contentHeight = fs ? height : Math.max(0, height - UI_HEIGHT);
     const panelGap = fs || sidebarWidth <= 0 ? 0 : LENS_PANEL_GAP;
     const sidebarBounds = sidebarWidth > 0 ? {
-        x: Math.max(panelGap, width - sidebarWidth - panelGap),
-        y: contentTop + panelGap,
-        width: Math.max(0, sidebarWidth),
-        height: Math.max(0, contentHeight - (panelGap * 2)),
+        x: Math.max(0, width - sidebarWidth + 6),
+        y: contentTop + 38,
+        width: Math.max(0, sidebarWidth - 14),
+        height: Math.max(0, contentHeight - 38 - 8),
     } : { x: width, y: contentTop, width: 0, height: contentHeight };
     const leftPanelBounds = sidebarWidth > 0 ? {
-        x: panelGap,
-        y: contentTop + panelGap,
-        width: Math.max(0, sidebarBounds.x - (panelGap * 2)),
-        height: Math.max(0, contentHeight - (panelGap * 2)),
+        x: 8,
+        y: contentTop + 4,
+        width: Math.max(0, width - sidebarWidth - 14),
+        height: Math.max(0, contentHeight - 12),
     } : {
         x: 0,
         y: contentTop,
@@ -214,7 +227,7 @@ function computeLensChromeOverlayBounds(context, tabId = context?.activeTabId) {
     return {
         x: 0,
         y: metrics.contentTop,
-        width: Math.max(0, metrics.sidebarBounds.x),
+        width: Math.max(0, width - metrics.sidebarWidth - 6),
         height: metrics.contentHeight,
     };
 }
@@ -225,74 +238,123 @@ function getActiveTabContentBounds(context, tabId = context?.activeTabId) {
     if (!metrics) return { x: 0, y: UI_HEIGHT, width: 0, height: 0 };
     const lensSession = getLensSession(context, tabId, false);
 
-    if (lensSession?.selectionActive && !metrics.fs) {
-        const leftPanel = metrics.leftPanelBounds;
-        const maxContainerWidth = Math.max(1, leftPanel.width - (LENS_WORKSPACE_PADDING * 2));
-        const maxContainerHeight = Math.max(1, leftPanel.height - (LENS_WORKSPACE_PADDING * 2));
-        const sourceWidth = Math.max(1, Math.round(lensSession.sourceWidth || metrics.width));
-        const sourceHeight = Math.max(1, Math.round(lensSession.sourceHeight || metrics.contentHeight));
-        const scale = Math.max(
-            LENS_PAGE_MIN_SCALE,
-            Math.min(
-                LENS_SITE_CONTAINER_MAX_SCALE,
-                maxContainerWidth / sourceWidth,
-                maxContainerHeight / sourceHeight,
-            ),
-        );
-        const containerWidth = Math.floor(sourceWidth * scale);
-        const containerHeight = Math.floor(sourceHeight * scale);
-        const bounds = {
-            x: leftPanel.x + Math.max(0, Math.floor((leftPanel.width - containerWidth) / 2)),
-            y: leftPanel.y + Math.max(0, Math.floor((leftPanel.height - containerHeight) / 2)),
-            width: Math.max(1, Math.min(containerWidth, maxContainerWidth)),
-            height: Math.max(1, Math.min(containerHeight, maxContainerHeight)),
-        };
-        lensSession.siteBounds = bounds;
-        lensSession.pageScale = scale;
-        return bounds;
-    }
     if (lensSession) {
-        lensSession.siteBounds = null;
+        lensSession.siteBounds = metrics.leftPanelBounds;
         lensSession.pageScale = 1;
     }
     return {
         x: 0,
         y: metrics.fs ? 0 : UI_HEIGHT,
-        width: Math.max(0, metrics.width - metrics.sidebarWidth),
+        width: metrics.width,
         height: metrics.contentHeight,
     };
 }
 
-function applyLensSidebarMobileViewport(context, tabId = context?.activeTabId) {
+function applyLensSidebarMobileViewport(context, tabId = context?.activeTabId, options = {}) {
     const lensSession = getLensSession(context, tabId, false);
     const sidebarView = lensSession?.sidebarView;
     if (!context?.window || !sidebarView || sidebarView.webContents.isDestroyed()) return;
-    try { sidebarView.webContents.setUserAgent(LENS_MOBILE_USER_AGENT); } catch (_) { }
-    try { sidebarView.webContents.setZoomFactor(1); } catch (_) { }
+    const metrics = getLensLayoutMetrics(context, tabId);
+    const sidebarWidth = Math.max(260, metrics?.sidebarBounds?.width || 360);
+    const sidebarHeight = Math.max(300, metrics?.sidebarBounds?.height || 640);
+    const targetZoom = Math.round(Math.max(0.75, Math.min(1.0, sidebarWidth / 375)) * 100) / 100;
+
+    const widthDiff = Math.abs(sidebarWidth - (lensSession.lastEmulatedWidth || 0));
+    const heightDiff = Math.abs(sidebarHeight - (lensSession.lastEmulatedHeight || 0));
+    const zoomDiff = Math.abs(targetZoom - (lensSession.lastEmulatedZoom || 0));
+
+    // When resizing live, avoid forcing full DevTools emulation restart on every pixel.
+    // Apply immediately if explicit or if size shifted significantly (>32px), otherwise debounce.
+    const shouldUpdateNow = options.immediate || !lensSession.lastEmulatedWidth || widthDiff >= 32 || heightDiff >= 48;
+
+    const applyEmulation = () => {
+        if (!isViewWebContentsAlive(sidebarView)) return;
+        try {
+            sidebarView.webContents.enableDeviceEmulation({
+                screenPosition: 'mobile',
+                screenSize: { width: sidebarWidth, height: sidebarHeight },
+                viewPosition: { x: 0, y: 0 },
+                deviceScaleFactor: 0,
+                viewSize: { width: sidebarWidth, height: sidebarHeight },
+                scale: 1,
+            });
+            lensSession.lastEmulatedWidth = sidebarWidth;
+            lensSession.lastEmulatedHeight = sidebarHeight;
+        } catch (_) { }
+
+        try {
+            if (zoomDiff > 0.02 || !lensSession.lastEmulatedZoom) {
+                sidebarView.webContents.setZoomFactor(targetZoom);
+                lensSession.lastEmulatedZoom = targetZoom;
+            }
+        } catch (_) { }
+    };
+
+    if (shouldUpdateNow) {
+        if (lensSession.viewportDebounceTimer) {
+            clearTimeout(lensSession.viewportDebounceTimer);
+            lensSession.viewportDebounceTimer = null;
+        }
+        applyEmulation();
+    } else {
+        if (lensSession.viewportDebounceTimer) clearTimeout(lensSession.viewportDebounceTimer);
+        lensSession.viewportDebounceTimer = setTimeout(() => {
+            lensSession.viewportDebounceTimer = null;
+            applyEmulation();
+        }, 120);
+    }
 }
 
 function layoutLensSidebar(context, tabId = context?.activeTabId) {
     if (tabId !== context?.activeTabId) return;
     const lensSession = getLensSession(context, tabId, false);
     if (!lensSession?.sidebarView || lensSession.sidebarView.webContents.isDestroyed()) return;
+    const hostView = lensSession.sidebarHostView || lensSession.sidebarView;
+
+    if (!lensSession.hasSearchResults) {
+        hostView.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+        return;
+    }
+
     const metrics = getLensLayoutMetrics(context, tabId);
     if (!metrics) return;
     const radius = metrics.sidebarWidth > 0 ? LENS_PANEL_RADIUS : 0;
-    const hostView = lensSession.sidebarHostView || lensSession.sidebarView;
-    const { setNativeViewCornerRadius } = require('./tabManager');
+    const { setNativeViewCornerRadius, removeTabContentChildView } = require('./tabManager');
 
-    hostView.setBounds(metrics.sidebarBounds);
+    if (context.window?.contentView && typeof context.window.contentView.addChildView === 'function') {
+        try {
+            removeTabContentChildView(context, hostView);
+            const children = context.window.contentView.children || [];
+            if (!children.includes(hostView) || children[children.length - 1] !== hostView) {
+                context.window.contentView.addChildView(hostView);
+            }
+        } catch (_) { }
+    }
+
+    const curHostBounds = hostView.getBounds ? hostView.getBounds() : null;
+    const boundsChanged = !curHostBounds ||
+        curHostBounds.x !== metrics.sidebarBounds.x ||
+        curHostBounds.y !== metrics.sidebarBounds.y ||
+        curHostBounds.width !== metrics.sidebarBounds.width ||
+        curHostBounds.height !== metrics.sidebarBounds.height;
+
+    if (boundsChanged) {
+        hostView.setBounds(metrics.sidebarBounds);
+    }
     setNativeViewCornerRadius(hostView, radius);
     if (typeof hostView.setBackgroundColor === 'function') {
         try { hostView.setBackgroundColor(getChromeShellBackgroundColor(context)); } catch (_) { }
     }
     if (lensSession.sidebarHostView) {
-        lensSession.sidebarView.setBounds({
-            x: 0,
-            y: 0,
-            width: Math.max(0, metrics.sidebarBounds.width),
-            height: Math.max(0, metrics.sidebarBounds.height),
-        });
+        const curSideBounds = lensSession.sidebarView.getBounds ? lensSession.sidebarView.getBounds() : null;
+        if (!curSideBounds || curSideBounds.width !== metrics.sidebarBounds.width || curSideBounds.height !== metrics.sidebarBounds.height) {
+            lensSession.sidebarView.setBounds({
+                x: 0,
+                y: 0,
+                width: Math.max(0, metrics.sidebarBounds.width),
+                height: Math.max(0, metrics.sidebarBounds.height),
+            });
+        }
     } else {
         setNativeViewCornerRadius(lensSession.sidebarView, radius);
     }
@@ -306,7 +368,11 @@ function detachLensSidebarsExcept(context, activeTabId) {
         const sidebarView = sessionState?.sidebarView;
         if (!sidebarView || sidebarView.webContents.isDestroyed()) continue;
         if (tabId === activeTabId) continue;
-        removeTabContentChildView(context, sessionState.sidebarHostView || sidebarView);
+        const hostView = sessionState.sidebarHostView || sidebarView;
+        if (hostView && context?.window?.contentView && typeof context.window.contentView.removeChildView === 'function') {
+            try { context.window.contentView.removeChildView(hostView); } catch (_) { }
+        }
+        removeTabContentChildView(context, hostView);
     }
 }
 
@@ -337,6 +403,54 @@ function destroyLensSession(context, tabId) {
     }
 }
 
+function isLensDarkTheme(context) {
+    try {
+        const { getChromeOverlayThemePatchForContext } = require('../services/settingsService');
+        const patch = getChromeOverlayThemePatchForContext(context);
+        return !!patch?.effectiveDark;
+    } catch (_) {
+        const { nativeTheme } = require('electron');
+        return !!nativeTheme?.shouldUseDarkColors;
+    }
+}
+
+function injectLensSidebarBorderStyles(sidebarView, context) {
+    if (!isViewWebContentsAlive(sidebarView)) return;
+    const currentUrl = sidebarView.webContents.getURL() || '';
+    const lensSession = getLensSession(context, context?.activeTabId, false);
+    if (lensSession && lensSession.sidebarBorderInjectedForUrl === currentUrl && currentUrl !== '') {
+        return;
+    }
+    if (lensSession) {
+        lensSession.sidebarBorderInjectedForUrl = currentUrl;
+    }
+
+    const isDark = isLensDarkTheme(context);
+    const borderColor = isDark ? 'rgba(255, 255, 255, 0.16)' : 'rgba(0, 0, 0, 0.12)';
+    const shadowColor = isDark ? 'rgba(0, 0, 0, 0.45)' : 'rgba(0, 0, 0, 0.08)';
+    const insetShadow = isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)';
+
+    const css = `
+        html, body {
+            border-radius: ${LENS_PANEL_RADIUS}px !important;
+            overflow-x: hidden !important;
+        }
+        #invisurf-lens-sidebar-border,
+        body::after {
+            content: "" !important;
+            position: fixed !important;
+            inset: 0 !important;
+            border-radius: ${LENS_PANEL_RADIUS}px !important;
+            border: 1px solid ${borderColor} !important;
+            box-shadow: inset 0 0 0 1px ${insetShadow}, 0 1px 4px ${shadowColor} !important;
+            pointer-events: none !important;
+            z-index: 2147483647 !important;
+            box-sizing: border-box !important;
+        }
+    `;
+    sidebarView.webContents.insertCSS(css).catch(() => {});
+}
+
 function getChromeShellBackgroundColor(context) {
     const { nativeTheme } = require('electron');
     const { getChromeOverlayThemePatchForContext } = require('../services/settingsService');
@@ -353,64 +467,39 @@ function injectLensSidebarCloseButton(context, tabId) {
     const sidebarView = lensSession?.sidebarView;
     if (!isViewWebContentsAlive(sidebarView)) return;
     const background = getChromeShellBackgroundColor(context);
-    const gutterMaskHeight = Math.max(10, Math.min(18, LENS_PANEL_RADIUS - 6));
     const script = `
         (() => {
             const style = document.getElementById('invisurf-lens-panel-style') || document.createElement('style');
             style.id = 'invisurf-lens-panel-style';
             style.textContent = \`
-                html { background: ${background} !important; }
-                body { min-height: 100vh; margin: 0 !important; overflow-x: hidden !important; background: ${background} !important; }
-                #invisurf-lens-panel-border { position: fixed !important; inset: 0 !important; z-index: 2147483646 !important; border: 1px solid rgba(95, 99, 104, 0.24) !important; border-radius: ${LENS_PANEL_RADIUS}px !important; box-sizing: border-box !important; pointer-events: none !important; }
-                .invisurf-lens-gutter-mask { position: fixed !important; left: 0 !important; right: 0 !important; height: ${gutterMaskHeight}px !important; z-index: 2147483645 !important; background: ${background} !important; pointer-events: none !important; }
-                #invisurf-lens-gutter-mask-top { top: 0 !important; }
-                #invisurf-lens-gutter-mask-bottom { bottom: 0 !important; }
-                body::-webkit-scrollbar { width: 10px; }
+                html { background: ${background} !important; border-radius: ${LENS_PANEL_RADIUS}px !important; overflow-x: hidden !important; }
+                body { min-height: 100vh; margin: 0 !important; overflow-x: hidden !important; background: ${background} !important; border-radius: ${LENS_PANEL_RADIUS}px !important; }
+                body::-webkit-scrollbar { width: 6px; }
+                body::-webkit-scrollbar-thumb { background: rgba(128, 128, 128, 0.4); border-radius: 999px; }
+                #invisurf-lens-sidebar-border {
+                    position: fixed !important;
+                    inset: 0 !important;
+                    border-radius: ${LENS_PANEL_RADIUS}px !important;
+                    border: 1px solid rgba(128, 128, 128, 0.28) !important;
+                    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.05) !important;
+                    pointer-events: none !important;
+                    z-index: 2147483647 !important;
+                }
             \`;
             if (!style.parentNode) document.head.appendChild(style);
             document.documentElement.style.backgroundColor = ${JSON.stringify(background)};
             if (document.body) document.body.style.backgroundColor = ${JSON.stringify(background)};
-            const ensureMask = (id) => {
-                let mask = document.getElementById(id);
-                if (!mask) {
-                    mask = document.createElement('div');
-                    mask.id = id;
-                    mask.className = 'invisurf-lens-gutter-mask';
-                    document.documentElement.appendChild(mask);
-                }
-                return mask;
-            };
-            ensureMask('invisurf-lens-gutter-mask-top');
-            ensureMask('invisurf-lens-gutter-mask-bottom');
-            let border = document.getElementById('invisurf-lens-panel-border');
-            if (!border) {
-                border = document.createElement('div');
-                border.id = 'invisurf-lens-panel-border';
-                document.documentElement.appendChild(border);
+
+            if (!document.getElementById('invisurf-lens-sidebar-border')) {
+                const b = document.createElement('div');
+                b.id = 'invisurf-lens-sidebar-border';
+                document.documentElement.appendChild(b);
             }
-            if (document.getElementById('invisurf-lens-close')) return;
+
             const meta = document.querySelector('meta[name="viewport"]') || document.createElement('meta');
             meta.name = 'viewport';
             meta.content = 'width=device-width, initial-scale=1, viewport-fit=cover';
             if (!meta.parentNode) document.head.appendChild(meta);
-            const style = document.createElement('style');
-            style.id = 'invisurf-lens-mobile-style';
-            style.textContent = 'html,body{max-width:100vw!important;overflow-x:hidden!important;}';
-            document.head.appendChild(style);
-            const btn = document.createElement('button');
-            btn.id = 'invisurf-lens-close';
-            btn.type = 'button';
-            btn.textContent = '×';
-            btn.title = 'Close Google Lens';
-            btn.setAttribute('aria-label', 'Close Google Lens');
-            Object.assign(btn.style, {
-                position: 'fixed', top: '8px', right: '8px', zIndex: '2147483647',
-                width: '28px', height: '28px', border: '0', borderRadius: '999px',
-                background: 'rgba(60,64,67,.9)', color: '#fff', font: '20px/28px system-ui, sans-serif',
-                cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,.22)',
-            });
-            btn.addEventListener('click', () => { window.location.href = 'invisurf-lens://close'; });
-            document.documentElement.appendChild(btn);
         })();
     `;
     sidebarView.webContents.executeJavaScript(script).catch(() => { });
@@ -453,7 +542,8 @@ function createLensSidebarHostView(context) {
 }
 
 function openLensSidebarNavigationInTab(context, url, options = {}) {
-    const targetUrl = String(url || '').trim();
+    const { extractDestinationUrl } = require('../utils/navigation');
+    const targetUrl = extractDestinationUrl(String(url || '').trim());
     if (!targetUrl || !/^https?:\/\//i.test(targetUrl)) {
         return false;
     }
@@ -490,21 +580,21 @@ function createLensSidebar(context, tabId = context?.activeTabId) {
     }
     sidebar.webContents.setUserAgent(LENS_MOBILE_USER_AGENT);
 
-    const { isGoogleLensSidebarUrl } = require('../utils/navigation');
+    const { isGoogleLensSidebarUrl, extractDestinationUrl } = require('../utils/navigation');
 
     sidebar.webContents.setWindowOpenHandler(({ url, disposition }) => {
-        const lensUrl = isGoogleLensSidebarUrl(url);
+        const destUrl = extractDestinationUrl(url);
+        const lensUrl = isGoogleLensSidebarUrl(destUrl);
         if (lensUrl) {
-            sidebar.webContents.loadURL(url).catch(() => { });
+            sidebar.webContents.loadURL(destUrl).catch(() => { });
             return { action: 'deny' };
         }
-        openLensSidebarNavigationInTab(context, url, {
+        openLensSidebarNavigationInTab(context, destUrl, {
             background: disposition === 'background-tab',
         });
         return { action: 'deny' };
     });
     sidebar.webContents.on('will-navigate', (event, url) => {
-        const lensUrl = isGoogleLensSidebarUrl(url);
         if (String(url || '').startsWith('invisurf-lens://close')) {
             event.preventDefault();
             if (context.activeTabId === tabId) {
@@ -514,28 +604,43 @@ function createLensSidebar(context, tabId = context?.activeTabId) {
             }
             return;
         }
+        const destUrl = extractDestinationUrl(url);
+        const lensUrl = isGoogleLensSidebarUrl(destUrl);
         if (!lensUrl) {
             event.preventDefault();
-            openLensSidebarNavigationInTab(context, url);
+            openLensSidebarNavigationInTab(context, destUrl);
         }
     });
     sidebar.webContents.on('will-redirect', (event, url) => {
-        const lensUrl = isGoogleLensSidebarUrl(url);
+        const destUrl = extractDestinationUrl(url);
+        const lensUrl = isGoogleLensSidebarUrl(destUrl);
         if (!lensUrl) {
             event.preventDefault();
-            openLensSidebarNavigationInTab(context, url);
+            openLensSidebarNavigationInTab(context, destUrl);
         }
     });
-    sidebar.webContents.on('did-finish-load', () => {
+    const applySidebarChrome = () => {
+        applyLensSidebarMobileViewport(context, tabId);
+        injectLensSidebarBorderStyles(sidebar, context);
         injectLensSidebarCloseButton(context, tabId);
-    });
+    };
+    sidebar.webContents.on('dom-ready', applySidebarChrome);
+    sidebar.webContents.on('did-finish-load', applySidebarChrome);
+    sidebar.webContents.on('did-navigate', applySidebarChrome);
     lensSession.sidebarHostView = sidebarHostView;
     lensSession.sidebarView = sidebar;
     sidebar.webContents.loadURL(`data:text/html;charset=utf-8;base64,${Buffer.from(buildLensSidebarPlaceholderHtml(context)).toString('base64')}`).catch(() => { });
 
     if (tabId === context.activeTabId) {
-        const { addTabContentChildView } = require('./tabManager');
-        addTabContentChildView(context, sidebarHostView || sidebar);
+        const hostView = sidebarHostView || sidebar;
+        if (context.window?.contentView && typeof context.window.contentView.addChildView === 'function') {
+            try {
+                const children = context.window.contentView.children || [];
+                if (!children.includes(hostView)) {
+                    context.window.contentView.addChildView(hostView);
+                }
+            } catch (_) { }
+        }
         layoutLensSidebar(context, tabId);
     }
     return sidebar;
@@ -576,10 +681,16 @@ function closeGoogleLensSelection(context, { closeSidebar = false } = {}) {
         lensSession.lastSelectionRatio = null;
         lensSession.lastSelectionText = '';
         lensSession.textSnapshot = null;
+        lensSession.hasSearchResults = false;
     }
     if (closeSidebar && lensSession) {
         destroyLensSidebarViews(context, lensSession);
         context.lensSessions.delete(tabId);
+        const sidePanelManager = require('./sidePanelManager');
+        const spState = sidePanelManager.getSidePanelState(context);
+        if (spState && spState.activePanelId === 'lens') {
+            sidePanelManager.setSidePanelState(context, { isOpen: false }, { broadcast: true });
+        }
     }
 
     const { restoreActiveTabViewFromShellOverlay, layoutActiveTabView } = require('./tabManager');
@@ -592,10 +703,15 @@ function closeGoogleLensSelection(context, { closeSidebar = false } = {}) {
     ensureChromeOverlayOnTop(context);
 }
 
-function postLensSelectionPatch(context) {
+function postLensSelectionPatch(context, options = {}) {
     if (!context?.chromeOverlayView || context.chromeOverlayView.webContents.isDestroyed()) return false;
     const lensSession = getLensSession(context, context.activeTabId, false);
     if (!lensSession?.selectionActive) return false;
+
+    const forceSnapshot = options.forceSnapshot === true || !lensSession.snapshotSentToOverlay;
+    if (forceSnapshot && lensSession.snapshotDataUrl) {
+        lensSession.snapshotSentToOverlay = true;
+    }
 
     const lensMetrics = getLensLayoutMetrics(context, context.activeTabId);
     const tabBounds = getActiveTabContentBounds(context, context.activeTabId);
@@ -609,11 +725,23 @@ function postLensSelectionPatch(context) {
         ? windowHeight
         : (lensMetrics?.contentHeight || 0);
 
+    const leftPanel = lensMetrics?.leftPanelBounds || {
+        x: 8,
+        y: (lensMetrics?.contentTop ?? UI_HEIGHT) + 4,
+        width: Math.max(0, windowWidth - sidebarWidth - 14),
+        height: Math.max(0, (lensMetrics?.contentHeight ?? windowHeight) - 12),
+    };
     const siteBounds = {
-        x: tabBounds.x,
-        y: Math.max(0, tabBounds.y - overlayOriginY),
-        width: tabBounds.width,
-        height: tabBounds.height,
+        x: leftPanel.x,
+        y: Math.max(0, leftPanel.y - overlayOriginY),
+        width: leftPanel.width,
+        height: leftPanel.height,
+    };
+    lensSession.siteBounds = {
+        x: leftPanel.x,
+        y: leftPanel.y,
+        width: leftPanel.width,
+        height: leftPanel.height,
     };
 
     const selectionRatio = lensSession.lastSelectionRatio || null;
@@ -634,8 +762,9 @@ function postLensSelectionPatch(context) {
         panelRadius: LENS_PANEL_RADIUS,
         sourceWidth: lensSession.sourceWidth || windowWidth,
         sourceHeight: lensSession.sourceHeight || (lensMetrics?.contentHeight || 0),
-        snapshotDataUrl: lensSession.snapshotDataUrl,
+        snapshotDataUrl: forceSnapshot ? lensSession.snapshotDataUrl : undefined,
         siteBounds,
+        containerBounds: siteBounds,
         leftPanelBounds: lensMetrics ? {
             x: lensMetrics.leftPanelBounds.x,
             y: Math.max(0, lensMetrics.leftPanelBounds.y - overlayOriginY),
@@ -653,8 +782,9 @@ function postLensSelectionPatch(context) {
         contentHeight: overlayHeight,
         selectionRect,
         selectionRatio,
+        hasSearchResults: !!lensSession.hasSearchResults,
         hasSelectionText: !!lensSession.lastSelectionText,
-        hasSelection: !!selectionRect,
+        hasSelection: !!selectionRatio,
     };
 
     const { layoutChromeOverlayBounds, ensureChromeOverlayOnTop } = require('./overlayManager');
@@ -673,6 +803,9 @@ function resizeGoogleLensSidebar(context, width) {
     const nextWidth = Math.max(minWidth, Math.min(Math.round(Number(width) || 0), maxWidth));
     lensSession.sidebarWidth = nextWidth;
 
+    const sidePanelManager = require('./sidePanelManager');
+    sidePanelManager.setSidePanelWidth(context, nextWidth);
+
     const { layoutActiveTabView } = require('./tabManager');
     layoutActiveTabView(context, context.activeTabId);
 
@@ -686,7 +819,10 @@ function resizeGoogleLensSidebar(context, width) {
 
 function commitGoogleLensSidebarResize(context, width) {
     const resized = resizeGoogleLensSidebar(context, width);
-    if (resized) postLensSelectionPatch(context);
+    if (resized) {
+        applyLensSidebarMobileViewport(context, context?.activeTabId, { immediate: true });
+        postLensSelectionPatch(context);
+    }
     return resized;
 }
 
@@ -858,6 +994,12 @@ async function startGoogleLensSelection(context = getWindowContextByBrowserWindo
     }
 
     createLensSidebar(context, context.activeTabId);
+    const sidePanelManager = require('./sidePanelManager');
+    sidePanelManager.setSidePanelState(context, {
+        isOpen: true,
+        activePanelId: 'lens',
+        width: lensSession.sidebarWidth || sidePanelManager.getSidePanelWidth(context) || 360,
+    }, { broadcast: true });
     hideActiveTabViewForShellOverlay(context);
     layoutActiveTabView(context, context.activeTabId);
 
@@ -868,7 +1010,7 @@ async function startGoogleLensSelection(context = getWindowContextByBrowserWindo
         lensSession.overlayAcquired = true;
     }
 
-    return postLensSelectionPatch(context);
+    return postLensSelectionPatch(context, { forceSnapshot: true });
 }
 
 function submitLensImageInSidebar(context, tabId, pngBuffer, dimensions) {
@@ -939,10 +1081,15 @@ function submitLensImageInSidebar(context, tabId, pngBuffer, dimensions) {
             sidebar.webContents.removeListener('did-fail-load', onFail);
         };
         const onNavigate = (_event, targetUrl) => {
-            if (!/^https:\/\/lens\.google\.com\//i.test(String(targetUrl || ''))) return;
-            finished = true;
-            cleanup();
-            resolve(true);
+            const u = String(targetUrl || '');
+            if (u.includes('lens.google.') || u.includes('google.') || u.includes('/search')) {
+                finished = true;
+                cleanup();
+                applyLensSidebarMobileViewport(context, tabId);
+                injectLensSidebarBorderStyles(sidebar, context);
+                injectLensSidebarCloseButton(context, tabId);
+                resolve(true);
+            }
         };
         const onFail = (_event, _errorCode, errorDescription) => {
             if (finished) return;
@@ -960,35 +1107,65 @@ function submitLensImageInSidebar(context, tabId, pngBuffer, dimensions) {
         setTimeout(() => {
             if (finished || !isViewWebContentsAlive(sidebar)) return;
             cleanup();
+            applyLensSidebarMobileViewport(context, tabId);
             resolve(true);
         }, 8000);
     });
 }
 
-async function captureGoogleLensSelection(context, rect = {}) {
+async function captureGoogleLensSelection(context, payload = {}) {
     const tabId = context?.activeTabId;
     const lensSession = getLensSession(context, tabId, false);
     if (!lensSession?.selectionActive || !tabId) return false;
     const activeView = context.tabs[tabId];
     if (!activeView || activeView.webContents.isDestroyed()) return false;
 
-    const site = lensSession.siteBounds;
-    if (!site || !site.width || !site.height) return false;
-
     try {
+        if (!lensSession.fullSnapshot || lensSession.fullSnapshot.isEmpty()) {
+            try {
+                const snap = await activeView.webContents.capturePage();
+                if (snap && !snap.isEmpty()) {
+                    lensSession.fullSnapshot = snap;
+                    lensSession.snapshotDataUrl = snap.toDataURL();
+                    const s = snap.getSize();
+                    lensSession.sourceWidth = s.width;
+                    lensSession.sourceHeight = s.height;
+                }
+            } catch (_) { }
+        }
         if (!lensSession.fullSnapshot || lensSession.fullSnapshot.isEmpty()) return false;
 
         const origSize = lensSession.fullSnapshot.getSize();
-        const selectionX = Math.max(0, Math.min(Math.round(Number(rect.x) || 0), Math.max(0, site.width - 1)));
-        const selectionY = Math.max(0, Math.min(Math.round(Number(rect.y) || 0), Math.max(0, site.height - 1)));
-        const selectionWidth = Math.max(1, Math.min(Math.round(Number(rect.width) || 0), site.width - selectionX));
-        const selectionHeight = Math.max(1, Math.min(Math.round(Number(rect.height) || 0), site.height - selectionY));
-        if (selectionWidth < 8 || selectionHeight < 8) return false;
+        let ratio = payload?.ratio || null;
+        if (!ratio) {
+            const r = payload?.rect || payload;
+            if (r && typeof r === 'object') {
+                const site = lensSession.siteBounds || { width: origSize.width, height: origSize.height };
+                const rx = Number(r.x) || 0;
+                const ry = Number(r.y) || 0;
+                const rw = Number(r.width) || 0;
+                const rh = Number(r.height) || 0;
+                if (rw > 0 && rh > 0) {
+                    ratio = {
+                        x: rx / (site.width || 1),
+                        y: ry / (site.height || 1),
+                        width: rw / (site.width || 1),
+                        height: rh / (site.height || 1),
+                    };
+                }
+            }
+        }
+        if (!ratio) return false;
 
-        const x = Math.max(0, Math.round((selectionX / site.width) * origSize.width));
-        const y = Math.max(0, Math.round((selectionY / site.height) * origSize.height));
-        const width = Math.max(1, Math.round((selectionWidth / site.width) * origSize.width));
-        const height = Math.max(1, Math.round((selectionHeight / site.height) * origSize.height));
+        const safeRatioX = Math.max(0, Math.min(1, Number(ratio.x) || 0));
+        const safeRatioY = Math.max(0, Math.min(1, Number(ratio.y) || 0));
+        const safeRatioW = Math.max(0.005, Math.min(1 - safeRatioX, Number(ratio.width) || 0));
+        const safeRatioH = Math.max(0.005, Math.min(1 - safeRatioY, Number(ratio.height) || 0));
+
+        const x = Math.max(0, Math.round(safeRatioX * origSize.width));
+        const y = Math.max(0, Math.round(safeRatioY * origSize.height));
+        const width = Math.max(1, Math.round(safeRatioW * origSize.width));
+        const height = Math.max(1, Math.round(safeRatioH * origSize.height));
 
         const safeX = Math.min(x, origSize.width - 1);
         const safeY = Math.min(y, origSize.height - 1);
@@ -998,16 +1175,28 @@ async function captureGoogleLensSelection(context, rect = {}) {
         const croppedImage = lensSession.fullSnapshot.crop({ x: safeX, y: safeY, width: safeWidth, height: safeHeight });
         const png = croppedImage.toPNG();
 
-        lensSession.lastSelection = { x: selectionX, y: selectionY, width: selectionWidth, height: selectionHeight };
         lensSession.lastSelectionRatio = {
-            x: selectionX / site.width,
-            y: selectionY / site.height,
-            width: selectionWidth / site.width,
-            height: selectionHeight / site.height,
+            x: safeRatioX,
+            y: safeRatioY,
+            width: safeRatioW,
+            height: safeRatioH,
+        };
+        lensSession.lastSelection = {
+            x: safeX,
+            y: safeY,
+            width: safeWidth,
+            height: safeHeight,
         };
         lensSession.lastSelectionText = getLensSelectionText(lensSession, lensSession.lastSelectionRatio);
         lensSession.lastSelectionImage = png;
+        lensSession.hasSearchResults = true;
 
+        // Immediately update layout and broadcast patch so sidebar becomes visible with loading spinner
+        layoutLensSidebar(context, tabId);
+        postLensSelectionPatch(context);
+        require('./overlayManager').ensureChromeOverlayOnTop(context);
+
+        // Submit to Google Lens in sidebar (already mounted and visible to the user)
         await submitLensImageInSidebar(context, tabId, png, { width: safeWidth, height: safeHeight });
 
         if (context.activeTabId === tabId && lensSession.selectionActive) {
@@ -1064,6 +1253,8 @@ module.exports = {
     destroyLensSession,
     getChromeShellBackgroundColor,
     injectLensSidebarCloseButton,
+    injectLensSidebarBorderStyles,
+    isLensDarkTheme,
     buildLensSidebarPlaceholderHtml,
     createLensSidebarHostView,
     openLensSidebarNavigationInTab,

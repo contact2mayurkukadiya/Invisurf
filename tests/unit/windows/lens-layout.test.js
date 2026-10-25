@@ -97,4 +97,30 @@ describe('LensManager Layout and Session State', () => {
     lensManager.repairLensChromeOverlayAcquireCount(mockContext);
     assert.equal(mockContext.chromeOverlayAcquireCount, 1);
   });
+
+  test('isGoogleLensSidebarUrl and extractDestinationUrl handle search results and outbound links', () => {
+    const { isGoogleLensSidebarUrl, extractDestinationUrl } = require('../../../main/utils/navigation');
+
+    // Valid Lens sidebar URLs (including regional domains and search paths)
+    assert.equal(isGoogleLensSidebarUrl('https://lens.google.com/v3/upload?ep=ccm'), true);
+    assert.equal(isGoogleLensSidebarUrl('https://www.google.com/search?vsrid=12345&udm=26'), true);
+    assert.equal(isGoogleLensSidebarUrl('https://www.google.co.in/search?vsrid=98765'), true);
+    assert.equal(isGoogleLensSidebarUrl('https://www.google.co.uk/search?q=test'), true);
+    assert.equal(isGoogleLensSidebarUrl('https://www.google.com/imghp'), true);
+    assert.equal(isGoogleLensSidebarUrl('https://www.google.com/lens?hl=en'), true);
+    assert.equal(isGoogleLensSidebarUrl('data:text/html;base64,abc'), true);
+
+    // Outbound external links must not stay in sidebar
+    assert.equal(isGoogleLensSidebarUrl('https://www.youtube.com/watch?v=123'), false);
+    assert.equal(isGoogleLensSidebarUrl('https://photoadking.com/design'), false);
+    assert.equal(isGoogleLensSidebarUrl('https://en.wikipedia.org/wiki/Earth'), false);
+
+    // Google /url redirect wrapper is outbound navigation
+    const googleRedirect = 'https://www.google.com/url?q=https%3A%2F%2Fphotoadking.com%2Fdesign&sa=U';
+    assert.equal(isGoogleLensSidebarUrl(googleRedirect), false);
+    assert.equal(extractDestinationUrl(googleRedirect), 'https://photoadking.com/design');
+    const googleRegionalRedirect = 'https://www.google.co.in/url?q=https%3A%2F%2Fexample.com%2Fitem&sa=U';
+    assert.equal(isGoogleLensSidebarUrl(googleRegionalRedirect), false);
+    assert.equal(extractDestinationUrl(googleRegionalRedirect), 'https://example.com/item');
+  });
 });

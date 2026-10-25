@@ -404,7 +404,12 @@ function ensureChromeOverlayOnTop(context) {
             }
         }
         if (lensSession?.selectionActive && lensSession.sidebarView && !lensSession.sidebarView.webContents.isDestroyed()) {
-            addTabContentChildView(context, lensSession.sidebarHostView || lensSession.sidebarView);
+            const hostView = lensSession.sidebarHostView || lensSession.sidebarView;
+            if (hostView && cv && typeof cv.addChildView === 'function') {
+                const { removeTabContentChildView } = require('./tabManager');
+                removeTabContentChildView(context, hostView);
+                cv.addChildView(hostView);
+            }
         }
         if (context.tooltipView && !context.tooltipView.webContents.isDestroyed()) {
             cv.addChildView(context.tooltipView);

@@ -2,7 +2,36 @@ import { hideAll, onHideAll } from '../state.js';
 import { notifyHost } from '../api.js';
 
 let lensLayer = null;
+let siteFrame = null;
+let bgBlurImg = null;
+let bgOverlay = null;
+let canvasFrame = null;
+let sharpImg = null;
+let exitBtn = null;
+let chip = null;
+let magnifier = null;
+let selectionMask = null;
+let selection = null;
+let actions = null;
+let copyToast = null;
+let cursorTooltip = null;
+let sidebarFrame = null;
+
+let cachedSnapshotDataUrl = '';
 let lensPointerId = null;
+let isDragging = false;
+let selectionStarted = false;
+let currentRect = null;
+let startX = 0;
+let startY = 0;
+let selectedRatio = null;
+let copyToastTimer = null;
+
+let currentCanvasX = 0;
+let currentCanvasY = 0;
+let currentCanvasW = 0;
+let currentCanvasH = 0;
+let currentContainer = { x: 8, y: 4, width: 800, height: 600 };
 
 onHideAll((options) => {
     if (options && options.hideLens === false) return;
@@ -11,14 +40,259 @@ onHideAll((options) => {
 
 export function hideLensSelection() {
     lensPointerId = null;
+    isDragging = false;
+    currentRect = null;
+    selectedRatio = null;
+    selectionStarted = false;
     if (lensLayer && lensLayer.parentNode) {
         lensLayer.parentNode.removeChild(lensLayer);
     }
     lensLayer = null;
+    siteFrame = null;
+    bgBlurImg = null;
+    bgOverlay = null;
+    canvasFrame = null;
+    sharpImg = null;
+    exitBtn = null;
+    chip = null;
+    magnifier = null;
+    selectionMask = null;
+    selection = null;
+    actions = null;
+    copyToast = null;
+    cursorTooltip = null;
+    if (sidebarFrame && sidebarFrame.parentNode) {
+        sidebarFrame.parentNode.removeChild(sidebarFrame);
+    }
+    sidebarFrame = null;
+    cachedSnapshotDataUrl = '';
+}
+
+function computeGeometry(patch) {
+    const containerRect = patch.containerBounds || patch.siteBounds || patch.leftPanelBounds || {};
+    const container = {
+        x: Math.round(Number(containerRect.x) || 8),
+        y: Math.round(Number(containerRect.y) || 4),
+        width: Math.round(Number(containerRect.width) || (window.innerWidth - 374)),
+        height: Math.round(Number(containerRect.height) || (window.innerHeight - 12)),
+    };
+    const panelRadius = Math.max(12, Math.round(Number(patch.panelRadius) || 14));
+
+    const sourceW = Math.max(1, Number(patch.sourceWidth) || container.width);
+    const sourceH = Math.max(1, Number(patch.sourceHeight) || container.height);
+    const sourceAspect = sourceW / sourceH;
+    const containerAspect = container.width / container.height;
+
+    let canvasW, canvasH, canvasX, canvasY;
+    if (containerAspect > sourceAspect) {
+        canvasH = container.height;
+        canvasW = Math.round(canvasH * sourceAspect);
+        canvasX = Math.round((container.width - canvasW) / 2);
+        canvasY = 0;
+    } else {
+        canvasW = container.width;
+        canvasH = Math.round(canvasW / sourceAspect);
+        canvasX = 0;
+        canvasY = Math.round((container.height - canvasH) / 2);
+    }
+
+    return { container, panelRadius, canvasW, canvasH, canvasX, canvasY };
+}
+
+function updateSidebarFrame(patch) {
+    if (!sidebarFrame) return;
+    const sb = patch && (patch.sidebarBounds || patch.leftPanelBounds);
+    if (patch && patch.hasSearchResults && patch.sidebarBounds && patch.sidebarBounds.width > 0 && patch.sidebarBounds.height > 0) {
+        sidebarFrame.style.left = patch.sidebarBounds.x + 'px';
+        sidebarFrame.style.top = patch.sidebarBounds.y + 'px';
+        sidebarFrame.style.width = patch.sidebarBounds.width + 'px';
+        sidebarFrame.style.height = patch.sidebarBounds.height + 'px';
+        sidebarFrame.style.display = 'block';
+    } else {
+        sidebarFrame.style.display = 'none';
+    }
+}
+
+function positionActions(rect) {
+    if (!actions) return;
+    const actionWidth = 140;
+    const left = Math.max(6, Math.min(currentCanvasW - actionWidth - 6, rect.x));
+    const below = rect.y + rect.height + 8;
+    const top = below + 114 < currentCanvasH ? below : Math.max(6, rect.y - 118);
+    actions.style.left = left + 'px';
+    actions.style.top = top + 'px';
+    actions.classList.add('co-visible');
+}
+
+function showSelection(rect, complete, animate) {
+    if (!selection) return;
+    selection.style.left = rect.x + 'px';
+    selection.style.top = rect.y + 'px';
+    selection.style.width = rect.width + 'px';
+    selection.style.height = rect.height + 'px';
+    selection.classList.toggle('co-lens-selection--complete', complete === true);
+    selection.classList.toggle('co-lens-selection--animate', complete === true && animate === true);
+    selection.classList.add('co-visible');
+    positionActions(rect);
+}
+
+function showCopyToast() {
+    if (!copyToast) return;
+    const absCanvasX = currentContainer.x + currentCanvasX;
+    const absCanvasY = currentContainer.y + currentCanvasY;
+    const actionsLeft = actions ? Number.parseFloat(actions.style.left) || 0 : 0;
+    const actionsTop = actions ? Number.parseFloat(actions.style.top) || 0 : 0;
+    copyToast.style.left = Math.max(currentContainer.x + 6, absCanvasX + actionsLeft) + 'px';
+    copyToast.style.top = Math.max(currentContainer.y + 6, absCanvasY + actionsTop - 36) + 'px';
+    copyToast.classList.add('co-visible');
+    if (copyToastTimer) clearTimeout(copyToastTimer);
+    copyToastTimer = setTimeout(() => {
+        copyToast.classList.remove('co-visible');
+        copyToastTimer = null;
+    }, 1600);
+}
+
+function hideLensCursorAids() {
+    if (cursorTooltip) cursorTooltip.classList.remove('co-visible');
+    if (magnifier) magnifier.classList.remove('co-visible');
+}
+
+function moveCursorTooltipAndMagnifier(clientX, clientY) {
+    const absCanvasX = currentContainer.x + currentCanvasX;
+    const absCanvasY = currentContainer.y + currentCanvasY;
+    const inCanvas = clientX >= absCanvasX && clientX <= absCanvasX + currentCanvasW &&
+                     clientY >= absCanvasY && clientY <= absCanvasY + currentCanvasH;
+
+    if (!inCanvas) {
+        hideLensCursorAids();
+        return;
+    }
+
+    // Never show magnifier or tooltip when near or hovering over the close/exit button
+    if (exitBtn) {
+        const btnRect = exitBtn.getBoundingClientRect();
+        const buffer = 20;
+        if (clientX >= btnRect.left - buffer && clientX <= btnRect.right + buffer &&
+            clientY >= btnRect.top - buffer && clientY <= btnRect.bottom + buffer) {
+            hideLensCursorAids();
+            return;
+        }
+    }
+
+    const hitEl = document.elementFromPoint(clientX, clientY);
+    if (hitEl && (hitEl.closest?.('.co-lens-exit-btn') || hitEl.closest?.('.co-lens-actions') || hitEl.closest?.('.co-lens-cursor-tooltip'))) {
+        hideLensCursorAids();
+        return;
+    }
+
+    if (magnifier && cachedSnapshotDataUrl && !isDragging) {
+        const zoom = 2.0;
+        const radius = 60;
+        const relX = clientX - absCanvasX;
+        const relY = clientY - absCanvasY;
+
+        magnifier.style.left = Math.round(clientX - radius) + 'px';
+        magnifier.style.top = Math.round(clientY - radius) + 'px';
+        magnifier.style.backgroundSize = Math.round(currentCanvasW * zoom) + 'px ' + Math.round(currentCanvasH * zoom) + 'px';
+        magnifier.style.backgroundPosition = Math.round(radius - (relX * zoom)) + 'px ' + Math.round(radius - (relY * zoom)) + 'px';
+        magnifier.classList.add('co-visible');
+    } else if (magnifier) {
+        magnifier.classList.remove('co-visible');
+    }
+
+    if (cursorTooltip && !selectionStarted && !isDragging) {
+        const tooltipWidth = 112;
+        const tooltipHeight = 28;
+        const left = Math.min(window.innerWidth - tooltipWidth, Math.max(8, clientX + 16));
+        const top = clientY - tooltipHeight - 16 >= 8 ? clientY - tooltipHeight - 16 : Math.min(window.innerHeight - tooltipHeight, Math.max(8, clientY + 16));
+        cursorTooltip.style.left = left + 'px';
+        cursorTooltip.style.top = top + 'px';
+        cursorTooltip.classList.add('co-visible');
+    } else if (cursorTooltip) {
+        cursorTooltip.classList.remove('co-visible');
+    }
+}
+
+function updateSelection(x, y) {
+    const left = Math.max(0, Math.min(startX, x));
+    const top = Math.max(0, Math.min(startY, y));
+    const right = Math.min(currentCanvasW, Math.max(startX, x));
+    const bottom = Math.min(currentCanvasH, Math.max(startY, y));
+    const width = Math.max(0, right - left);
+    const height = Math.max(0, bottom - top);
+    currentRect = { x: left, y: top, width, height };
+    selectedRatio = null;
+    showSelection(currentRect, false);
+    if (actions) actions.classList.remove('co-visible');
 }
 
 export function renderLensSelection(patch) {
-    // Synchronously clean up existing layers/menus before creating the new one
+    const { container, panelRadius, canvasW, canvasH, canvasX, canvasY } = computeGeometry(patch);
+    currentContainer = container;
+    currentCanvasW = canvasW;
+    currentCanvasH = canvasH;
+    currentCanvasX = canvasX;
+    currentCanvasY = canvasY;
+
+    if (patch.snapshotDataUrl && patch.snapshotDataUrl !== cachedSnapshotDataUrl) {
+        cachedSnapshotDataUrl = patch.snapshotDataUrl;
+    }
+
+    if (patch.selectionRatio && typeof patch.selectionRatio === 'object') {
+        selectedRatio = {
+            x: Math.max(0, Math.min(1, Number(patch.selectionRatio.x) || 0)),
+            y: Math.max(0, Math.min(1, Number(patch.selectionRatio.y) || 0)),
+            width: Math.max(0, Math.min(1, Number(patch.selectionRatio.width) || 0)),
+            height: Math.max(0, Math.min(1, Number(patch.selectionRatio.height) || 0)),
+        };
+    }
+
+    // FAST-PATH: If overlay elements already exist, update geometry instantaneously without DOM reconstruction
+    if (lensLayer && lensLayer.parentNode && siteFrame && canvasFrame) {
+        siteFrame.style.left = container.x + 'px';
+        siteFrame.style.top = container.y + 'px';
+        siteFrame.style.width = container.width + 'px';
+        siteFrame.style.height = container.height + 'px';
+        siteFrame.style.borderRadius = panelRadius + 'px';
+
+        canvasFrame.style.left = canvasX + 'px';
+        canvasFrame.style.top = canvasY + 'px';
+        canvasFrame.style.width = canvasW + 'px';
+        canvasFrame.style.height = canvasH + 'px';
+
+        if (sharpImg && cachedSnapshotDataUrl && sharpImg.src !== cachedSnapshotDataUrl) {
+            sharpImg.src = cachedSnapshotDataUrl;
+        }
+        if (bgBlurImg && cachedSnapshotDataUrl && bgBlurImg.src !== cachedSnapshotDataUrl) {
+            bgBlurImg.src = cachedSnapshotDataUrl;
+        }
+        if (magnifier && cachedSnapshotDataUrl) {
+            magnifier.style.backgroundImage = 'url("' + cachedSnapshotDataUrl.replace(/"/g, '\\"') + '")';
+        }
+
+        if (chip) {
+            chip.style.left = Math.round(canvasW / 2) + 'px';
+            if (patch.hasSelection || selectedRatio) chip.classList.add('co-hidden');
+            else chip.classList.remove('co-hidden');
+        }
+
+        if (selectedRatio && selectedRatio.width > 0 && selectedRatio.height > 0) {
+            const r = {
+                x: Math.round(selectedRatio.x * canvasW),
+                y: Math.round(selectedRatio.y * canvasH),
+                width: Math.max(8, Math.round(selectedRatio.width * canvasW)),
+                height: Math.max(8, Math.round(selectedRatio.height * canvasH)),
+            };
+            showSelection(r, true, false);
+        }
+
+        if (sidebarFrame) {
+            updateSidebarFrame(patch);
+        }
+        return;
+    }
+
+    // INITIAL RENDER: Create DOM structure matching Chrome's Lens UI
     hideAll({ hideLens: true });
 
     lensLayer = document.createElement('div');
@@ -26,358 +300,264 @@ export function renderLensSelection(patch) {
     lensLayer.setAttribute('role', 'application');
     lensLayer.setAttribute('aria-label', 'Search with Google Lens selection area');
 
-    const siteRect = patch.siteBounds || {};
-    const site = {
-        x: Math.round(Number(siteRect.x) || 0),
-        y: Math.round(Number(siteRect.y) || 0),
-        width: Math.round(Number(siteRect.width) || window.innerWidth),
-        height: Math.round(Number(siteRect.height) || window.innerHeight),
-    };
-    const leftPanelRect = patch.leftPanelBounds || site;
-    const leftPanel = {
-        x: Math.round(Number(leftPanelRect.x) || site.x),
-        y: Math.round(Number(leftPanelRect.y) || site.y),
-        width: Math.round(Number(leftPanelRect.width) || site.width),
-        height: Math.round(Number(leftPanelRect.height) || site.height),
-    };
-    const sidebarRect = patch.sidebarBounds || {};
-    const sidebar = {
-        x: Math.round(Number(sidebarRect.x) || ((Number(patch.windowWidth) || window.innerWidth) - Number(patch.sidebarWidth || 0))),
-        y: Math.round(Number(sidebarRect.y) || 0),
-        width: Math.round(Number(sidebarRect.width) || Number(patch.sidebarWidth || 0)),
-        height: Math.round(Number(sidebarRect.height) || window.innerHeight),
-    };
-    const panelGap = Math.max(14, Math.round(Number(patch.panelGap) || 14));
-    const panelRadius = Math.max(12, Math.round(Number(patch.panelRadius) || 24));
-    const windowWidth = Math.max(1, Number(patch.windowWidth) || window.innerWidth);
-    const contentHeight = Math.max(1, Number(patch.contentHeight) || window.innerHeight);
-    const backdropTop = Math.max(0, Math.round(Number(patch.backdropTop) || 0));
-    const sourceWidth = Math.max(1, Number(patch.sourceWidth) || windowWidth);
-    const sourceHeight = Math.max(1, Number(patch.sourceHeight) || contentHeight);
-
-    const backdropPieces = [];
-    const addBackdropPiece = function (x, y, width, height) {
-        if (width <= 1 || height <= 1) return;
-        const piece = document.createElement('div');
-        piece.className = 'co-lens-panel-backdrop';
-        piece.style.left = Math.round(x) + 'px';
-        piece.style.top = Math.round(y) + 'px';
-        piece.style.width = Math.round(width) + 'px';
-        piece.style.height = Math.round(height) + 'px';
-        lensLayer.appendChild(piece);
-        backdropPieces.push(piece);
-    };
-
-    const renderPanelBackdrops = function () {
-        while (backdropPieces.length) {
-            const piece = backdropPieces.pop();
-            if (piece && piece.parentNode) piece.parentNode.removeChild(piece);
-        }
-        addBackdropPiece(0, backdropTop, windowWidth, Math.max(0, Math.max(leftPanel.y, sidebar.y) - backdropTop));
-        addBackdropPiece(0, Math.max(leftPanel.y + leftPanel.height, sidebar.y + sidebar.height), windowWidth, Math.max(0, contentHeight - Math.max(leftPanel.y + leftPanel.height, sidebar.y + sidebar.height)));
-        addBackdropPiece(0, Math.min(leftPanel.y, sidebar.y), Math.max(0, leftPanel.x), Math.max(leftPanel.height, sidebar.height));
-        addBackdropPiece(leftPanel.x + leftPanel.width, Math.min(leftPanel.y, sidebar.y), Math.max(0, sidebar.x - (leftPanel.x + leftPanel.width)), Math.max(leftPanel.height, sidebar.height));
-        addBackdropPiece(sidebar.x + sidebar.width, Math.min(leftPanel.y, sidebar.y), Math.max(0, windowWidth - (sidebar.x + sidebar.width)), Math.max(leftPanel.height, sidebar.height));
-    };
-    renderPanelBackdrops();
-
-    const bgBlur = document.createElement('div');
-    bgBlur.className = 'co-lens-bg-blur';
-    bgBlur.style.left = leftPanel.x + 'px';
-    bgBlur.style.top = leftPanel.y + 'px';
-    bgBlur.style.width = leftPanel.width + 'px';
-    bgBlur.style.height = leftPanel.height + 'px';
-    bgBlur.style.borderRadius = panelRadius + 'px';
-
-    if (patch.snapshotDataUrl) {
-        const bgImg = document.createElement('img');
-        bgImg.className = 'co-lens-bg-image';
-        bgImg.src = patch.snapshotDataUrl;
-        bgImg.alt = '';
-        bgBlur.appendChild(bgImg);
-        const bgOverlay = document.createElement('div');
-        bgOverlay.className = 'co-lens-bg-overlay';
-        bgBlur.appendChild(bgOverlay);
-    }
-    lensLayer.appendChild(bgBlur);
-
-    const siteFrame = document.createElement('div');
+    // Left Section Card Frame (with overflow: hidden to prevent ANY child spillover)
+    siteFrame = document.createElement('div');
     siteFrame.className = 'co-lens-site-frame';
-    siteFrame.style.left = site.x + 'px';
-    siteFrame.style.top = site.y + 'px';
-    siteFrame.style.width = site.width + 'px';
-    siteFrame.style.height = site.height + 'px';
+    siteFrame.style.left = container.x + 'px';
+    siteFrame.style.top = container.y + 'px';
+    siteFrame.style.width = container.width + 'px';
+    siteFrame.style.height = container.height + 'px';
+    siteFrame.style.borderRadius = panelRadius + 'px';
 
-    if (patch.snapshotDataUrl) {
-        const sharpImg = document.createElement('img');
-        sharpImg.className = 'co-lens-sharp-image';
-        sharpImg.src = patch.snapshotDataUrl;
-        sharpImg.alt = '';
-        siteFrame.appendChild(sharpImg);
+    // 1. Chrome-like Blurred Cover Background Image
+    bgBlurImg = document.createElement('img');
+    bgBlurImg.className = 'co-lens-cover-blur';
+    bgBlurImg.alt = '';
+    if (cachedSnapshotDataUrl) {
+        bgBlurImg.src = cachedSnapshotDataUrl;
     }
-    lensLayer.appendChild(siteFrame);
+    siteFrame.appendChild(bgBlurImg);
 
-    const leftClose = document.createElement('button');
-    leftClose.type = 'button';
-    leftClose.className = 'co-lens-close';
-    leftClose.textContent = '×';
-    leftClose.title = 'Close Google Lens';
-    leftClose.style.left = Math.max(8, site.x + site.width - 14) + 'px';
-    leftClose.style.top = Math.max(8, site.y - 14) + 'px';
-    lensLayer.appendChild(leftClose);
+    // Subtle dark contrast overlay
+    bgOverlay = document.createElement('div');
+    bgOverlay.className = 'co-lens-cover-overlay';
+    siteFrame.appendChild(bgOverlay);
 
-    const chip = document.createElement('div');
+    // 2. Aspect-Ratio Preserving Foreground Canvas Frame
+    canvasFrame = document.createElement('div');
+    canvasFrame.className = 'co-lens-canvas-frame';
+    canvasFrame.style.left = canvasX + 'px';
+    canvasFrame.style.top = canvasY + 'px';
+    canvasFrame.style.width = canvasW + 'px';
+    canvasFrame.style.height = canvasH + 'px';
+
+    sharpImg = document.createElement('img');
+    sharpImg.className = 'co-lens-sharp-image';
+    sharpImg.alt = '';
+    if (cachedSnapshotDataUrl) {
+        sharpImg.src = cachedSnapshotDataUrl;
+    }
+    canvasFrame.appendChild(sharpImg);
+
+    // Chrome-like Exit Lens Button in canvas corner
+    exitBtn = document.createElement('button');
+    exitBtn.className = 'co-lens-exit-btn';
+    exitBtn.type = 'button';
+    exitBtn.title = 'Click to exit Google Lens';
+    exitBtn.setAttribute('aria-label', 'Exit Google Lens');
+    exitBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
+    canvasFrame.appendChild(exitBtn);
+
+    // Instruction chip
+    chip = document.createElement('div');
     chip.className = 'co-lens-chip';
     if (patch.hasSelection) chip.classList.add('co-hidden');
     chip.textContent = patch.hint || 'Select any text or image to search with Google Lens';
-    lensLayer.appendChild(chip);
+    chip.style.left = Math.round(canvasW / 2) + 'px';
+    chip.style.top = '16px';
+    canvasFrame.appendChild(chip);
 
-    const magnifier = document.createElement('div');
-    magnifier.className = 'co-lens-magnifier';
-    const magnifierImage = typeof patch.snapshotDataUrl === 'string' ? patch.snapshotDataUrl : '';
-    if (magnifierImage) {
-        magnifier.style.backgroundImage = 'url("' + magnifierImage.replace(/"/g, '\\"') + '")';
-    }
-    lensLayer.appendChild(magnifier);
-
-    const selectionMask = document.createElement('div');
+    // Selection mask & Selection box (inside canvasFrame)
+    selectionMask = document.createElement('div');
     selectionMask.className = 'co-lens-selection-mask';
-    selectionMask.style.left = leftPanel.x + 'px';
-    selectionMask.style.top = leftPanel.y + 'px';
-    selectionMask.style.width = leftPanel.width + 'px';
-    selectionMask.style.height = leftPanel.height + 'px';
-    selectionMask.style.borderRadius = panelRadius + 'px';
-    lensLayer.appendChild(selectionMask);
+    canvasFrame.appendChild(selectionMask);
 
-    const selection = document.createElement('div');
+    selection = document.createElement('div');
     selection.className = 'co-lens-selection';
-    ['tl', 'tr', 'bl', 'br'].forEach(function (corner) {
+    ['tl', 'tr', 'bl', 'br'].forEach((corner) => {
         const cornerEl = document.createElement('div');
         cornerEl.className = 'co-lens-selection-corner co-lens-selection-corner--' + corner;
         selection.appendChild(cornerEl);
     });
     selectionMask.appendChild(selection);
 
-    const actions = document.createElement('div');
+    // Actions Menu (Copy text, Translate, Copy as image)
+    actions = document.createElement('div');
     actions.className = 'co-lens-actions';
     const copyTextIcon = 'assets/images/poll-h.svg';
     const copyImageIcon = 'assets/images/picture.svg';
     actions.innerHTML = (patch.hasSelectionText
         ? '<button class="co-lens-action" type="button" data-action="copyText"><img class="co-lens-action-icon" src="' + copyTextIcon + '" alt="">Copy text</button>'
-        : '') + '<button class="co-lens-action" type="button" data-action="copyImage"><img class="co-lens-action-icon" src="' + copyImageIcon + '" alt="">Copy as image</button>';
-    lensLayer.appendChild(actions);
+        : '') +
+        '<button class="co-lens-action" type="button" data-action="translate"><svg class="co-lens-action-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/></svg>Translate</button>' +
+        '<button class="co-lens-action" type="button" data-action="copyImage"><img class="co-lens-action-icon" src="' + copyImageIcon + '" alt="">Copy as image</button>';
+    canvasFrame.appendChild(actions);
 
-    const copyToast = document.createElement('div');
+    siteFrame.appendChild(canvasFrame);
+    lensLayer.appendChild(siteFrame);
+
+    // 3. Magnifier, Tooltip, and Toast (overlay layer)
+    magnifier = document.createElement('div');
+    magnifier.className = 'co-lens-magnifier';
+    if (cachedSnapshotDataUrl) {
+        magnifier.style.backgroundImage = 'url("' + cachedSnapshotDataUrl.replace(/"/g, '\\"') + '")';
+    }
+    lensLayer.appendChild(magnifier);
+
+    copyToast = document.createElement('div');
     copyToast.className = 'co-lens-copy-toast';
     copyToast.textContent = 'Copied';
     lensLayer.appendChild(copyToast);
-    let copyToastTimer = null;
 
-    const resizer = document.createElement('div');
-    resizer.className = 'co-lens-resizer';
-    resizer.setAttribute('title', 'Resize Lens sidebar');
-    lensLayer.appendChild(resizer);
-
-    const cursorTooltip = document.createElement('div');
+    cursorTooltip = document.createElement('div');
     cursorTooltip.className = 'co-lens-cursor-tooltip';
     cursorTooltip.textContent = 'Drag to search';
     lensLayer.appendChild(cursorTooltip);
 
-    let startX = 0; let startY = 0; let currentRect = null;
-    let resizePointerId = null; let resizeStartX = 0;
-    let resizeStartWidth = Number(patch.sidebarWidth) || 0;
-    let selectionStarted = !!patch.hasSelection;
-    let selectedRatio = patch.selectionRatio && typeof patch.selectionRatio === 'object'
-        ? {
-            x: Math.max(0, Number(patch.selectionRatio.x) || 0),
-            y: Math.max(0, Number(patch.selectionRatio.y) || 0),
-            width: Math.max(0, Number(patch.selectionRatio.width) || 0),
-            height: Math.max(0, Number(patch.selectionRatio.height) || 0),
-        } : null;
+    sidebarFrame = document.createElement('div');
+    sidebarFrame.className = 'co-lens-sidebar-card-border';
+    updateSidebarFrame(patch);
+    lensLayer.appendChild(sidebarFrame);
 
-    const positionResizer = function () {
-        resizer.style.left = Math.max(0, sidebar.x - Math.floor(panelGap / 2)) + 'px';
-        resizer.style.top = Math.round(sidebar.y + (sidebar.height / 2)) + 'px';
-        resizer.style.width = Math.max(12, panelGap) + 'px';
-        resizer.style.height = Math.max(96, sidebar.height) + 'px';
-    };
-    positionResizer();
+    // Event Listeners
+    exitBtn.addEventListener('pointerenter', () => hideLensCursorAids());
+    exitBtn.addEventListener('pointerover', () => hideLensCursorAids());
+    exitBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
+    exitBtn.addEventListener('pointerup', (e) => e.stopPropagation());
+    exitBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        hideLensCursorAids();
+        notifyHost({ type: 'lensSelectionCancel', closeSidebar: true });
+    });
 
-    const rectFromSelectionRatio = function () {
-        if (!selectedRatio) return null;
-        return {
-            x: site.x + (selectedRatio.x * site.width),
-            y: site.y + (selectedRatio.y * site.height),
-            width: Math.max(8, selectedRatio.width * site.width),
-            height: Math.max(8, selectedRatio.height * site.height),
-        };
-    };
+    siteFrame.addEventListener('click', (event) => {
+        if (!event.target.closest?.('.co-lens-canvas-frame')) {
+            event.stopPropagation();
+            hideLensCursorAids();
+            notifyHost({ type: 'lensSelectionCancel', closeSidebar: true });
+        }
+    });
 
-    const applyResizePreview = function (nextWidth) {
-        sidebar.width = nextWidth;
-        sidebar.x = Math.max(panelGap, windowWidth - nextWidth - panelGap);
-        leftPanel.width = Math.max(0, sidebar.x - (panelGap * 2));
-        const maxContainerWidth = Math.max(1, leftPanel.width - 16);
-        const maxContainerHeight = Math.max(1, leftPanel.height - 16);
-        const scale = Math.max(0.05, Math.min(1, maxContainerWidth / sourceWidth, maxContainerHeight / sourceHeight));
-        site.width = Math.min(Math.max(1, Math.floor(sourceWidth * scale)), maxContainerWidth);
-        site.height = Math.min(Math.max(1, Math.floor(sourceHeight * scale)), maxContainerHeight);
-        site.x = leftPanel.x + Math.max(8, Math.floor((leftPanel.width - site.width) / 2));
-        site.y = leftPanel.y + Math.max(8, Math.floor((leftPanel.height - site.height) / 2));
+    lensLayer.addEventListener('pointerdown', (event) => {
+        if (event.button !== 0) return;
+        if (event.target.closest?.('.co-lens-actions') || event.target.closest?.('.co-lens-exit-btn')) return;
 
-        bgBlur.style.left = leftPanel.x + 'px'; bgBlur.style.top = leftPanel.y + 'px';
-        bgBlur.style.width = leftPanel.width + 'px'; bgBlur.style.height = leftPanel.height + 'px';
-        selectionMask.style.left = leftPanel.x + 'px'; selectionMask.style.top = leftPanel.y + 'px';
-        selectionMask.style.width = leftPanel.width + 'px'; selectionMask.style.height = leftPanel.height + 'px';
-        siteFrame.style.left = site.x + 'px'; siteFrame.style.top = site.y + 'px';
-        siteFrame.style.width = site.width + 'px'; siteFrame.style.height = site.height + 'px';
-        leftClose.style.left = Math.max(8, site.x + site.width - 14) + 'px';
-        leftClose.style.top = Math.max(8, site.y - 14) + 'px';
-        renderPanelBackdrops(); positionResizer();
+        const absCanvasX = currentContainer.x + currentCanvasX;
+        const absCanvasY = currentContainer.y + currentCanvasY;
+        if (event.clientX < absCanvasX || event.clientX > absCanvasX + currentCanvasW ||
+            event.clientY < absCanvasY || event.clientY > absCanvasY + currentCanvasH) {
+            return;
+        }
 
-        const scaledSelection = rectFromSelectionRatio();
-        if (scaledSelection) {
-            currentRect = scaledSelection; showSelection(scaledSelection, true, false);
+        isDragging = true;
+        selectionStarted = true;
+        if (chip) chip.classList.add('co-hidden');
+        hideLensCursorAids();
+
+        lensPointerId = event.pointerId;
+        lensLayer.setPointerCapture(lensPointerId);
+
+        startX = Math.max(0, Math.min(currentCanvasW, event.clientX - absCanvasX));
+        startY = Math.max(0, Math.min(currentCanvasH, event.clientY - absCanvasY));
+        currentRect = null;
+        if (actions) actions.classList.remove('co-visible');
+        if (selection) selection.classList.remove('co-visible', 'co-lens-selection--complete', 'co-lens-selection--animate');
+        lensLayer.classList.add('co-lens-layer--dragging');
+        updateSelection(startX, startY);
+    });
+
+    lensLayer.addEventListener('pointermove', (event) => {
+        if (isDragging && lensPointerId === event.pointerId) {
+            const absCanvasX = currentContainer.x + currentCanvasX;
+            const absCanvasY = currentContainer.y + currentCanvasY;
+            const relX = Math.max(0, Math.min(currentCanvasW, event.clientX - absCanvasX));
+            const relY = Math.max(0, Math.min(currentCanvasH, event.clientY - absCanvasY));
+            updateSelection(relX, relY);
         } else {
-            selection.classList.remove('co-visible', 'co-lens-selection--complete', 'co-lens-selection--animate');
-            actions.classList.remove('co-visible');
+            moveCursorTooltipAndMagnifier(event.clientX, event.clientY);
         }
-    };
-
-    const positionActions = function (rect) {
-        const actionWidth = 132;
-        const left = Math.max(site.x + 6, Math.min(site.x + site.width - actionWidth - 6, rect.x));
-        const below = rect.y + rect.height + 8;
-        const top = below + 78 < site.y + site.height ? below : Math.max(site.y + 6, rect.y - 82);
-        actions.style.left = left + 'px'; actions.style.top = top + 'px'; actions.classList.add('co-visible');
-    };
-
-    const showCopyToast = function () {
-        const actionsLeft = Number.parseFloat(actions.style.left) || site.x;
-        const actionsTop = Number.parseFloat(actions.style.top) || site.y;
-        copyToast.style.left = Math.max(site.x + 6, actionsLeft) + 'px';
-        copyToast.style.top = Math.max(site.y + 6, actionsTop - 36) + 'px';
-        copyToast.classList.add('co-visible');
-        if (copyToastTimer) clearTimeout(copyToastTimer);
-        copyToastTimer = setTimeout(function () { copyToast.classList.remove('co-visible'); copyToastTimer = null; }, 1600);
-    };
-
-    const showSelection = function (rect, complete, animate) {
-        selection.style.left = (rect.x - leftPanel.x) + 'px'; selection.style.top = (rect.y - leftPanel.y) + 'px';
-        selection.style.width = rect.width + 'px'; selection.style.height = rect.height + 'px';
-        selection.classList.toggle('co-lens-selection--complete', complete === true);
-        selection.classList.toggle('co-lens-selection--animate', complete === true && animate === true);
-        selection.classList.add('co-visible'); positionActions(rect);
-    };
-
-    const resizeSidebar = function (event) {
-        const windowWidth = Math.max(1, Number(patch.windowWidth) || window.innerWidth);
-        const minSidebarWidth = Math.max(1, Number(patch.minSidebarWidth) || 220);
-        const maxSidebarWidth = Math.max(minSidebarWidth, Number(patch.maxSidebarWidth) || Math.floor(windowWidth * 0.3));
-        const deltaX = event.clientX - resizeStartX;
-        const nextWidth = Math.max(minSidebarWidth, Math.min(maxSidebarWidth, Math.round(resizeStartWidth - deltaX)));
-        applyResizePreview(nextWidth); notifyHost({ type: 'lensSidebarResize', width: nextWidth }); return nextWidth;
-    };
-
-    const hideLensCursorAids = function () { cursorTooltip.classList.remove('co-visible'); magnifier.classList.remove('co-visible'); };
-
-    const moveCursorTooltip = function (x, y) {
-        if (resizePointerId !== null) { hideLensCursorAids(); return; }
-        const tooltipWidth = 112; const tooltipHeight = 28;
-        const left = Math.min(window.innerWidth - tooltipWidth, Math.max(8, x + 12));
-        const top = y - tooltipHeight - 12 >= 8 ? y - tooltipHeight - 12 : Math.min(window.innerHeight - tooltipHeight, Math.max(8, y + 12));
-        cursorTooltip.style.left = left + 'px'; cursorTooltip.style.top = top + 'px';
-        const magLeft = Math.min(site.x + site.width - 116, Math.max(site.x, x + 18));
-        const magTop = Math.min(site.y + site.height - 116, Math.max(site.y, y + 18));
-        magnifier.style.left = magLeft + 'px'; magnifier.style.top = magTop + 'px';
-        if (magnifierImage) {
-            const zoom = 2.15;
-            magnifier.style.backgroundSize = (site.width * zoom) + 'px ' + (site.height * zoom) + 'px';
-            magnifier.style.backgroundPosition = (58 - ((x - site.x) * zoom)) + 'px ' + (58 - ((y - site.y) * zoom)) + 'px';
-            magnifier.classList.add('co-visible');
-        }
-        if (!selectionStarted) cursorTooltip.classList.add('co-visible');
-        else cursorTooltip.classList.remove('co-visible');
-    };
-
-    const updateSelection = function (x, y) {
-        const left = Math.max(0, Math.min(startX, x)); const top = Math.max(0, Math.min(startY, y));
-        const right = Math.min(site.x + site.width, Math.max(startX, x)); const bottom = Math.min(site.y + site.height, Math.max(startY, y));
-        const width = Math.max(0, right - left); const height = Math.max(0, bottom - top);
-        currentRect = { x: left, y: top, width, height }; selectedRatio = null;
-        showSelection(currentRect, false); actions.classList.remove('co-visible');
-    };
-
-    lensLayer.addEventListener('pointerdown', function (event) {
-        if (event.button !== 0) return; if (resizePointerId !== null) return;
-        if (event.target === leftClose || event.target.closest?.('.co-lens-actions')) return;
-        selectionStarted = true; chip.classList.add('co-hidden'); cursorTooltip.classList.remove('co-visible');
-        lensPointerId = event.pointerId; lensLayer.setPointerCapture(lensPointerId);
-        startX = Math.max(site.x, Math.min(site.x + site.width, event.clientX)); startY = Math.max(site.y, Math.min(site.y + site.height, event.clientY));
-        currentRect = null; actions.classList.remove('co-visible'); selection.classList.remove('co-visible', 'co-lens-selection--complete', 'co-lens-selection--animate');
-        lensLayer.classList.add('co-lens-layer--dragging'); moveCursorTooltip(event.clientX, event.clientY); updateSelection(startX, startY);
     });
 
-    lensLayer.addEventListener('pointermove', function (event) {
-        if (resizePointerId === null) moveCursorTooltip(event.clientX, event.clientY);
-        if (lensPointerId !== event.pointerId) return;
-        const x = Math.max(site.x, Math.min(site.x + site.width, event.clientX));
-        const y = Math.max(site.y, Math.min(site.y + site.height, event.clientY)); updateSelection(x, y);
-    });
-
-    lensLayer.addEventListener('pointerup', function (event) {
+    lensLayer.addEventListener('pointerup', (event) => {
         if (lensPointerId !== event.pointerId) return;
         try { lensLayer.releasePointerCapture(lensPointerId); } catch (_) { }
-        lensPointerId = null; lensLayer.classList.remove('co-lens-layer--dragging');
-        if (currentRect && currentRect.width >= 8 && currentRect.height >= 8) {
-            selectedRatio = {
-                x: Math.max(0, (currentRect.x - site.x) / site.width), y: Math.max(0, (currentRect.y - site.y) / site.height),
-                width: Math.max(0, currentRect.width / site.width), height: Math.max(0, currentRect.height / site.height),
+        lensPointerId = null;
+        isDragging = false;
+        lensLayer.classList.remove('co-lens-layer--dragging');
+
+        let targetRect = currentRect;
+        if (!targetRect || targetRect.width < 8 || targetRect.height < 8) {
+            // Tap / single-click fallback: create an adaptive focus box around the clicked point
+            const boxW = Math.min(currentCanvasW, Math.max(120, Math.round(currentCanvasW * 0.22)));
+            const boxH = Math.min(currentCanvasH, Math.max(90, Math.round(currentCanvasH * 0.18)));
+            const boxX = Math.max(0, Math.min(currentCanvasW - boxW, Math.round(startX - boxW / 2)));
+            const boxY = Math.max(0, Math.min(currentCanvasH - boxH, Math.round(startY - boxH / 2)));
+            targetRect = {
+                x: boxX,
+                y: boxY,
+                width: boxW,
+                height: boxH,
             };
-            showSelection(currentRect, true, true);
-            notifyHost({ type: 'lensSelectionCapture', rect: { x: Math.max(0, currentRect.x - site.x), y: Math.max(0, currentRect.y - site.y), width: currentRect.width, height: currentRect.height } });
+        }
+
+        currentRect = targetRect;
+        selectedRatio = {
+            x: currentRect.x / currentCanvasW,
+            y: currentRect.y / currentCanvasH,
+            width: currentRect.width / currentCanvasW,
+            height: currentRect.height / currentCanvasH,
+        };
+        showSelection(currentRect, true, true);
+        notifyHost({
+            type: 'lensSelectionCapture',
+            ratio: selectedRatio,
+            rect: {
+                x: Math.round(selectedRatio.x * currentCanvasW),
+                y: Math.round(selectedRatio.y * currentCanvasH),
+                width: Math.round(selectedRatio.width * currentCanvasW),
+                height: Math.round(selectedRatio.height * currentCanvasH),
+            },
+        });
+        moveCursorTooltipAndMagnifier(event.clientX, event.clientY);
+    });
+
+    lensLayer.addEventListener('pointerenter', (event) => {
+        moveCursorTooltipAndMagnifier(event.clientX, event.clientY);
+    });
+
+    lensLayer.addEventListener('pointerleave', () => {
+        hideLensCursorAids();
+    });
+
+    lensLayer.addEventListener('pointercancel', (event) => {
+        if (lensPointerId !== event.pointerId) return;
+        lensPointerId = null;
+        isDragging = false;
+        lensLayer.classList.remove('co-lens-layer--dragging');
+        if (selection) selection.classList.remove('co-visible', 'co-lens-selection--complete', 'co-lens-selection--animate');
+        currentRect = null;
+    });
+
+    actions.addEventListener('click', (event) => {
+        const btn = event.target.closest('[data-action]');
+        if (!btn) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const action = btn.dataset.action;
+        if (action === 'copyImage') {
+            notifyHost({ type: 'lensCopyImage' });
+            showCopyToast();
+        } else if (action === 'copyText') {
+            notifyHost({ type: 'lensCopyText' });
+            showCopyToast();
+        } else if (action === 'translate') {
+            notifyHost({ type: 'lensTranslate' });
         }
     });
 
-    lensLayer.addEventListener('pointerenter', function (event) { moveCursorTooltip(event.clientX, event.clientY); });
-    lensLayer.addEventListener('pointerleave', function () { hideLensCursorAids(); });
-    lensLayer.addEventListener('pointercancel', function (event) {
-        if (lensPointerId !== event.pointerId) return;
-        lensPointerId = null; lensLayer.classList.remove('co-lens-layer--dragging');
-        selection.classList.remove('co-visible', 'co-lens-selection--complete', 'co-lens-selection--animate'); currentRect = null;
-    });
-
-    resizer.addEventListener('pointerdown', function (event) {
-        if (event.button !== 0) return;
-        event.preventDefault(); event.stopPropagation(); resizePointerId = event.pointerId; hideLensCursorAids();
-        resizeStartX = event.clientX; resizeStartWidth = Number(patch.sidebarWidth) || resizeStartWidth;
-        resizer.setPointerCapture(resizePointerId); resizeSidebar(event);
-    });
-    resizer.addEventListener('pointermove', function (event) {
-        if (resizePointerId !== event.pointerId) return; event.preventDefault(); event.stopPropagation(); hideLensCursorAids(); resizeSidebar(event);
-    });
-    resizer.addEventListener('pointerup', function (event) {
-        if (resizePointerId !== event.pointerId) return;
-        event.preventDefault(); event.stopPropagation(); try { resizer.releasePointerCapture(resizePointerId); } catch (_) { }
-        resizePointerId = null; hideLensCursorAids();
-        const nextWidth = resizeSidebar(event); notifyHost({ type: 'lensSidebarResizeCommit', width: nextWidth || sidebar.width || resizeStartWidth });
-    });
-    resizer.addEventListener('pointercancel', function (event) { if (resizePointerId !== event.pointerId) return; resizePointerId = null; hideLensCursorAids(); });
-
-    actions.addEventListener('click', function (event) {
-        const btn = event.target.closest('[data-action]'); if (!btn) return; event.preventDefault(); event.stopPropagation();
-        if (btn.dataset.action === 'copyImage') { notifyHost({ type: 'lensCopyImage' }); showCopyToast(); }
-        if (btn.dataset.action === 'copyText') { notifyHost({ type: 'lensCopyText' }); showCopyToast(); }
-    });
-
-    leftClose.addEventListener('click', function (event) {
-        event.preventDefault(); event.stopPropagation(); notifyHost({ type: 'lensSelectionCancel', closeSidebar: true });
-    });
-
-    if (patch.selectionRect && patch.hasSelection) {
+    if (selectedRatio && selectedRatio.width > 0 && selectedRatio.height > 0) {
         showSelection({
-            x: site.x + Math.max(0, Number(patch.selectionRect.x) || 0), y: site.y + Math.max(0, Number(patch.selectionRect.y) || 0),
-            width: Math.max(8, Number(patch.selectionRect.width) || 8), height: Math.max(8, Number(patch.selectionRect.height) || 8),
+            x: Math.round(selectedRatio.x * canvasW),
+            y: Math.round(selectedRatio.y * canvasH),
+            width: Math.max(8, Math.round(selectedRatio.width * canvasW)),
+            height: Math.max(8, Math.round(selectedRatio.height * canvasH)),
+        }, true, false);
+    } else if (patch.selectionRect && patch.hasSelection) {
+        showSelection({
+            x: Math.max(0, Number(patch.selectionRect.x) || 0),
+            y: Math.max(0, Number(patch.selectionRect.y) || 0),
+            width: Math.max(8, Number(patch.selectionRect.width) || 8),
+            height: Math.max(8, Number(patch.selectionRect.height) || 8),
         }, true, false);
     }
 

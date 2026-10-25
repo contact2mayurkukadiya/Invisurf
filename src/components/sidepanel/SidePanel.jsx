@@ -10,6 +10,7 @@ import {
 import ReadingListPanel from './ReadingListPanel';
 import BookmarksPanel from './BookmarksPanel';
 import HistoryPanel from './HistoryPanel';
+import LensPanel from './LensPanel';
 import './SidePanel.css';
 
 const PANELS = [
@@ -42,6 +43,17 @@ const PANELS = [
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="10"></circle>
         <polyline points="12 6 12 12 16 14"></polyline>
+      </svg>
+    ),
+  },
+  {
+    id: 'lens',
+    title: 'Google Lens',
+    pageUrl: 'https://lens.google.com',
+    icon: (
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+        <circle cx="12" cy="13" r="4"></circle>
       </svg>
     ),
   },
@@ -94,8 +106,9 @@ export default function SidePanel() {
     }
   }, [isOpen]);
 
-  // Sync state with Electron Main Process
+  // Sync state with Electron Main Process (skip during active drag resizing to avoid double IPC and relayout)
   useEffect(() => {
+    if (isDraggingRef.current) return;
     if (window.electronAPI?.sidePanelSyncState) {
       window.electronAPI.sidePanelSyncState({
         isOpen,
@@ -130,24 +143,41 @@ export default function SidePanel() {
       setIsDragging(true);
       e.preventDefault();
 
+      let rafId = null;
+      let lastWidth = width;
+
       const onPointerMove = (moveEvent) => {
         if (!isDraggingRef.current) return;
         const mouseX = moveEvent.clientX;
-        // Panel is docked right, so width is distance from mouse to window right edge
         const rawWidth = window.innerWidth - mouseX;
         const minW = 260;
         const maxW = Math.max(minW, window.innerWidth - 360);
         const clamped = Math.max(minW, Math.min(rawWidth, maxW));
 
-        dispatch(setSidePanelWidth(clamped));
-        if (window.electronAPI?.sidePanelResize) {
-          window.electronAPI.sidePanelResize(clamped);
+        if (clamped === lastWidth) return;
+        lastWidth = clamped;
+
+        if (!rafId) {
+          rafId = requestAnimationFrame(() => {
+            rafId = null;
+            dispatch(setSidePanelWidth(lastWidth));
+            if (window.electronAPI?.sidePanelResize) {
+              window.electronAPI.sidePanelResize(lastWidth);
+            }
+          });
         }
       };
 
       const onPointerUp = () => {
         isDraggingRef.current = false;
         setIsDragging(false);
+        if (rafId) {
+          cancelAnimationFrame(rafId);
+          rafId = null;
+        }
+        if (window.electronAPI?.sidePanelResize) {
+          window.electronAPI.sidePanelResize(lastWidth);
+        }
         window.removeEventListener('pointermove', onPointerMove);
         window.removeEventListener('pointerup', onPointerUp);
         window.removeEventListener('pointercancel', onPointerUp);
@@ -161,7 +191,7 @@ export default function SidePanel() {
       window.addEventListener('pointerup', onPointerUp);
       window.addEventListener('pointercancel', onPointerUp);
     },
-    [dispatch]
+    [dispatch, width]
   );
 
   if (!isMounted) return null;
@@ -252,7 +282,12 @@ export default function SidePanel() {
             <button
               type="button"
               className="side-panel-header-btn side-panel-close-btn"
-              onClick={() => dispatch(setSidePanelOpen(false))}
+              onClick={() => {
+                dispatch(setSidePanelOpen(false));
+                if (activePanelId === 'lens' && window.electronAPI?.closeGoogleLens) {
+                  window.electronAPI.closeGoogleLens();
+                }
+              }}
               title="Close side panel"
               aria-label="Close side panel"
             >
@@ -270,6 +305,7 @@ export default function SidePanel() {
             {activePanelId === 'reading-list' && <ReadingListPanel />}
             {activePanelId === 'bookmarks' && <BookmarksPanel />}
             {activePanelId === 'history' && <HistoryPanel />}
+            {activePanelId === 'lens' && <LensPanel />}
           </div>
         </div>
       </div>
