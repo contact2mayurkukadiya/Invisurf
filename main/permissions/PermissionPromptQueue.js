@@ -36,7 +36,7 @@ class PermissionPromptQueue {
    * @param {Object} [params.details] Electron permission request details
    * @param {Function} params.onResolve Callback `(decision: PermissionState, persist: boolean) => void`
    */
-  enqueue({ webContents, origin, permission, details = {}, onResolve }) {
+  enqueue({ webContents, origin, permission, metadata: customMetadata, details = {}, onResolve }) {
     if (!webContents || webContents.isDestroyed()) {
       onResolve('deny', false);
       return;
@@ -62,7 +62,7 @@ class PermissionPromptQueue {
     }
 
     const promptId = `perm-prompt-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
-    const metadata = PERMISSION_METADATA[permission] || {
+    const metadata = customMetadata || PERMISSION_METADATA[permission] || {
       name: permission,
       label: permission,
       description: `Access ${permission}`,
@@ -221,8 +221,12 @@ class PermissionPromptQueue {
     if (this.attachedListeners.has(wcId)) return;
     this.attachedListeners.add(wcId);
 
-    const onNavigation = () => {
-      this.cancelAllForWebContents(wcId, 'navigation');
+    const onStartNavigation = (_event, _url, isInPlace, isMainFrame) => {
+      // Only cancel prompts when the top-level main frame navigates away to a new page.
+      // Do not cancel on in-place (history/hash) or subframe (iframe) navigations.
+      if (isMainFrame !== false && !isInPlace) {
+        this.cancelAllForWebContents(wcId, 'navigation');
+      }
     };
 
     const onDestroyed = () => {
@@ -230,8 +234,7 @@ class PermissionPromptQueue {
       this.attachedListeners.delete(wcId);
     };
 
-    webContents.on('did-start-navigation', onNavigation);
-    webContents.on('did-navigate', onNavigation);
+    webContents.on('did-start-navigation', onStartNavigation);
     webContents.once('destroyed', onDestroyed);
   }
 

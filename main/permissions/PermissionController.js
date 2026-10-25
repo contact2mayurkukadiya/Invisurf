@@ -50,8 +50,53 @@ class PermissionController {
       }
 
       const origin = normalizeOrigin(requestingOrigin);
+      if (!origin) return false;
+
+      // Handle compound media check (camera + microphone)
+      if (permission === 'media') {
+        const mediaTypes = details?.mediaTypes || [];
+        const hasVideo = mediaTypes.includes('video');
+        const hasAudio = mediaTypes.includes('audio');
+
+        if (hasVideo && hasAudio) {
+          const cam = this.getDecision(safeProfileId, origin, 'camera');
+          const mic = this.getDecision(safeProfileId, origin, 'microphone');
+          if (cam === 'deny' || mic === 'deny') return false;
+          if ((cam === 'allow' || cam === 'allow-this-session') && (mic === 'allow' || mic === 'allow-this-session')) return true;
+          // In prompt state: return true so navigator.permissions.query doesn't report 'denied'
+          // and Chromium allows the request to reach setPermissionRequestHandler.
+          return true;
+        }
+        if (hasVideo && !hasAudio) {
+          const cam = this.getDecision(safeProfileId, origin, 'camera');
+          if (cam === 'deny') return false;
+          return true;
+        }
+        if (hasAudio && !hasVideo) {
+          const mic = this.getDecision(safeProfileId, origin, 'microphone');
+          if (mic === 'deny') return false;
+          return true;
+        }
+      }
+
       const permName = this.mapPermissionType(permission, details);
-      return this.checkPermission(safeProfileId, origin, permName);
+      const decision = this.getDecision(safeProfileId, origin, permName);
+
+      // If explicitly denied, block immediately
+      if (decision === 'deny') return false;
+
+      // If already allowed, permit
+      if (decision === 'allow' || decision === 'allow-this-session') return true;
+
+      // For standard promptable web capabilities (camera, microphone, geolocation, notifications):
+      // Return true so that navigator.permissions.query does not falsely report 'denied',
+      // allowing web apps to call getUserMedia and trigger setPermissionRequestHandler.
+      if (permName === 'camera' || permName === 'microphone' || permName === 'geolocation' || permName === 'notifications') {
+        return true;
+      }
+
+      // Strict capabilities (clipboard-read, etc.) require explicit prior authorization
+      return false;
     });
 
     // 2. Asynchronous Permission Request Handler (e.g. getUserMedia, Geolocation, Notifications)
@@ -76,6 +121,70 @@ class PermissionController {
       const origin = normalizeOrigin(requestingUrl);
       if (!origin) {
         return callback(false);
+      }
+
+      // Handle compound media requests (camera + microphone together)
+      if (permission === 'media') {
+        const mediaTypes = details?.mediaTypes || [];
+        const hasVideo = mediaTypes.includes('video');
+        const hasAudio = mediaTypes.includes('audio');
+
+        if (hasVideo && hasAudio) {
+          const camDecision = this.getDecision(safeProfileId, origin, 'camera');
+          const micDecision = this.getDecision(safeProfileId, origin, 'microphone');
+
+          if (
+            (camDecision === 'allow' || camDecision === 'allow-this-session') &&
+            (micDecision === 'allow' || micDecision === 'allow-this-session')
+          ) {
+            if (process.platform === 'darwin') {
+              const camOk = await this.verifyOSPermissions('camera');
+              const micOk = await this.verifyOSPermissions('microphone');
+              if (!camOk || !micOk) return callback(false);
+            }
+            return callback(true);
+          }
+
+          if (camDecision === 'deny' || micDecision === 'deny') {
+            return callback(false);
+          }
+
+          // Handle OS level gates on macOS prior to showing browser prompt
+          if (process.platform === 'darwin') {
+            const camOk = await this.verifyOSPermissions('camera');
+            const micOk = await this.verifyOSPermissions('microphone');
+            if (!camOk || !micOk) return callback(false);
+          }
+
+          // Enqueue prompt for both Camera and Microphone
+          this.promptQueue.enqueue({
+            webContents,
+            origin,
+            permission: 'camera',
+            metadata: {
+              name: 'camera',
+              label: 'Camera and Microphone',
+              description: 'Use your camera and microphone',
+              icon: 'camera',
+            },
+            details,
+            onResolve: (decision, persist) => {
+              for (const p of ['camera', 'microphone']) {
+                if (decision === 'allow-this-session') {
+                  this.setSessionDecision(safeProfileId, origin, p, 'allow-this-session');
+                } else if (decision === 'allow' || decision === 'deny') {
+                  if (persist && !isIncognito) {
+                    this.db.set(safeProfileId, origin, p, decision);
+                  } else {
+                    this.setSessionDecision(safeProfileId, origin, p, decision);
+                  }
+                }
+              }
+              callback(decision === 'allow' || decision === 'allow-this-session');
+            },
+          });
+          return;
+        }
       }
 
       const permName = this.mapPermissionType(permission, details);

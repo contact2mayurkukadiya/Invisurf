@@ -270,4 +270,51 @@ describe('PermissionPromptQueue', () => {
     assert.equal(wc2Resolved, null); // wc2 untouched
     assert.equal(queue.activePrompts.size, 1);
   });
+
+  test('preserves custom metadata for compound permissions', () => {
+    let capturedPrompt = null;
+    queue.enqueue({
+      webContents: mockWc1,
+      origin: 'https://meet.google.com',
+      permission: 'camera',
+      metadata: {
+        name: 'camera',
+        label: 'Camera and Microphone',
+        description: 'Use your camera and microphone',
+        icon: 'camera',
+      },
+      onResolve: () => {},
+    });
+
+    const activeItem = Array.from(queue.activePrompts.values())[0];
+    assert.ok(activeItem);
+    assert.equal(activeItem.metadata.label, 'Camera and Microphone');
+    assert.equal(activeItem.metadata.description, 'Use your camera and microphone');
+  });
+
+  test('does not cancel prompts on in-place or subframe navigation', () => {
+    let resolved = null;
+    queue.enqueue({
+      webContents: mockWc1,
+      origin: 'https://meet.google.com',
+      permission: 'camera',
+      onResolve: (d) => { resolved = d; },
+    });
+
+    // In-place navigation (e.g. hash / pushState)
+    mockWc1.emit('did-start-navigation', {}, 'https://meet.google.com/#meet', true, true);
+    assert.equal(resolved, null);
+    assert.equal(queue.activePrompts.size, 1);
+
+    // Subframe navigation (e.g. iframe)
+    mockWc1.emit('did-start-navigation', {}, 'https://accounts.google.com/iframe', false, false);
+    assert.equal(resolved, null);
+    assert.equal(queue.activePrompts.size, 1);
+
+    // Main frame real navigation
+    mockWc1.emit('did-start-navigation', {}, 'https://other-site.com', false, true);
+    assert.equal(resolved, 'deny');
+    assert.equal(queue.activePrompts.size, 0);
+  });
 });
+

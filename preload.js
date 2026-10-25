@@ -9,26 +9,53 @@ const mappedStandardBrands = [
     { brand: 'Google Chrome', version: appMajor }
 ];
 
+const compliantFullVersionList = [
+    { brand: 'Not_A Brand', version: '99.0.0.0' },
+    { brand: 'Chromium', version: `${appMajor}.0.0.0` },
+    { brand: 'Google Chrome', version: `${appMajor}.0.0.0` }
+];
+
 const compliantUserAgentData = {
     brands: mappedStandardBrands,
     mobile: false,
     platform: osPlatform,
-    getHighEntropyValues: async (queryHints) => {
+    getHighEntropyValues: async (queryHints = []) => {
+        const query = Array.isArray(queryHints) ? queryHints : [];
         const metadataPayload = {
             brands: mappedStandardBrands,
             mobile: false,
             platform: osPlatform
         };
-        if (queryHints.includes('platformVersion')) {
-            metadataPayload.platformVersion = process.platform === 'darwin' ? '14.0.0' : '10.0.0';
+        if (query.includes('platformVersion')) {
+            metadataPayload.platformVersion = process.platform === 'darwin' ? '14.5.0' : '10.0.0';
         }
-        if (queryHints.includes('architecture')) {
-            metadataPayload.architecture = 'x86';
+        if (query.includes('architecture')) {
+            metadataPayload.architecture = process.arch === 'arm64' ? 'arm' : 'x86';
         }
-        if (queryHints.includes('bitness')) {
+        if (query.includes('bitness')) {
             metadataPayload.bitness = '64';
         }
+        if (query.includes('model')) {
+            metadataPayload.model = '';
+        }
+        if (query.includes('fullVersionList')) {
+            metadataPayload.fullVersionList = compliantFullVersionList;
+        }
+        if (query.includes('wow64')) {
+            metadataPayload.wow64 = false;
+        }
+        if (query.includes('formFactor')) {
+            metadataPayload.formFactor = ['desktop'];
+        }
         return metadataPayload;
+    },
+    toJSON: () => ({
+        brands: mappedStandardBrands,
+        mobile: false,
+        platform: osPlatform
+    }),
+    get [Symbol.toStringTag]() {
+        return 'NavigatorUAData';
     }
 };
 
@@ -135,9 +162,39 @@ try {
 
         webFrame.executeJavaScript(`
             try {
-                // 1. Spoof navigator.userAgentData
+                // 1. Spoof navigator.userAgentData with full high-entropy Client Hints API
+                const __brands = ${JSON.stringify(mappedStandardBrands)};
+                const __fullVersionList = ${JSON.stringify(compliantFullVersionList)};
+                const __uadPlatform = '${osPlatform}';
+                const __uad = {
+                    brands: Object.freeze(__brands),
+                    mobile: false,
+                    platform: __uadPlatform,
+                    getHighEntropyValues: async function(hints) {
+                        const query = Array.isArray(hints) ? hints : [];
+                        const res = {
+                            brands: __brands,
+                            mobile: false,
+                            platform: __uadPlatform
+                        };
+                        if (query.includes('platformVersion')) res.platformVersion = '${process.platform === 'darwin' ? '14.5.0' : '10.0.0'}';
+                        if (query.includes('architecture')) res.architecture = '${process.arch === 'arm64' ? 'arm' : 'x86'}';
+                        if (query.includes('bitness')) res.bitness = '64';
+                        if (query.includes('model')) res.model = '';
+                        if (query.includes('fullVersionList')) res.fullVersionList = __fullVersionList;
+                        if (query.includes('wow64')) res.wow64 = false;
+                        if (query.includes('formFactor')) res.formFactor = ['desktop'];
+                        return res;
+                    },
+                    toJSON: function() {
+                        return { brands: __brands, mobile: false, platform: __uadPlatform };
+                    },
+                    get [Symbol.toStringTag]() {
+                        return 'NavigatorUAData';
+                    }
+                };
                 Object.defineProperty(navigator, 'userAgentData', {
-                    get: () => (${JSON.stringify(compliantUserAgentData)}),
+                    get: () => __uad,
                     configurable: true,
                     enumerable: true
                 });
