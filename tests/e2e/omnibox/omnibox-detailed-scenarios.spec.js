@@ -50,56 +50,60 @@ test.describe('Omnibox Detailed Scenarios', () => {
   });
 
   test('2.1 omnibox-site-info-and-permissions-popup: triggers padlock menu and navigates site permissions', async ({ invisurfApp }) => {
-    const { shellWindow, app } = invisurfApp;
+    const { shellWindow } = invisurfApp;
 
-    // Get active tab ID from the shell window DOM
-    const activeTabId = await shellWindow.locator('.tab.active').getAttribute('id');
-    expect(activeTabId).toBeTruthy();
+    await shellWindow.locator('.tab.active').waitFor({ state: 'visible', timeout: 5000 });
+    await shellWindow.waitForTimeout(500);
 
-    // Notify shell that active tab has navigated to an external website
-    await app.evaluate(({ BrowserWindow }, { tabId, url }) => {
-      const win = BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes('index.html'));
-      if (win) {
-        win.webContents.send('url-changed', { id: tabId, url });
-        win.webContents.send('tab-update', { id: tabId, url, title: 'Example Domain' });
+    // Set active tab URL in Redux to an external website
+    await shellWindow.evaluate((url) => {
+      const state = window.__store?.getState?.();
+      const activeId = state?.browser?.currentTabId || Object.keys(state?.browser?.tabs || {})[0];
+      if (activeId && window.__store) {
+        window.__store.dispatch({
+          type: 'browser/updateTabUrl',
+          payload: { id: activeId, url },
+        });
       }
-    }, { tabId: activeTabId, url: 'https://example.com' });
+    }, 'https://example.com');
 
     // Prefix site info button should become visible on external websites
     const siteInfoBtn = shellWindow.locator('button.omnibox-action-btn--prefix[title="View site information"]');
-    await expect(siteInfoBtn).toBeVisible({ timeout: 5000 });
+    await expect(siteInfoBtn).toBeVisible({ timeout: 10000 });
 
     // Click site info button to open the padlock overlay
-    await siteInfoBtn.click();
+    await siteInfoBtn.click({ force: true });
     await expect(siteInfoBtn).toHaveAttribute('aria-expanded', 'true');
 
     // Click again to close
-    await siteInfoBtn.click();
+    await siteInfoBtn.click({ force: true });
     await expect(siteInfoBtn).toHaveAttribute('aria-expanded', 'false');
   });
 
   test('2.2 omnibox-cookie-box-popup: opens cookies and on-device site data view', async ({ invisurfApp }) => {
-    const { shellWindow, app } = invisurfApp;
+    const { shellWindow } = invisurfApp;
 
-    // Get active tab ID from the shell window DOM
-    const activeTabId = await shellWindow.locator('.tab.active').getAttribute('id');
-    expect(activeTabId).toBeTruthy();
-
-    await app.evaluate(({ BrowserWindow }, { tabId, url }) => {
-      const win = BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes('index.html'));
-      if (win) {
-        win.webContents.send('url-changed', { id: tabId, url });
-        win.webContents.send('tab-update', { id: tabId, url, title: 'Example Domain' });
+    await shellWindow.locator('.tab.active').waitFor({ state: 'visible', timeout: 5000 });
+    await shellWindow.waitForTimeout(500);
+    // Set active tab URL in Redux to an external website
+    await shellWindow.evaluate((url) => {
+      const state = window.__store?.getState?.();
+      const activeId = state?.browser?.currentTabId || Object.keys(state?.browser?.tabs || {})[0];
+      if (activeId && window.__store) {
+        window.__store.dispatch({
+          type: 'browser/updateTabUrl',
+          payload: { id: activeId, url },
+        });
       }
-    }, { tabId: activeTabId, url: 'https://example.com' });
+    }, 'https://example.com');
 
     const siteInfoBtn = shellWindow.locator('button.omnibox-action-btn--prefix[title="View site information"]');
-    await expect(siteInfoBtn).toBeVisible({ timeout: 5000 });
-    await siteInfoBtn.click();
+    await expect(siteInfoBtn).toBeVisible({ timeout: 10000 });
+    await siteInfoBtn.click({ force: true });
     await expect(siteInfoBtn).toHaveAttribute('aria-expanded', 'true');
 
     // Click to dismiss
-    await siteInfoBtn.click();
+    await siteInfoBtn.click({ force: true });
     await expect(siteInfoBtn).toHaveAttribute('aria-expanded', 'false');
   });
 

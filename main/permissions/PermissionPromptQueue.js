@@ -133,12 +133,16 @@ class PermissionPromptQueue {
 
     // 2. Display prompt popover using the Chrome Shell Menu Overlay
     try {
-      const overlayManager = require('../windows/overlayManager');
-      if (typeof overlayManager.showPermissionPromptOverlay === 'function') {
-        overlayManager.showPermissionPromptOverlay(context, promptPayload);
+      if (context?.window?.contentView) {
+        const overlayManager = require('../windows/overlayManager');
+        if (typeof overlayManager.showPermissionPromptOverlay === 'function') {
+          overlayManager.showPermissionPromptOverlay(context, promptPayload);
+        }
       }
     } catch (err) {
-      console.warn('[PermissionPromptQueue] Failed to display overlay:', err);
+      if (process.env.NODE_ENV !== 'test') {
+        console.warn('[PermissionPromptQueue] Failed to display overlay:', err);
+      }
     }
   }
 

@@ -44,13 +44,33 @@ function runStep(title, cmd, cmdArgs) {
 if (isE2EOnly) {
   runStep('Playwright E2E Tests', 'npx', ['playwright', 'test', '--config=playwright.config.js']);
 } else if (isUnitOnly) {
-  runStep('Unit Tests', 'node', ['--test', 'tests/unit/**/*.test.js']);
+  const unitArgs = [
+    '--test',
+    '--test-reporter=spec',
+    '--test-reporter-destination=stdout',
+    '--test-reporter=junit',
+    '--test-reporter-destination=tests/reports/unit-results.xml',
+    'tests/unit/**/*.test.js',
+  ];
+  runStep('Unit Tests', 'node', unitArgs);
 } else if (isRegressionOnly) {
-  runStep('Regression Tests', 'node', ['--test', 'tests/regression/**/*.test.js']);
+  const regArgs = [
+    '--test',
+    '--test-reporter=spec',
+    '--test-reporter-destination=stdout',
+    '--test-reporter=junit',
+    '--test-reporter-destination=tests/reports/unit-results.xml',
+    'tests/regression/**/*.test.js',
+  ];
+  runStep('Regression Tests', 'node', regArgs);
 } else {
-  // Default master run: Unit + Regression with Coverage
+  // Default master run: Unit + Regression with Coverage + JUnit XML
   const testArgs = [
     '--test',
+    '--test-reporter=spec',
+    '--test-reporter-destination=stdout',
+    '--test-reporter=junit',
+    '--test-reporter-destination=tests/reports/unit-results.xml',
     ...(isCoverage ? ['--experimental-test-coverage'] : []),
     'tests/unit/**/*.test.js',
     'tests/regression/**/*.test.js',
@@ -69,16 +89,27 @@ if (allPassed) {
   console.error('❌ SOME TESTS FAILED\n');
 }
 
-// Automatically show the HTML report in browser after testing is done
+// Generate the unified HTML report combining all executed tests
+try {
+  const { generateHtmlReport } = require('./generate-html-report');
+  generateHtmlReport();
+} catch (err) {
+  console.warn('Could not generate unified HTML report:', err.message);
+}
+
+// Automatically show the HTML report in browser only when explicitly requested via --open
 const reportDir = path.join(ROOT_DIR, 'tests', 'reports', 'playwright-html');
 const hasReport = fs.existsSync(path.join(reportDir, 'index.html'));
-const ranE2E = isE2EOnly || args.includes('--with-e2e');
-const isInteractive = !process.env.CI && !process.env.NO_REPORT && !args.includes('--no-report');
 
-if (isInteractive && (ranE2E || hasReport) && !isUnitOnly && !isRegressionOnly) {
-  console.log('▶ Opening Playwright HTML report on browser...');
-  console.log('  Command: npx playwright show-report tests/reports/playwright-html\n');
-  spawnSync('npx', ['playwright', 'show-report', 'tests/reports/playwright-html'], {
+if (hasReport) {
+  console.log(`\n✔ HTML Test Report generated at:\n  ${path.join(reportDir, 'index.html')}`);
+  console.log('  To view the interactive HTML report on browser, run:\n    npm run test:report\n');
+}
+
+if (args.includes('--open') && hasReport) {
+  console.log('▶ Opening InviSurf HTML Test Report on browser...');
+  console.log('  Command: npx playwright show-report tests/reports/playwright-html --port 0\n');
+  spawnSync('npx', ['playwright', 'show-report', 'tests/reports/playwright-html', '--port', '0'], {
     cwd: ROOT_DIR,
     stdio: 'inherit',
     shell: true,

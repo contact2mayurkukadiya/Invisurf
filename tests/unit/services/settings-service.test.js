@@ -75,8 +75,14 @@ describe('SettingsService', () => {
     const settingsPath = settingsService.getSettingsPath();
     fs.writeFileSync(settingsPath, 'NOT_VALID_JSON{', 'utf-8');
 
-    const fallback = settingsService.loadSettings();
-    assert.ok(fallback);
-    assert.equal(fallback.colorTheme, 'automatic');
+    const origError = console.error;
+    console.error = () => {};
+    try {
+      const fallback = settingsService.loadSettings();
+      assert.ok(fallback);
+      assert.equal(fallback.colorTheme, 'automatic');
+    } finally {
+      console.error = origError;
+    }
   });
 });

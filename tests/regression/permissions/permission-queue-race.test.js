@@ -1,8 +1,18 @@
 'use strict';
 
-const { test, describe } = require('node:test');
+const { test, describe, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const EventEmitter = require('events');
+const { setupTestEnvironment } = require('../../helpers/setupUnitTests');
+
+let testEnv;
+before(() => {
+  testEnv = setupTestEnvironment();
+});
+after(() => {
+  if (testEnv && testEnv.cleanup) testEnv.cleanup();
+});
+
 const State = require('../../../main/state');
 const { PermissionPromptQueue } = require('../../../main/permissions/PermissionPromptQueue');
 

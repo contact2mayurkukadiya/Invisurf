@@ -20,13 +20,19 @@ describe('Ghost Native Mode Router', () => {
   });
 
   test('applyGhostMode catches exceptions in getNativeWindowHandle gracefully', () => {
-    const mockWindow = {
-      isDestroyed: () => false,
-      getNativeWindowHandle: () => {
-        throw new Error('Native handle failure');
-      },
-    };
-    assert.equal(ghostNative.applyGhostMode(mockWindow), false);
+    const origError = console.error;
+    console.error = () => {};
+    try {
+      const mockWindow = {
+        isDestroyed: () => false,
+        getNativeWindowHandle: () => {
+          throw new Error('Native handle failure');
+        },
+      };
+      assert.equal(ghostNative.applyGhostMode(mockWindow), false);
+    } finally {
+      console.error = origError;
+    }
   });
 
   test('hookWindowChildren returns false for destroyed window or null', () => {

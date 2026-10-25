@@ -1425,11 +1425,11 @@ body.settings-stealth-ui .settings-theme-select:focus-visible {
 body,
 body.settings-stealth-ui {
   overflow: hidden;
-  background: var(--chrome-content-bg, var(--settings-app-bg, #f8f8f8));
+  background: var(--chrome-content-bg, var(--settings-app-bg, #f7f8f9));
   color: var(--chrome-content-text, var(--chrome-fg, var(--settings-text, #202124)));
-  --settings-app-bg: var(--chrome-content-bg, #f8f8f8);
+  --settings-app-bg: var(--chrome-content-bg, #f7f8f9);
   --settings-surface: var(--chrome-content-surface, #ffffff);
-  --settings-sidebar-bg: var(--chrome-content-sidebar-bg, var(--chrome-content-bg, #f8f8f8));
+  --settings-sidebar-bg: var(--chrome-content-sidebar-bg, var(--chrome-content-bg, #ffffff));
   --settings-text: var(--chrome-content-text, var(--chrome-fg, #202124));
   --settings-muted-text: var(--chrome-content-muted, #5f6368);
   --settings-border: var(--chrome-content-border, rgba(0, 0, 0, 0.08));

@@ -28,13 +28,17 @@ test.describe('InviSurf Bookmarks Detailed Scenarios', () => {
     // 3. Obtain current tab ID and simulate web navigation to https://example.com
     const activeTab = shellWindow.locator('.tab.active');
     await expect(activeTab).toBeVisible();
-    const tabId = await activeTab.getAttribute('data-tab-id');
 
-    await app.evaluate(({ BrowserWindow }, { id }) => {
-      const win = BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes('index.html'));
-      win?.webContents.send('url-changed', { id, url: 'https://example.com' });
-      win?.webContents.send('tab-update', { id, url: 'https://example.com', title: 'Example Domain' });
-    }, { id: tabId });
+    await shellWindow.evaluate((url) => {
+      const state = window.__store?.getState?.();
+      const currentTabId = state?.browser?.currentTabId || Object.keys(state?.browser?.tabs || {})[0];
+      if (currentTabId && window.__store) {
+        window.__store.dispatch({
+          type: 'browser/updateTabUrl',
+          payload: { id: currentTabId, url },
+        });
+      }
+    }, 'https://example.com');
 
     // 4. Star button becomes enabled and reflects starred state
     await expect(starBtn).toBeEnabled({ timeout: 10000 });

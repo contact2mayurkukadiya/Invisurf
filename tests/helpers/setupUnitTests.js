@@ -49,6 +49,26 @@ function setupTestEnvironment() {
     Menu: {
       buildFromTemplate: () => ({ popup: () => {} }),
     },
+    WebContentsView: class MockWebContentsView {
+      constructor() {
+        this.webContents = new EventEmitter();
+        this.webContents.loadURL = async () => {};
+        this.webContents.send = () => {};
+        this.webContents.setZoomFactor = () => {};
+        this.webContents.isDestroyed = () => false;
+      }
+      setBackgroundColor() {}
+      setBounds() {}
+      setVisible() {}
+    },
+    BaseWindow: class MockBaseWindow {
+      constructor() {
+        this.contentView = {
+          addChildView: () => {},
+          removeChildView: () => {},
+        };
+      }
+    },
     session: {
       defaultSession: {
         cookies: {

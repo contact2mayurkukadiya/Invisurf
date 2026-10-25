@@ -116,8 +116,14 @@ describe('PermissionDatabase', () => {
 
   test('handles corrupted storage file gracefully without crashing', () => {
     fs.writeFileSync(storagePath, 'CORRUPTED_JSON_DATA{{{', 'utf-8');
-    const safeDb = new PermissionDatabase({ storagePath });
-    assert.deepEqual(safeDb.getAll('default'), []);
-    safeDb.destroy();
+    const origError = console.error;
+    console.error = () => {};
+    try {
+      const safeDb = new PermissionDatabase({ storagePath });
+      assert.deepEqual(safeDb.getAll('default'), []);
+      safeDb.destroy();
+    } finally {
+      console.error = origError;
+    }
   });
 });

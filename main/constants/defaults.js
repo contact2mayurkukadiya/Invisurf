@@ -19,7 +19,13 @@ const LENS_MOBILE_USER_AGENT = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac
 
 // Profile defaults
 const MAX_PROFILE_AVATAR_BYTES = 512 * 1024;
-const PRESET_AVATAR_PNG_DIR = path.join(app.getAppPath(), 'renderer', 'assets', 'images', 'profiles');
+const PRESET_AVATAR_PNG_DIR = path.join(
+    (app && typeof app.getAppPath === 'function') ? app.getAppPath() : path.resolve(__dirname, '..', '..'),
+    'renderer',
+    'assets',
+    'images',
+    'profiles'
+);
 
 // Navigation guards
 const MAX_MAINFRAME_REDIRECTS = 12;

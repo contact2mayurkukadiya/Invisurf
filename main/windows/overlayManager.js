@@ -10,6 +10,7 @@ const C = require('../../src/constants/conditionStrings.cjs');
 
 function createChromeOverlayLayer(context) {
     if (context.chromeOverlayView) return;
+    if (typeof WebContentsView !== 'function' || !context?.window?.contentView) return;
     const overlayView = new WebContentsView({
         webPreferences: buildSecureWebPreferences(),
     });
@@ -28,6 +29,7 @@ function createChromeOverlayLayer(context) {
 
 function createChromeOmniboxOverlayLayer(context) {
     if (context.chromeOmniboxOverlayView) return;
+    if (typeof WebContentsView !== 'function' || !context?.window?.contentView) return;
     context.chromeOmniboxOverlayReady = false;
     const overlayView = new WebContentsView({
         webPreferences: buildSecureWebPreferences(),
@@ -52,6 +54,7 @@ function createChromeOmniboxOverlayLayer(context) {
 
 function createChromeShellMenuOverlayLayer(context) {
     if (context.chromeShellMenuOverlayView) return;
+    if (typeof WebContentsView !== 'function' || !context?.window?.contentView) return;
     const overlayView = new WebContentsView({
         webPreferences: buildSecureWebPreferences(),
     });

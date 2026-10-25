@@ -35,25 +35,37 @@ describe('Security & Encryption', () => {
   });
 
   test('handles corrupt ciphertext gracefully without crashing', () => {
-    const corruptedPayload = {
-      encrypted: true,
-      type: 'FALLBACK',
-      iv: '0123456789abcdef0123456789abcdef',
-      authTag: '0123456789abcdef0123456789abcdef',
-      data: 'bad-hex-data-1234',
-    };
+    const origError = console.error;
+    console.error = () => {};
+    try {
+      const corruptedPayload = {
+        encrypted: true,
+        type: 'FALLBACK',
+        iv: '0123456789abcdef0123456789abcdef',
+        authTag: '0123456789abcdef0123456789abcdef',
+        data: 'bad-hex-data-1234',
+      };
 
-    const result = encryption.decrypt(corruptedPayload);
-    assert.equal(result, '');
+      const result = encryption.decrypt(corruptedPayload);
+      assert.equal(result, '');
+    } finally {
+      console.error = origError;
+    }
   });
 
   test('handles corrupt authTag gracefully without crashing', () => {
-    const payload = encryption.encrypt('sensitive user profile data');
-    if (payload.authTag) {
-      // Corrupt the authTag
-      payload.authTag = '00000000000000000000000000000000';
-      const result = encryption.decrypt(payload);
-      assert.equal(result, '');
+    const origError = console.error;
+    console.error = () => {};
+    try {
+      const payload = encryption.encrypt('sensitive user profile data');
+      if (payload && payload.authTag) {
+        // Corrupt the authTag
+        payload.authTag = '00000000000000000000000000000000';
+        const result = encryption.decrypt(payload);
+        assert.equal(result, '');
+      }
+    } finally {
+      console.error = origError;
     }
   });
 });
