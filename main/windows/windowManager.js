@@ -281,6 +281,10 @@ function createWindow({
             return;
         }
         layoutActiveTabView(context, context.activeTabId);
+        try {
+            const { layoutSidePanel } = require('./sidePanelManager');
+            layoutSidePanel(context);
+        } catch (_) { }
         if (getLensSession(context, context.activeTabId, false)?.selectionActive) {
             postLensSelectionPatch(context);
         }
@@ -300,6 +304,10 @@ function createWindow({
     });
 
     window.on('close', () => {
+        try {
+            const { destroySidePanel } = require('./sidePanelManager');
+            destroySidePanel(context);
+        } catch (_) { }
         if (!context._closedWindowSnapshotPushed) {
             const windowSnapshot = captureClosedWindowSnapshot(context);
             if (State.appLogger) {

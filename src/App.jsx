@@ -8,6 +8,7 @@ import {
   setTabPinned,
   setTabAudioMuted,
   setShowBookmarkBar,
+  toggleSidePanel,
 } from './store/browserSlice';
 import { setBookmarks } from './store/bookmarksSlice';
 import { useElectronIPC } from './hooks/useElectronIPC';
@@ -17,6 +18,7 @@ import NavBar from './components/NavBar';
 import BookmarkBar from './components/BookmarkBar';
 import SearchTabsModal from './components/SearchTabsModal';
 import CommandPaletteModal from './components/CommandPaletteModal';
+import SidePanel from './components/sidepanel/SidePanel';
 import { buildCommandPaletteCommands } from './commandPaletteCommands';
 import { TabOverlayProvider } from './context/TabOverlayContext';
 import { ChromeOverlayProvider } from './context/ChromeOverlayContext';
@@ -747,46 +749,59 @@ function AppShell() {
     [TAB_STRIP_MENU.CLOSE_RIGHT]: closeTabsToTheRightOf,
   };
 
+  useEffect(() => {
+    if (!window.electronAPI?.onSidePanelToggle) return undefined;
+    const unsub = window.electronAPI.onSidePanelToggle(() => {
+      dispatch(toggleSidePanel());
+    });
+    return () => {
+      if (typeof unsub === 'function') unsub();
+    };
+  }, [dispatch]);
+
   return (
-    <div className={`header${isStealthShell ? ' header--stealth-window' : ''}${isGhostShell ? ' header--ghost-window' : ''}`}>
-      <CommandPaletteModal
-        open={commandPaletteOpen}
-        onClose={() => setCommandPaletteOpen(false)}
-        commands={paletteCommands}
-      />
-      <SearchTabsModal
-        open={searchTabsOpen}
-        onClose={() => setSearchTabsOpen(false)}
-        tabOrder={tabOrder}
-        tabs={tabs}
-        currentTabId={currentTabId}
-        onSelectTab={(id) => {
-          dispatch(setCurrentTab(id));
-          window.electronAPI.switchTab(id);
-        }}
-        onCloseTab={closeTab}
-      />
-      <TabBar
-        isGhostWindow={isGhostShell}
-        onNewTab={createTab}
-        onCloseTab={closeTab}
-        onSwitchTab={switchTab}
-        onDragEnd={handleDragEnd}
-        onTabStripContextMenu={handleTabStripContextMenu}
-      />
-      <NavBar
-        currentTabId={currentTabId}
-        onNewTab={createTab}
-        onOpenHistory={handleOpenHistory}
-        onOpenBookmark={handleOpenBookmark}
-        onOpenDownloads={handleOpenDownloads}
-        onOpenExtensions={handleOpenExtensions}
-        onDeleteBrowsingData={handleDeleteBrowsingData}
-        onOpenSettings={handleOpenSettings}
-        searchEngine={searchEngine}
-      />
-      <BookmarkBar currentTabId={currentTabId} />
-    </div>
+    <>
+      <div className={`header${isStealthShell ? ' header--stealth-window' : ''}${isGhostShell ? ' header--ghost-window' : ''}`}>
+        <CommandPaletteModal
+          open={commandPaletteOpen}
+          onClose={() => setCommandPaletteOpen(false)}
+          commands={paletteCommands}
+        />
+        <SearchTabsModal
+          open={searchTabsOpen}
+          onClose={() => setSearchTabsOpen(false)}
+          tabOrder={tabOrder}
+          tabs={tabs}
+          currentTabId={currentTabId}
+          onSelectTab={(id) => {
+            dispatch(setCurrentTab(id));
+            window.electronAPI.switchTab(id);
+          }}
+          onCloseTab={closeTab}
+        />
+        <TabBar
+          isGhostWindow={isGhostShell}
+          onNewTab={createTab}
+          onCloseTab={closeTab}
+          onSwitchTab={switchTab}
+          onDragEnd={handleDragEnd}
+          onTabStripContextMenu={handleTabStripContextMenu}
+        />
+        <NavBar
+          currentTabId={currentTabId}
+          onNewTab={createTab}
+          onOpenHistory={handleOpenHistory}
+          onOpenBookmark={handleOpenBookmark}
+          onOpenDownloads={handleOpenDownloads}
+          onOpenExtensions={handleOpenExtensions}
+          onDeleteBrowsingData={handleDeleteBrowsingData}
+          onOpenSettings={handleOpenSettings}
+          searchEngine={searchEngine}
+        />
+        <BookmarkBar currentTabId={currentTabId} />
+      </div>
+      <SidePanel />
+    </>
   );
 }
 

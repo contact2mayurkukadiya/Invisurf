@@ -656,7 +656,8 @@ const C = Object.freeze({
         "DOWNLOADS_REMOVE": "downloads:remove",
         "DOWNLOADS_CLEAR_ALL": "downloads:clear-all",
         "DOWNLOADS_OPEN_FOLDER": "downloads:open-folder",
-        "DOWNLOADS_SHOW_ATTENTION": "downloads:show-attention"
+        "DOWNLOADS_SHOW_ATTENTION": "downloads:show-attention",
+        "SIDE_PANEL_GET_STATE": "side-panel:get-state"
     },
     "IPC_SEND": {
         "NEW_TAB": "new-tab",
@@ -678,7 +679,9 @@ const C = Object.freeze({
         "STATUS_BUBBLE_FLIP": "status-bubble:flip",
         "STATUS_BUBBLE_RESIZE": "status-bubble:resize",
         "OVERSCROLL_TRIGGER_NAVIGATION": "overscroll:trigger-navigation",
-        "OVERSCROLL_REQUEST_SYNC": "overscroll:request-sync"
+        "OVERSCROLL_REQUEST_SYNC": "overscroll:request-sync",
+        "SIDE_PANEL_STATE_SYNC": "side-panel:state-sync",
+        "SIDE_PANEL_RESIZE": "side-panel:resize"
     },
     "IPC_EVENT": {
         "URL_CHANGED": "url-changed",
@@ -723,7 +726,9 @@ const C = Object.freeze({
         "SHORTCUT_DOWNLOADS": "shortcut-downloads",
         "OVERSCROLL_SYNC_STATE": "overscroll:sync-state",
         "OVERSCROLL_FINGER_LIFTED": "overscroll:finger-lifted",
-        "OVERSCROLL_GESTURE_BEGIN": "overscroll:gesture-begin"
+        "OVERSCROLL_GESTURE_BEGIN": "overscroll:gesture-begin",
+        "SIDE_PANEL_TOGGLE": "side-panel:toggle",
+        "SIDE_PANEL_STATE_CHANGED": "side-panel:state-changed"
     }
 });
 
@@ -771,6 +776,7 @@ contextBridge.exposeInMainWorld('__invisurf_webauthn', {
 contextBridge.exposeInMainWorld('electronAPI', {
     // Tab management
     newTab: (id, isStealth = false, url = null, options = {}) => ipcRenderer.send(C.IPC_SEND.NEW_TAB, { id, isStealth, url, source: options && typeof options.source === 'string' ? options.source : undefined, history: options && options.history ? options.history : undefined }),
+    createTab: (options = {}) => ipcRenderer.send(C.IPC_SEND.NEW_TAB, { id: options?.id || ('tab-' + Date.now()), isStealth: !!options?.isStealth, url: options?.url || null, source: options && typeof options.source === 'string' ? options.source : undefined }),
     switchTab: (id) => ipcRenderer.send(C.IPC_SEND.SWITCH_TAB, { id }),
     closeTab: (id, options = {}) => ipcRenderer.send(C.IPC_SEND.CLOSE_TAB, { id, closeWindowIfLast: options.closeWindowIfLast === true }),
     navigate: (id, url, options = {}) => ipcRenderer.send(C.IPC_SEND.NAVIGATE, { id, url, source: options && typeof options.source === 'string' ? options.source : undefined }),
@@ -830,6 +836,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
     tabSetAudioMuted: (id, muted) => ipcRenderer.send(C.IPC_SEND.TAB_SET_AUDIO_MUTED, { id, muted }),
     tabMenuSyncLabels: (payload) => ipcRenderer.send(C.IPC_SEND.TAB_MENU_SYNC, payload),
     tabMoveToNewWindow: (id, fallbackTabId) => ipcRenderer.invoke(C.IPC_INVOKE.TAB_MOVE_NEW_WINDOW, { id, fallbackTabId }),
+
+    // Side Panel
+    sidePanelSyncState: (payload) => ipcRenderer.send(C.IPC_SEND.SIDE_PANEL_STATE_SYNC, payload),
+    sidePanelResize: (width) => ipcRenderer.send(C.IPC_SEND.SIDE_PANEL_RESIZE, width),
+    sidePanelGetState: () => ipcRenderer.invoke(C.IPC_INVOKE.SIDE_PANEL_GET_STATE),
+    onSidePanelToggle: (callback) => {
+        const handler = () => callback();
+        ipcRenderer.on(C.IPC_EVENT.SIDE_PANEL_TOGGLE, handler);
+        return () => ipcRenderer.removeListener(C.IPC_EVENT.SIDE_PANEL_TOGGLE, handler);
+    },
+    onSidePanelStateChanged: (callback) => {
+        const handler = (_, state) => callback(state);
+        ipcRenderer.on(C.IPC_EVENT.SIDE_PANEL_STATE_CHANGED, handler);
+        return () => ipcRenderer.removeListener(C.IPC_EVENT.SIDE_PANEL_STATE_CHANGED, handler);
+    },
 
     // Bookmarks
     bookmarksGet: () => ipcRenderer.invoke(C.IPC_INVOKE.BOOKMARKS_GET),

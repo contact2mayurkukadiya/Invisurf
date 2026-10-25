@@ -20,6 +20,7 @@ const windowManager = require('../windows/windowManager');
 const tabManager = require('../windows/tabManager');
 const overlayManager = require('../windows/overlayManager');
 const lensManager = require('../windows/lensManager');
+const sidePanelManager = require('../windows/sidePanelManager');
 const { getWindowContextByEventSender, getWindowContextForShellFallback, getWindowContextByChromeOverlaySender, isViewWebContentsAlive } = require('../windows/windowContextUtils');
 const { truncateMenuLabel } = require('../services/sessionService');
 
@@ -553,6 +554,34 @@ function registerIpcHandlers() {
         const context = getWindowContextByEventSender(e.sender);
         if (!context) return;
         overlayManager.resizeStatusBubble(context, size);
+    });
+
+    // === REUSABLE SIDE PANEL ===
+    ipcMain.on(C.IPC_SEND.SIDE_PANEL_STATE_SYNC, (e, payload = {}) => {
+        if (!isSenderTrusted(e)) return;
+        const context = getWindowContextByEventSender(e.sender);
+        if (!context) return;
+        sidePanelManager.setSidePanelState(context, payload);
+    });
+
+    ipcMain.on(C.IPC_SEND.SIDE_PANEL_RESIZE, (e, width) => {
+        if (!isSenderTrusted(e)) return;
+        const context = getWindowContextByEventSender(e.sender);
+        if (!context) return;
+        sidePanelManager.setSidePanelWidth(context, width);
+    });
+
+    ipcMain.handle(C.IPC_INVOKE.SIDE_PANEL_GET_STATE, (e) => {
+        if (!isSenderTrusted(e)) return null;
+        const context = getWindowContextByEventSender(e.sender);
+        if (!context) return null;
+        const state = sidePanelManager.getSidePanelState(context);
+        return state ? {
+            isOpen: state.isOpen,
+            width: state.width,
+            activePanelId: state.activePanelId,
+            customUrl: state.customUrl,
+        } : null;
     });
 
     // === OVERLAYS ===

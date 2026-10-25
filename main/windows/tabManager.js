@@ -159,10 +159,13 @@ function layoutTabContentContainer(context) {
     if (!context?.tabContentView || !context?.window || context.window.isDestroyed()) return;
     try {
         const { width, height } = context.window.getContentBounds();
-        context.tabContentView.setBounds({ x: 0, y: 0, width, height });
+        const { getSidePanelWidth } = require('./sidePanelManager');
+        const sidePanelWidth = getSidePanelWidth(context);
+        const containerWidth = Math.max(0, width - (sidePanelWidth || 0));
+        context.tabContentView.setBounds({ x: 0, y: 0, width: containerWidth, height });
         if (typeof context.tabContentView.setBackgroundColor === 'function') {
             const { getChromeShellBackgroundColor } = require('./lensManager');
-            context.tabContentView.setBackgroundColor(getChromeShellBackgroundColor(context));
+            context.tabContentView.setBackgroundColor(sidePanelWidth > 0 ? '#00000000' : getChromeShellBackgroundColor(context));
         }
     } catch (_) { }
 }
@@ -184,8 +187,23 @@ function layoutActiveTabView(context, tabId = context?.activeTabId) {
         // Restore standard bounds on exit
         resetTabWebContentsScale(view);
         const bounds = getActiveTabContentBounds(context, tabId);
-        view.setBounds(bounds);
-        setNativeViewCornerRadius(view, 0);
+        const { getSidePanelWidth, WEB_CONTENTS_MIN_WIDTH } = require('./sidePanelManager');
+        const sidePanelWidth = getSidePanelWidth(context);
+        if (sidePanelWidth > 0 && bounds && bounds.width > 0) {
+            const leftMargin = 8;
+            const topMargin = 4;
+            const bottomMargin = 8;
+            const rightGap = 6;
+            bounds.x = leftMargin;
+            bounds.y = bounds.y + topMargin;
+            bounds.width = Math.max(WEB_CONTENTS_MIN_WIDTH, bounds.width - sidePanelWidth - leftMargin - rightGap);
+            bounds.height = Math.max(0, bounds.height - topMargin - bottomMargin);
+            view.setBounds(bounds);
+            setNativeViewCornerRadius(view, 14);
+        } else {
+            view.setBounds(bounds);
+            setNativeViewCornerRadius(view, 0);
+        }
     }
 
     layoutLensSidebar(context, tabId);

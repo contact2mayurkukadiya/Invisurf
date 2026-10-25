@@ -30,6 +30,19 @@ function applyPinnedLeadingOrder(state) {
   state.tabOrder = [...pinned, ...unpinned];
 }
 
+const getInitialPinnedPanels = () => {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const saved = window.localStorage.getItem('invisurf:pinned-sidepanels');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    }
+  } catch (_) {}
+  return [];
+};
+
 const browserSlice = createSlice({
   name: 'browser',
   initialState: {
@@ -37,9 +50,56 @@ const browserSlice = createSlice({
     tabOrder: [],
     currentTabId: null,
     searchEngine: 'google',
-    showBookmarkBar: true
+    showBookmarkBar: true,
+    sidePanel: {
+      isOpen: false,
+      width: 360,
+      activePanelId: 'reading-list',
+      customUrl: null,
+      pinnedPanelIds: getInitialPinnedPanels(),
+    },
   },
   reducers: {
+    toggleSidePanel(state) {
+      state.sidePanel.isOpen = !state.sidePanel.isOpen;
+    },
+    setSidePanelOpen(state, action) {
+      state.sidePanel.isOpen = !!action.payload;
+    },
+    setSidePanelWidth(state, action) {
+      state.sidePanel.width = Math.max(260, Number(action.payload) || 360);
+    },
+    setSidePanelActiveView(state, action) {
+      state.sidePanel.activePanelId = action.payload;
+    },
+    setSidePanelCustomUrl(state, action) {
+      state.sidePanel.customUrl = action.payload;
+    },
+    togglePinSidePanel(state, action) {
+      const panelId = action.payload;
+      if (!Array.isArray(state.sidePanel.pinnedPanelIds)) {
+        state.sidePanel.pinnedPanelIds = [];
+      }
+      const idx = state.sidePanel.pinnedPanelIds.indexOf(panelId);
+      if (idx >= 0) {
+        state.sidePanel.pinnedPanelIds.splice(idx, 1);
+      } else {
+        state.sidePanel.pinnedPanelIds.push(panelId);
+      }
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.setItem('invisurf:pinned-sidepanels', JSON.stringify(state.sidePanel.pinnedPanelIds));
+        }
+      } catch (_) {}
+    },
+    setPinnedPanels(state, action) {
+      state.sidePanel.pinnedPanelIds = Array.isArray(action.payload) ? action.payload : [];
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.setItem('invisurf:pinned-sidepanels', JSON.stringify(state.sidePanel.pinnedPanelIds));
+        }
+      } catch (_) {}
+    },
     setShowBookmarkBar(state, action) {
       state.showBookmarkBar = action.payload;
     },
@@ -229,7 +289,14 @@ export const {
   setTabNewTab,
   reorderTabs,
   setSearchEngine,
-  setShowBookmarkBar
+  setShowBookmarkBar,
+  toggleSidePanel,
+  setSidePanelOpen,
+  setSidePanelWidth,
+  setSidePanelActiveView,
+  setSidePanelCustomUrl,
+  togglePinSidePanel,
+  setPinnedPanels,
 } = browserSlice.actions;
 
 export default browserSlice.reducer;

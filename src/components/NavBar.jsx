@@ -3,6 +3,11 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useTabOverlay } from '../context/TabOverlayContext';
 import { useChromeShellMenuOverlay } from '../context/ChromeOverlayContext';
 import { setBookmarks } from '../store/bookmarksSlice';
+import {
+  toggleSidePanel,
+  setSidePanelOpen,
+  setSidePanelActiveView,
+} from '../store/browserSlice';
 import { collectFolderOptions } from '../utils/bookmarkFolderList';
 import {
   buildProfileAvatarPayload,
@@ -145,6 +150,32 @@ function canBookmarkTab(tab) {
   return lower.startsWith(URL_C.SCHEME_HTTP) || lower.startsWith(URL_C.SCHEME_HTTPS);
 }
 
+const PINNED_PANEL_ICONS = {
+  bookmarks: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+    </svg>
+  ),
+  history: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10"></circle>
+      <polyline points="12 6 12 12 16 14"></polyline>
+    </svg>
+  ),
+  'reading-list': (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+    </svg>
+  ),
+};
+
+const PINNED_PANEL_TITLES = {
+  bookmarks: 'Bookmarks',
+  history: 'History',
+  'reading-list': 'Reading list',
+};
+
 export default function NavBar({
   currentTabId,
   onNewTab,
@@ -160,9 +191,17 @@ export default function NavBar({
   const { beginOverlay, endOverlay } = useTabOverlay();
   const { reset, acquire, release, post } = useChromeShellMenuOverlay();
   const tabs = useSelector(s => s.browser.tabs);
+  const sidePanelState = useSelector(s => s.browser.sidePanel || {});
+  const isSidePanelOpen = !!sidePanelState.isOpen;
+  const activePanelId = sidePanelState.activePanelId || 'reading-list';
+  const pinnedPanelIds = Array.isArray(sidePanelState.pinnedPanelIds) ? sidePanelState.pinnedPanelIds : [];
   const bookmarksData = useSelector(s => s.bookmarks.data);
   const bookmarksBarRef = useRef(bookmarksData.bar);
   bookmarksBarRef.current = bookmarksData.bar;
+
+  const handleToggleSidePanel = useCallback(() => {
+    dispatch(toggleSidePanel());
+  }, [dispatch]);
 
   const tab = tabs[currentTabId];
   const currentUrl = tab && !tab.isNewTab ? (tab.url || '') : '';
@@ -467,8 +506,8 @@ export default function NavBar({
       avatarDataByProfileId: profileAvatarsRef.current,
     });
     const historyRows = [
+      { iconSrc: menuHistorySvg, label: 'Open History in side panel', commandId: 'openHistorySidePanel' },
       { iconSrc: menuHistorySvg, label: 'Open History Page', shortcut: shortcut('⌘Y', 'Ctrl+Y'), commandId: 'openHistoryPage' },
-      // { iconSrc: menuHistorySvg, label: 'Show History in Side Panel', commandId: 'historySidePanel', disabled: true },
       { type: 'separator' },
       { header: true, label: 'Recent Tabs' },
       ...(closedRows.length ? closedRows.map((row) => ({
@@ -480,6 +519,7 @@ export default function NavBar({
       })) : [{ label: 'No recently closed tabs', disabled: true }]),
     ];
     const bookmarkRowsForMenu = [
+      { iconSrc: menuBookmarksSvg, label: 'Open Bookmarks in side panel', commandId: 'openBookmarksSidePanel' },
       { iconSrc: menuBookmarksSvg, label: existingBookmark ? 'Edit bookmark for this tab' : 'Bookmark this tab', commandId: 'bookmarkCurrentTab', disabled: !canBookmark },
       { iconSrc: menuBookmarksSvg, label: 'Open bookmarks menu', commandId: 'openBookmarkPage' },
       { type: 'separator' },
@@ -600,6 +640,14 @@ export default function NavBar({
           } else if (commandId === 'newStealthWindow') window.electronAPI.createStealthWindow?.();
           else if (commandId === 'newGhostWindow') {
             window.electronAPI.createGhostWindow?.(currentProfile?.profileId ? { profileId: currentProfile.profileId } : {});
+          }
+          else if (commandId === 'openHistorySidePanel') {
+            dispatch(setSidePanelActiveView('history'));
+            dispatch(setSidePanelOpen(true));
+          }
+          else if (commandId === 'openBookmarksSidePanel') {
+            dispatch(setSidePanelActiveView('bookmarks'));
+            dispatch(setSidePanelOpen(true));
           }
           else if (commandId === 'openSettings') onOpenSettings?.();
           else if (commandId === 'openHistoryPage') onOpenHistory?.();
@@ -800,6 +848,50 @@ export default function NavBar({
       <WindowOpacityControl />
 
       <DownloadToolbarButton onOpenDownloads={onOpenDownloads} />
+
+      {/* Pinned Side Panel Toolbar Buttons */}
+      {pinnedPanelIds.map((panelId) => {
+        const icon = PINNED_PANEL_ICONS[panelId];
+        const title = PINNED_PANEL_TITLES[panelId] || panelId;
+        if (!icon) return null;
+        const isActive = isSidePanelOpen && activePanelId === panelId;
+        return (
+          <button
+            key={panelId}
+            id={`side-panel-pin-${panelId}`}
+            className={`btn side-panel-btn side-panel-pin-btn${isActive ? ' active' : ''}`}
+            title={isActive ? `Close ${title}` : `Open ${title} in side panel`}
+            aria-expanded={isActive}
+            aria-label={title}
+            onClick={() => {
+              if (isActive) {
+                dispatch(setSidePanelOpen(false));
+              } else {
+                dispatch(setSidePanelActiveView(panelId));
+                dispatch(setSidePanelOpen(true));
+              }
+            }}
+          >
+            {icon}
+          </button>
+        );
+      })}
+
+      {/* Fallback generic side panel toggle button if no panels are pinned */}
+      {pinnedPanelIds.length === 0 && (
+        <button
+          id="side-panel-btn"
+          className={`btn side-panel-btn${isSidePanelOpen ? ' active' : ''}`}
+          title={isSidePanelOpen ? 'Close side panel' : 'Open side panel'}
+          aria-expanded={isSidePanelOpen}
+          aria-label="Side panel"
+          onClick={handleToggleSidePanel}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M2 3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3zm1 0v10h7V3H3zm8 0v10h2V3h-2z" />
+          </svg>
+        </button>
+      )}
 
       <ProfileMenuButton
         profiles={profiles}

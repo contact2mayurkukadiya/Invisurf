@@ -388,6 +388,7 @@ export const IPC_INVOKE = freeze({
   DOWNLOADS_CLEAR_ALL: 'downloads:clear-all',
   DOWNLOADS_OPEN_FOLDER: 'downloads:open-folder',
   DOWNLOADS_SHOW_ATTENTION: 'downloads:show-attention',
+  SIDE_PANEL_GET_STATE: 'side-panel:get-state',
 });
 
 /** IPC send channels */
@@ -412,6 +413,8 @@ export const IPC_SEND = freeze({
   STATUS_BUBBLE_RESIZE: 'status-bubble:resize',
   OVERSCROLL_TRIGGER_NAVIGATION: 'overscroll:trigger-navigation',
   OVERSCROLL_REQUEST_SYNC: 'overscroll:request-sync',
+  SIDE_PANEL_STATE_SYNC: 'side-panel:state-sync',
+  SIDE_PANEL_RESIZE: 'side-panel:resize',
 });
 
 /** IPC event channels (main → renderer) */
@@ -459,9 +462,19 @@ export const IPC_EVENT = freeze({
   OVERSCROLL_SYNC_STATE: 'overscroll:sync-state',
   OVERSCROLL_FINGER_LIFTED: 'overscroll:finger-lifted',
   OVERSCROLL_GESTURE_BEGIN: 'overscroll:gesture-begin',
+  SIDE_PANEL_TOGGLE: 'side-panel:toggle',
+  SIDE_PANEL_STATE_CHANGED: 'side-panel:state-changed',
 });
 
 /** Custom DOM events (renderer-only) */
 export const DOM_EVENT = freeze({
   OMNIBOX_REQUEST_FOCUS: 'omnibox:request-focus',
+});
+
+/** Side Panel identifiers */
+export const SIDE_PANEL = freeze({
+  READING_LIST: 'reading-list',
+  BOOKMARKS: 'bookmarks',
+  HISTORY: 'history',
+  CUSTOM_WEB: 'custom-web',
 });

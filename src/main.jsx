@@ -4,6 +4,7 @@ import { Provider } from 'react-redux';
 import { store } from './store/store';
 if (typeof window !== 'undefined') {
   window.__store = store;
+  window.__INVISURF_STORE__ = store;
 }
 import App from './App';
 import './index.css';

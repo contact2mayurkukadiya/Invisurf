@@ -50,7 +50,7 @@ const test = base.extend({
           const windowManager = require('./main/windows/windowManager');
           const profile = Array.from(State.profilesById.values())[0];
           if (profile) {
-            windowManager.createWindow(profile.profileId);
+            windowManager.createWindow({ profileId: profile.profileId });
             if (State.profilePickerWindow && !State.profilePickerWindow.isDestroyed()) {
               State.profilePickerWindow.close();
             }
