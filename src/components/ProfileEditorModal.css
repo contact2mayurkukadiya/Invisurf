@@ -89,7 +89,7 @@
 }
 
 .profile-editor-avatar-hit:focus-visible {
-  outline: 2px solid #1a73e8;
+  outline: 2px solid var(--chrome-accent, #1a73e8);
   outline-offset: 4px;
 }
 
@@ -120,7 +120,7 @@
 .profile-editor-remove-photo {
   border: none;
   background: none;
-  color: #1a73e8;
+  color: var(--chrome-content-active-fg, var(--chrome-accent, #1a73e8));
   font-size: 13px;
   cursor: pointer;
   padding: 4px;
@@ -154,7 +154,7 @@
 
 .profile-editor-input:focus {
   outline: none;
-  border-color: #1a73e8;
+  border-color: var(--chrome-accent, #1a73e8);
 }
 
 .profile-editor-presets {
@@ -220,7 +220,7 @@
 }
 
 .profile-editor-preset:focus-visible {
-  outline: 2px solid #1a73e8;
+  outline: 2px solid var(--chrome-accent, #1a73e8);
   outline-offset: 3px;
 }
 
@@ -254,9 +254,9 @@
 
 .profile-editor-preset--selected .profile-editor-preset-face {
   box-shadow:
-    0 0 0 3px #aecbfa,
-    0 0 0 5px rgba(26, 115, 232, 0.35),
-    0 4px 14px rgba(26, 115, 232, 0.2);
+    0 0 0 3px var(--chrome-content-active-bg, #aecbfa),
+    0 0 0 5px color-mix(in srgb, var(--chrome-accent, #1a73e8) 35%, transparent),
+    0 4px 14px color-mix(in srgb, var(--chrome-accent, #1a73e8) 20%, transparent);
   transform: scale(1.02);
 }
 
@@ -269,7 +269,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #1a73e8;
+  background: var(--chrome-accent, #1a73e8);
   color: #fff;
   border-radius: 50%;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
@@ -316,8 +316,12 @@
 }
 
 .profile-editor-btn--primary {
-  background: #1a73e8;
+  background: var(--chrome-accent, #1a73e8);
   color: #fff;
+}
+
+.profile-editor-btn--primary:hover:not(:disabled) {
+  background: var(--chrome-accent-hover, color-mix(in srgb, var(--chrome-accent, #1a73e8) 85%, black));
 }
 
 @media (max-width: 400px) {

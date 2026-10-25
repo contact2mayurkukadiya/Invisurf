@@ -68,13 +68,13 @@
 }
 
 .profile-delete-overlay--light .profile-delete-btn--cancel {
-  border: 1px solid #1a73e8;
-  color: #1a73e8;
+  border: 1px solid var(--chrome-content-active-rail, var(--chrome-accent, #1a73e8));
+  color: var(--chrome-content-active-fg, var(--chrome-accent, #1a73e8));
   background: transparent;
 }
 
 .profile-delete-overlay--light .profile-delete-btn--cancel:hover:not(:disabled) {
-  background: #f1f3f4;
+  background: var(--chrome-content-active-bg, #f1f3f4);
 }
 
 /* Dark Mode */
@@ -109,13 +109,13 @@
 }
 
 .profile-delete-overlay--dark .profile-delete-btn--cancel {
-  border: 1px solid #8ab4f8;
-  color: #8ab4f8;
+  border: 1px solid var(--chrome-content-active-rail, var(--chrome-accent, #8ab4f8));
+  color: var(--chrome-content-active-fg, var(--chrome-accent, #8ab4f8));
   background: transparent;
 }
 
 .profile-delete-overlay--dark .profile-delete-btn--cancel:hover:not(:disabled) {
-  background: rgba(138, 180, 248, 0.08);
+  background: var(--chrome-content-active-bg, rgba(138, 180, 248, 0.08));
 }
 
 /* Typography & Layout */
@@ -255,7 +255,7 @@
 }
 
 .profile-delete-btn:focus-visible {
-  outline: 2px solid #1a73e8;
+  outline: 2px solid var(--chrome-accent, #1a73e8);
   outline-offset: 2px;
 }
 

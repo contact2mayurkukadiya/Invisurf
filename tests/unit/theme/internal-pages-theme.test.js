@@ -185,4 +185,28 @@ describe('Internal Pages (invisurf://) Neutral Black & White Background Test Sui
       assert.doesNotMatch(css, /background:\s*var\(--chrome-body-bg/, 'NewTab must not override background with --chrome-body-bg');
     });
   });
+
+  describe('8. Dynamic Theme Accent Tokens & Bookmark Delete Confirmation Dialog', () => {
+    test('resolves accent tokens dynamically per preset theme in light and dark mode', () => {
+      const forestDark = resolveAppliedTokens({ accentTheme: 'forest', colorTheme: 'dark' }, true);
+      assert.equal(forestDark['--chrome-accent'], '#4ade80', 'Forest dark accent must be #4ade80');
+      assert.equal(forestDark['--chrome-content-active-fg'], '#4ade80');
+
+      const forestLight = resolveAppliedTokens({ accentTheme: 'forest', colorTheme: 'light' }, false);
+      assert.equal(forestLight['--chrome-accent'], '#16a34a', 'Forest light accent must be #16a34a');
+      assert.equal(forestLight['--chrome-content-active-fg'], '#16a34a');
+
+      const oceanLight = resolveAppliedTokens({ accentTheme: 'ocean', colorTheme: 'light' }, false);
+      assert.equal(oceanLight['--chrome-accent'], '#0284c7', 'Ocean light accent must be #0284c7');
+    });
+
+    test('BookmarkApp.css defines delete confirmation dialog classes matching other delete modals', () => {
+      const css = fs.readFileSync(path.join(ROOT, 'src/bookmark/BookmarkApp.css'), 'utf8');
+      assert.match(css, /\.b-delete-modal-desc/, 'Must define .b-delete-modal-desc');
+      assert.match(css, /\.b-delete-modal-preview/, 'Must define .b-delete-modal-preview');
+      assert.match(css, /\.b-modal-cancel/, 'Must define .b-modal-cancel with pill borders');
+      assert.match(css, /\.b-modal-delete/, 'Must define .b-modal-delete with dynamic accent token');
+      assert.match(css, /background:\s*var\(--chrome-accent,\s*var\(--blue\)\)/, 'Delete button must use dynamic accent');
+    });
+  });
 });

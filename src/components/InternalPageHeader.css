@@ -5,8 +5,8 @@
   --internal-header-border: #e2e8f0;
   --internal-header-text: #1e2025;
   --internal-header-muted: #80868b;
-  --internal-header-accent: #315cf5;
-  --internal-header-accent-subtle: rgba(49, 92, 245, 0.1);
+  --internal-header-accent: var(--chrome-content-active-fg, var(--chrome-accent, #315cf5));
+  --internal-header-accent-subtle: var(--chrome-content-active-bg, var(--chrome-accent-subtle, rgba(49, 92, 245, 0.1)));
   --internal-header-btn-hover: rgba(0, 0, 0, 0.05);
 }
 
@@ -16,8 +16,8 @@
     --internal-header-border: #2d3039;
     --internal-header-text: #f3f4f6;
     --internal-header-muted: #9ca3af;
-    --internal-header-accent: #4f75ff;
-    --internal-header-accent-subtle: rgba(79, 117, 255, 0.15);
+    --internal-header-accent: var(--chrome-content-active-fg, var(--chrome-accent, #4f75ff));
+    --internal-header-accent-subtle: var(--chrome-content-active-bg, var(--chrome-accent-subtle, rgba(79, 117, 255, 0.15)));
     --internal-header-btn-hover: rgba(255, 255, 255, 0.08);
   }
 }
@@ -28,8 +28,8 @@ body.dark {
   --internal-header-border: #2d3039;
   --internal-header-text: #f3f4f6;
   --internal-header-muted: #9ca3af;
-  --internal-header-accent: #4f75ff;
-  --internal-header-accent-subtle: rgba(79, 117, 255, 0.15);
+  --internal-header-accent: var(--chrome-content-active-fg, var(--chrome-accent, #4f75ff));
+  --internal-header-accent-subtle: var(--chrome-content-active-bg, var(--chrome-accent-subtle, rgba(79, 117, 255, 0.15)));
   --internal-header-btn-hover: rgba(255, 255, 255, 0.08);
 }
 
@@ -39,8 +39,8 @@ body.light {
   --internal-header-border: #e2e8f0;
   --internal-header-text: #1e2025;
   --internal-header-muted: #80868b;
-  --internal-header-accent: #315cf5;
-  --internal-header-accent-subtle: rgba(49, 92, 245, 0.1);
+  --internal-header-accent: var(--chrome-content-active-fg, var(--chrome-accent, #315cf5));
+  --internal-header-accent-subtle: var(--chrome-content-active-bg, var(--chrome-accent-subtle, rgba(49, 92, 245, 0.1)));
   --internal-header-btn-hover: rgba(0, 0, 0, 0.05);
 }
 

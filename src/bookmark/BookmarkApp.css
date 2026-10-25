@@ -24,8 +24,8 @@
 }
 
 :root {
-    --blue: #315cf5;
-    --blue-light: rgba(49, 92, 245, 0.1);
+    --blue: var(--chrome-content-active-fg, var(--chrome-accent, #315cf5));
+    --blue-light: var(--chrome-content-active-bg, var(--chrome-accent-subtle, rgba(49, 92, 245, 0.1)));
     --text-primary: #1e2025;
     --text-secondary: #5f6368;
     --border: #e2e8f0;
@@ -648,21 +648,121 @@ body {
     padding: 8px 16px;
     border: none;
     border-radius: 6px;
-    background: var(--blue);
+    background: var(--chrome-accent, var(--blue));
     color: #ffffff;
     font-size: 14px;
     font-weight: 500;
     cursor: pointer;
+    transition: background 0.12s;
 }
 
 .b-btn-primary:hover {
-    opacity: 0.9;
+    background: var(--chrome-accent-hover, color-mix(in srgb, var(--chrome-accent, var(--blue)) 85%, black));
+}
+
+/* ── Delete Confirmation Modal ────────────────────────────────────────────── */
+.b-delete-modal-desc {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin: 0 0 16px;
+}
+
+.b-delete-modal-preview {
+    background: var(--surface-muted);
+    border-radius: 8px;
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+    min-width: 0;
+}
+
+.b-delete-modal-preview-icon {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.b-delete-modal-preview-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.b-delete-modal-preview-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.b-delete-modal-preview-url {
+    font-size: 12px;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.b-modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    padding-top: 4px;
+}
+
+.b-modal-cancel {
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    background: var(--white);
+    font-family: inherit;
+    font-size: 14px;
+    color: var(--text-primary);
+    padding: 8px 20px;
+    cursor: pointer;
+    transition: background 0.12s;
+}
+
+.b-modal-cancel:hover {
+    background: var(--hover);
+}
+
+.b-modal-delete {
+    border: none;
+    border-radius: 20px;
+    background: var(--chrome-accent, var(--blue));
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    color: #ffffff;
+    padding: 8px 20px;
+    cursor: pointer;
+    transition: background 0.12s;
+}
+
+.b-modal-delete:hover:not(:disabled) {
+    background: var(--chrome-accent-hover, color-mix(in srgb, var(--chrome-accent, var(--blue)) 85%, black));
+}
+
+.b-modal-delete:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
 }
 
 @media (prefers-color-scheme: dark) {
     :root {
-        --blue: #4f75ff;
-        --blue-light: rgba(79, 117, 255, 0.15);
+        --blue: var(--chrome-content-active-fg, var(--chrome-accent, #4f75ff));
+        --blue-light: var(--chrome-content-active-bg, var(--chrome-accent-subtle, rgba(79, 117, 255, 0.15)));
         --text-primary: #f3f4f6;
         --text-secondary: #9ca3af;
         --border: #2d3039;
@@ -677,12 +777,16 @@ body {
     body {
         scrollbar-color: var(--chrome-scrollbar-thumb, #2d3039) var(--chrome-scrollbar-track, #121316);
     }
+
+    .b-btn-primary:hover {
+        background: var(--chrome-accent-hover, color-mix(in srgb, var(--chrome-accent, var(--blue)) 85%, white));
+    }
 }
 
 html[data-forced-appearance="dark"],
 body.dark {
-    --blue: #4f75ff;
-    --blue-light: rgba(79, 117, 255, 0.15);
+    --blue: var(--chrome-content-active-fg, var(--chrome-accent, #4f75ff));
+    --blue-light: var(--chrome-content-active-bg, var(--chrome-accent-subtle, rgba(79, 117, 255, 0.15)));
     --text-primary: #f3f4f6;
     --text-secondary: #9ca3af;
     --border: #2d3039;
@@ -696,8 +800,8 @@ body.dark {
 
 html[data-forced-appearance="light"],
 body.light {
-    --blue: #315cf5;
-    --blue-light: rgba(49, 92, 245, 0.1);
+    --blue: var(--chrome-content-active-fg, var(--chrome-accent, #315cf5));
+    --blue-light: var(--chrome-content-active-bg, var(--chrome-accent-subtle, rgba(49, 92, 245, 0.1)));
     --text-primary: #1e2025;
     --text-secondary: #5f6368;
     --border: #e2e8f0;

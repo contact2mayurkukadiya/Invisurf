@@ -820,10 +820,49 @@ function applyLightChromeSliderNavWellLayering(next, tabBarFrameHex) {
   next['--chrome-bookmark-bar'] = sheet;
 }
 
+const PRESET_ACCENTS = {
+  default: { light: '#7535e2', dark: '#a78bfa' },
+  slate: { light: '#475569', dark: '#94a3b8' },
+  ocean: { light: '#0284c7', dark: '#38bdf8' },
+  forest: { light: '#16a34a', dark: '#4ade80' },
+  sunset: { light: '#ea580c', dark: '#fb923c' },
+  violet: { light: '#7c3aed', dark: '#a78bfa' },
+  rose: { light: '#e11d48', dark: '#fb7185' },
+  amber: { light: '#d97706', dark: '#fbbf24' },
+  indigo: { light: '#4f46e5', dark: '#818cf8' },
+  mint: { light: '#0d9488', dark: '#2dd4bf' },
+};
+
+function resolveAccentColors(settings) {
+  const accentId = normalizeAccentTheme(settings?.accentTheme);
+  if (accentId === 'custom') {
+    const hex = normalizeAccentHex(settings?.accentCustomHex);
+    if (!hex) return PRESET_ACCENTS.default;
+    const rgb = hexToRgb(hex);
+    if (!rgb) return PRESET_ACCENTS.default;
+    const hsl = rgbToHsl(rgb.r, rgb.g, rgb.b);
+    const lightL = Math.min(hsl.l, 45);
+    const lightRgb = hslToRgb(hsl.h, Math.max(hsl.s, 40), lightL);
+    const lightHex = rgbToHex(lightRgb.r, lightRgb.g, lightRgb.b);
+
+    const darkL = Math.max(65, Math.min(80, hsl.l < 50 ? hsl.l + 35 : hsl.l));
+    const darkRgb = hslToRgb(hsl.h, Math.max(hsl.s, 35), darkL);
+    const darkHex = rgbToHex(darkRgb.r, darkRgb.g, darkRgb.b);
+    return { light: lightHex, dark: darkHex };
+  }
+  return PRESET_ACCENTS[accentId] || PRESET_ACCENTS.default;
+}
+
 /** Settings / internal pages: neutral white or black canvas aligned with downloads page reference. */
 function contentLayerTokens(effectiveDark, tokens = {}) {
   const accent = (typeof tokens['--chrome-accent'] === 'string' && tokens['--chrome-accent'])
-    || (effectiveDark ? '#4f75ff' : '#315cf5');
+    || (effectiveDark ? '#a78bfa' : '#7535e2');
+  const activeFg = (typeof tokens['--chrome-content-active-fg'] === 'string' && tokens['--chrome-content-active-fg'])
+    || accent;
+  const activeBg = (typeof tokens['--chrome-content-active-bg'] === 'string' && tokens['--chrome-content-active-bg'])
+    || (effectiveDark ? 'rgba(167, 139, 250, 0.18)' : 'rgba(117, 53, 226, 0.1)');
+  const accentHover = (typeof tokens['--chrome-accent-hover'] === 'string' && tokens['--chrome-accent-hover'])
+    || mixHex(accent, effectiveDark ? '#ffffff' : '#000000', 0.15);
 
   if (effectiveDark) {
     const themeBg = '#121316';
@@ -832,8 +871,6 @@ function contentLayerTokens(effectiveDark, tokens = {}) {
     const hover = 'rgba(255, 255, 255, 0.08)';
     const border = '#2d3039';
     const borderStrong = '#3c4043';
-    const activeBg = 'rgba(79, 117, 255, 0.15)';
-    const activeFg = '#4f75ff';
     const text = '#f3f4f6';
     const muted = '#9ca3af';
 
@@ -848,6 +885,8 @@ function contentLayerTokens(effectiveDark, tokens = {}) {
       '--chrome-content-active-bg': activeBg,
       '--chrome-content-active-fg': activeFg,
       '--chrome-content-active-rail': accent,
+      '--chrome-accent-hover': accentHover,
+      '--chrome-accent-subtle': activeBg,
       '--chrome-content-text': text,
       '--chrome-content-muted': muted,
       '--chrome-scrollbar-track': '#121316',
@@ -863,8 +902,6 @@ function contentLayerTokens(effectiveDark, tokens = {}) {
   const hover = 'rgba(0, 0, 0, 0.05)';
   const border = '#e2e8f0';
   const borderStrong = '#dadce0';
-  const activeBg = 'rgba(49, 92, 245, 0.1)';
-  const activeFg = '#315cf5';
   const text = '#1e2025';
   const muted = '#5f6368';
 
@@ -879,6 +916,8 @@ function contentLayerTokens(effectiveDark, tokens = {}) {
     '--chrome-content-active-bg': activeBg,
     '--chrome-content-active-fg': activeFg,
     '--chrome-content-active-rail': accent,
+    '--chrome-accent-hover': accentHover,
+    '--chrome-accent-subtle': activeBg,
     '--chrome-content-text': text,
     '--chrome-content-muted': muted,
     '--chrome-scrollbar-track': '#f7f8f9',
@@ -962,7 +1001,7 @@ function omniboxFocusTokens(urlWellHex, effectiveDark, accentHintHex) {
 /**
  * Toolbar icons follow strip luminance + appearance (see toolbarIconTokensFromAppearance).
  */
-function enrichUnifiedToolbarTokens(tokens, effectiveDark) {
+function enrichUnifiedToolbarTokens(tokens, effectiveDark, settings = null) {
   const next = { ...tokens };
 
   const navBg = next['--chrome-nav-bg'];
@@ -995,8 +1034,20 @@ function enrichUnifiedToolbarTokens(tokens, effectiveDark) {
   const focus = omniboxFocusTokens(well, effectiveDark, accentHint);
   Object.assign(next, focus);
 
-  const accentColor = focus['--chrome-omnibox-selection-bg'] || (effectiveDark ? '#8ab4f8' : '#1a73e8');
+  const accentPair = resolveAccentColors(settings);
+  const accentColor = effectiveDark ? accentPair.dark : accentPair.light;
+  const accentRgb = hexToRgb(accentColor);
+  const activeBg = accentRgb
+    ? `rgba(${accentRgb.r}, ${accentRgb.g}, ${accentRgb.b}, ${effectiveDark ? 0.18 : 0.1})`
+    : (effectiveDark ? 'rgba(167, 139, 250, 0.18)' : 'rgba(117, 53, 226, 0.1)');
+  const accentHover = mixHex(accentColor, effectiveDark ? '#ffffff' : '#000000', 0.15);
+
   next['--chrome-accent'] = accentColor;
+  next['--chrome-accent-hover'] = accentHover;
+  next['--chrome-accent-subtle'] = activeBg;
+  next['--chrome-content-active-fg'] = accentColor;
+  next['--chrome-content-active-bg'] = activeBg;
+  next['--chrome-content-active-rail'] = accentColor;
   next['--chrome-secondary-fg'] = effectiveDark ? 'rgba(255, 255, 255, 0.68)' : 'rgba(23, 27, 32, 0.65)';
 
   Object.assign(next, contentLayerTokens(effectiveDark, next));
@@ -1005,18 +1056,18 @@ function enrichUnifiedToolbarTokens(tokens, effectiveDark) {
 }
 
 function resolveAppliedTokens(settings, effectiveDark) {
-  const accent = normalizeAccentTheme(settings.accentTheme);
+  const accent = normalizeAccentTheme(settings?.accentTheme);
   const branch = effectiveDark ? 'dark' : 'light';
 
   if (accent === 'custom') {
-    const hex = normalizeAccentHex(settings.accentCustomHex);
+    const hex = normalizeAccentHex(settings?.accentCustomHex);
     const derived = hex ? deriveAccentPalettes(hex) : null;
     const maps = derived || { light: DEFAULT_LIGHT, dark: DEFAULT_DARK };
-    return enrichUnifiedToolbarTokens({ ...maps[branch] }, effectiveDark);
+    return enrichUnifiedToolbarTokens({ ...maps[branch] }, effectiveDark, settings);
   }
 
   const preset = getPresetPair(accent);
-  return enrichUnifiedToolbarTokens({ ...(branch === 'dark' ? preset.dark : preset.light) }, effectiveDark);
+  return enrichUnifiedToolbarTokens({ ...(branch === 'dark' ? preset.dark : preset.light) }, effectiveDark, settings);
 }
 
 function resolveEffectiveDarkFromSettings(settings, prefersDark) {

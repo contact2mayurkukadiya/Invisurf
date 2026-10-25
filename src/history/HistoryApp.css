@@ -24,8 +24,8 @@
 }
 
 :root {
-  --blue: #315cf5;
-  --blue-light: rgba(49, 92, 245, 0.1);
+  --blue: var(--chrome-content-active-fg, var(--chrome-accent, #315cf5));
+  --blue-light: var(--chrome-content-active-bg, var(--chrome-accent-subtle, rgba(49, 92, 245, 0.1)));
   --text-primary: #1e2025;
   --text-secondary: #5f6368;
   --border: #e2e8f0;
@@ -815,18 +815,18 @@ body {
 .h-modal-delete {
   border: none;
   border-radius: 20px;
-  background: var(--blue);
+  background: var(--chrome-accent, var(--blue));
   font-family: inherit;
   font-size: 14px;
   font-weight: 500;
-  color: var(--white);
+  color: #ffffff;
   padding: 8px 20px;
   cursor: pointer;
   transition: background 0.12s;
 }
 
 .h-modal-delete:hover {
-  background: #1557b0;
+  background: var(--chrome-accent-hover, color-mix(in srgb, var(--chrome-accent, var(--blue)) 85%, black));
 }
 
 .h-modal-delete:disabled {
@@ -842,8 +842,8 @@ body {
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --blue: #4f75ff;
-    --blue-light: rgba(79, 117, 255, 0.15);
+    --blue: var(--chrome-content-active-fg, var(--chrome-accent, #4f75ff));
+    --blue-light: var(--chrome-content-active-bg, var(--chrome-accent-subtle, rgba(79, 117, 255, 0.15)));
     --text-primary: #f3f4f6;
     --text-secondary: #9ca3af;
     --border: #2d3039;
@@ -860,7 +860,7 @@ body {
   }
 
   .h-modal-delete:hover {
-    background: #3b63f6;
+    background: var(--chrome-accent-hover, color-mix(in srgb, var(--chrome-accent, var(--blue)) 85%, white));
     color: #ffffff;
   }
 
@@ -871,8 +871,8 @@ body {
 
 html[data-forced-appearance="dark"],
 body.dark {
-  --blue: #4f75ff;
-  --blue-light: rgba(79, 117, 255, 0.15);
+  --blue: var(--chrome-content-active-fg, var(--chrome-accent, #4f75ff));
+  --blue-light: var(--chrome-content-active-bg, var(--chrome-accent-subtle, rgba(79, 117, 255, 0.15)));
   --text-primary: #f3f4f6;
   --text-secondary: #9ca3af;
   --border: #2d3039;
@@ -886,8 +886,8 @@ body.dark {
 
 html[data-forced-appearance="light"],
 body.light {
-  --blue: #315cf5;
-  --blue-light: rgba(49, 92, 245, 0.1);
+  --blue: var(--chrome-content-active-fg, var(--chrome-accent, #315cf5));
+  --blue-light: var(--chrome-content-active-bg, var(--chrome-accent-subtle, rgba(49, 92, 245, 0.1)));
   --text-primary: #1e2025;
   --text-secondary: #5f6368;
   --border: #e2e8f0;

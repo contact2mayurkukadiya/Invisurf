@@ -8,9 +8,9 @@
   --dl-text-secondary: #5f6368;
   --dl-text-muted: #80868b;
   --dl-border: #e2e8f0;
-  --dl-accent: #315cf5;
-  --dl-accent-hover: #1e4ad6;
-  --dl-accent-subtle: rgba(49, 92, 245, 0.1);
+  --dl-accent: var(--chrome-content-active-fg, var(--chrome-accent, #315cf5));
+  --dl-accent-hover: var(--chrome-accent-hover, color-mix(in srgb, var(--chrome-accent, #315cf5) 85%, black));
+  --dl-accent-subtle: var(--chrome-content-active-bg, var(--chrome-accent-subtle, rgba(49, 92, 245, 0.1)));
   --dl-warning: #f59e0b;
   --dl-btn-hover: rgba(0, 0, 0, 0.05);
 }
@@ -24,9 +24,9 @@
     --dl-text-secondary: #9ca3af;
     --dl-text-muted: #6b7280;
     --dl-border: #2d3039;
-    --dl-accent: #4f75ff;
-    --dl-accent-hover: #3b63f6;
-    --dl-accent-subtle: rgba(79, 117, 255, 0.15);
+    --dl-accent: var(--chrome-content-active-fg, var(--chrome-accent, #4f75ff));
+    --dl-accent-hover: var(--chrome-accent-hover, color-mix(in srgb, var(--chrome-accent, #4f75ff) 85%, white));
+    --dl-accent-subtle: var(--chrome-content-active-bg, var(--chrome-accent-subtle, rgba(79, 117, 255, 0.15)));
     --dl-warning: #fbbf24;
     --dl-btn-hover: rgba(255, 255, 255, 0.08);
   }
@@ -41,9 +41,9 @@ body.dark {
   --dl-text-secondary: #9ca3af;
   --dl-text-muted: #6b7280;
   --dl-border: #2d3039;
-  --dl-accent: #4f75ff;
-  --dl-accent-hover: #3b63f6;
-  --dl-accent-subtle: rgba(79, 117, 255, 0.15);
+  --dl-accent: var(--chrome-content-active-fg, var(--chrome-accent, #4f75ff));
+  --dl-accent-hover: var(--chrome-accent-hover, color-mix(in srgb, var(--chrome-accent, #4f75ff) 85%, white));
+  --dl-accent-subtle: var(--chrome-content-active-bg, var(--chrome-accent-subtle, rgba(79, 117, 255, 0.15)));
   --dl-warning: #fbbf24;
   --dl-btn-hover: rgba(255, 255, 255, 0.08);
 }
@@ -57,9 +57,9 @@ body.light {
   --dl-text-secondary: #5f6368;
   --dl-text-muted: #80868b;
   --dl-border: #e2e8f0;
-  --dl-accent: #315cf5;
-  --dl-accent-hover: #1e4ad6;
-  --dl-accent-subtle: rgba(49, 92, 245, 0.1);
+  --dl-accent: var(--chrome-content-active-fg, var(--chrome-accent, #315cf5));
+  --dl-accent-hover: var(--chrome-accent-hover, color-mix(in srgb, var(--chrome-accent, #315cf5) 85%, black));
+  --dl-accent-subtle: var(--chrome-content-active-bg, var(--chrome-accent-subtle, rgba(49, 92, 245, 0.1)));
   --dl-warning: #f59e0b;
   --dl-btn-hover: rgba(0, 0, 0, 0.05);
 }

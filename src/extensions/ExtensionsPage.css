@@ -9,9 +9,9 @@
   --ext-text-primary: #1e2025;
   --ext-text-secondary: #5f6368;
   --ext-text-muted: #80868b;
-  --ext-accent: #315cf5;
-  --ext-accent-hover: #1e4ad6;
-  --ext-accent-subtle: rgba(49, 92, 245, 0.1);
+  --ext-accent: var(--chrome-content-active-fg, var(--chrome-accent, #315cf5));
+  --ext-accent-hover: var(--chrome-accent-hover, color-mix(in srgb, var(--chrome-accent, #315cf5) 85%, black));
+  --ext-accent-subtle: var(--chrome-content-active-bg, var(--chrome-accent-subtle, rgba(49, 92, 245, 0.1)));
   --ext-btn-hover: rgba(0, 0, 0, 0.05);
 }
 
@@ -25,9 +25,9 @@
     --ext-text-primary: #f3f4f6;
     --ext-text-secondary: #9ca3af;
     --ext-text-muted: #6b7280;
-    --ext-accent: #4f75ff;
-    --ext-accent-hover: #3b63f6;
-    --ext-accent-subtle: rgba(79, 117, 255, 0.15);
+    --ext-accent: var(--chrome-content-active-fg, var(--chrome-accent, #4f75ff));
+    --ext-accent-hover: var(--chrome-accent-hover, color-mix(in srgb, var(--chrome-accent, #4f75ff) 85%, white));
+    --ext-accent-subtle: var(--chrome-content-active-bg, var(--chrome-accent-subtle, rgba(79, 117, 255, 0.15)));
     --ext-btn-hover: rgba(255, 255, 255, 0.08);
   }
 }
@@ -42,9 +42,9 @@ body.dark {
   --ext-text-primary: #f3f4f6;
   --ext-text-secondary: #9ca3af;
   --ext-text-muted: #6b7280;
-  --ext-accent: #4f75ff;
-  --ext-accent-hover: #3b63f6;
-  --ext-accent-subtle: rgba(79, 117, 255, 0.15);
+  --ext-accent: var(--chrome-content-active-fg, var(--chrome-accent, #4f75ff));
+  --ext-accent-hover: var(--chrome-accent-hover, color-mix(in srgb, var(--chrome-accent, #4f75ff) 85%, white));
+  --ext-accent-subtle: var(--chrome-content-active-bg, var(--chrome-accent-subtle, rgba(79, 117, 255, 0.15)));
   --ext-btn-hover: rgba(255, 255, 255, 0.08);
 }
 
@@ -58,9 +58,9 @@ body.light {
   --ext-text-primary: #1e2025;
   --ext-text-secondary: #5f6368;
   --ext-text-muted: #80868b;
-  --ext-accent: #315cf5;
-  --ext-accent-hover: #1e4ad6;
-  --ext-accent-subtle: rgba(49, 92, 245, 0.1);
+  --ext-accent: var(--chrome-content-active-fg, var(--chrome-accent, #315cf5));
+  --ext-accent-hover: var(--chrome-accent-hover, color-mix(in srgb, var(--chrome-accent, #315cf5) 85%, black));
+  --ext-accent-subtle: var(--chrome-content-active-bg, var(--chrome-accent-subtle, rgba(49, 92, 245, 0.1)));
   --ext-btn-hover: rgba(0, 0, 0, 0.05);
 }
 

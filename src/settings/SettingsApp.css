@@ -48,10 +48,10 @@ body {
   --settings-danger-fg: #a50e0e;
   --settings-chip-bg: #fff;
   --settings-chip-fg: #3c4043;
-  --settings-chip-selected-bg: #e8f0fe;
-  --settings-chip-selected-fg: #174ea6;
-  --settings-crash-row-hover: #eef3fd;
-  --settings-crash-row-active: #e8f0fe;
+  --settings-chip-selected-bg: var(--chrome-content-active-bg, rgba(49, 92, 245, 0.1));
+  --settings-chip-selected-fg: var(--chrome-content-active-fg, var(--chrome-accent, #174ea6));
+  --settings-crash-row-hover: var(--chrome-content-hover, #f1f3f4);
+  --settings-crash-row-active: var(--chrome-content-active-bg, rgba(49, 92, 245, 0.1));
   --settings-crash-popover-bg: #fff;
   --settings-code-bg: #f8f9fa;
   --settings-code-fg: #202124;
@@ -230,7 +230,7 @@ body {
 .relaunch-btn {
   flex-shrink: 0;
   padding: 7px 20px;
-  background: #1a73e8;
+  background: var(--chrome-accent, #1a73e8);
   color: #fff;
   border: none;
   border-radius: 6px;
@@ -242,11 +242,11 @@ body {
 }
 
 .relaunch-btn:hover {
-  background: #1557b0;
+  background: var(--chrome-accent-hover, color-mix(in srgb, var(--chrome-accent, #1a73e8) 85%, black));
 }
 
 .relaunch-btn:active {
-  background: #0d47a1;
+  background: var(--chrome-accent-hover, color-mix(in srgb, var(--chrome-accent, #1a73e8) 75%, black));
 }
 
 /* ── Radio rows ─────────────────────────────────────────────────────────── */
@@ -270,11 +270,11 @@ body {
 }
 
 .radio-row--checked {
-  background: var(--settings-active-bg, #e8f0fe);
+  background: var(--settings-active-bg, var(--chrome-content-active-bg, #e8f0fe));
 }
 
 .radio-row--checked:hover {
-  background: var(--settings-hover-bg, #dce8fd);
+  background: var(--settings-hover-bg, var(--chrome-content-hover, #dce8fd));
 }
 
 .radio-input {
@@ -320,7 +320,7 @@ body {
 
 .diag-btn {
   padding: 7px 16px;
-  background: #1a73e8;
+  background: var(--chrome-accent, #1a73e8);
   color: #fff;
   border: none;
   border-radius: 6px;
@@ -330,7 +330,7 @@ body {
 }
 
 .diag-btn:hover:not(:disabled) {
-  background: #1557b0;
+  background: var(--chrome-accent-hover, color-mix(in srgb, var(--chrome-accent, #1a73e8) 85%, black));
 }
 
 .diag-btn:disabled {
@@ -340,7 +340,7 @@ body {
 
 .diag-btn--secondary {
   background: #fff;
-  color: #1a73e8;
+  color: var(--chrome-content-active-fg, var(--chrome-accent, #1a73e8));
   border: 1px solid #dadce0;
 }
 
@@ -387,11 +387,11 @@ body {
 
 .diag-copy-icon-btn:hover {
   background: #f1f3f4;
-  color: #1a73e8;
+  color: var(--chrome-content-active-fg, var(--chrome-accent, #1a73e8));
 }
 
 .diag-copy-icon-btn:focus-visible {
-  outline: 2px solid #1a73e8;
+  outline: 2px solid var(--chrome-accent, #1a73e8);
   outline-offset: 1px;
 }
 
@@ -523,7 +523,7 @@ body {
 
 .crash-log-file-row--active {
   background: var(--settings-crash-row-active);
-  box-shadow: inset 3px 0 0 #1a73e8;
+  box-shadow: inset 3px 0 0 var(--chrome-content-active-rail, var(--chrome-accent, #1a73e8));
 }
 
 .crash-log-file {
@@ -570,7 +570,7 @@ body {
 }
 
 .crash-log-menu-btn:hover {
-  color: #1a73e8;
+  color: var(--chrome-content-active-fg, var(--chrome-accent, #1a73e8));
 }
 
 .crash-log-popover {
@@ -729,7 +729,7 @@ body {
 }
 
 .clear-logs-chip--selected {
-  border-color: #1a73e8;
+  border-color: var(--chrome-accent, #1a73e8);
   background: var(--settings-chip-selected-bg);
   color: var(--settings-chip-selected-fg);
 }
@@ -857,12 +857,12 @@ body {
 }
 
 .accent-swatch:hover {
-  border-color: rgba(26, 115, 232, 0.35);
+  border-color: var(--chrome-content-active-bg, rgba(26, 115, 232, 0.35));
 }
 
 .accent-swatch--selected {
-  border-color: #1a73e8;
-  box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.22);
+  border-color: var(--chrome-accent, #1a73e8);
+  box-shadow: 0 0 0 2px var(--chrome-content-active-bg, rgba(26, 115, 232, 0.22));
 }
 
 .accent-swatch__preview {
@@ -891,7 +891,7 @@ body {
   top: 4px;
   right: 4px;
   font-size: 10px;
-  color: #1a73e8;
+  color: var(--chrome-content-active-fg, var(--chrome-accent, #1a73e8));
   font-weight: 700;
   z-index: 2;
 }
@@ -901,7 +901,7 @@ body {
 }
 
 .accent-swatch--custom:hover {
-  border-color: rgba(26, 115, 232, 0.35);
+  border-color: var(--chrome-content-active-bg, rgba(26, 115, 232, 0.35));
 }
 
 .accent-swatch__custom-hit {
@@ -968,8 +968,8 @@ body {
 }
 
 .settings-theme-select:focus-visible {
-  border-color: #1a73e8;
-  box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.25);
+  border-color: var(--chrome-accent, #1a73e8);
+  box-shadow: 0 0 0 3px var(--chrome-content-active-bg, rgba(26, 115, 232, 0.25));
 }
 
 /* ── Dark appearance (effective scheme from Electron `nativeTheme`) ─────────── */
@@ -988,10 +988,10 @@ body {
     --settings-danger-fg: #f28b82;
     --settings-chip-bg: var(--chrome-content-surface, #18191d);
     --settings-chip-fg: #f3f4f6;
-    --settings-chip-selected-bg: rgba(79, 117, 255, 0.15);
-    --settings-chip-selected-fg: #4f75ff;
+    --settings-chip-selected-bg: var(--chrome-content-active-bg, rgba(79, 117, 255, 0.15));
+    --settings-chip-selected-fg: var(--chrome-content-active-fg, var(--chrome-accent, #4f75ff));
     --settings-crash-row-hover: rgba(255, 255, 255, 0.06);
-    --settings-crash-row-active: rgba(79, 117, 255, 0.14);
+    --settings-crash-row-active: var(--chrome-content-active-bg, rgba(79, 117, 255, 0.14));
     --settings-crash-popover-bg: var(--chrome-content-surface, #18191d);
     --settings-code-bg: #121316;
     --settings-code-fg: #f3f4f6;
@@ -1015,7 +1015,7 @@ body {
   }
 
   .settings-section__title {
-    color: #4f75ff;
+    color: var(--chrome-content-active-fg, var(--chrome-accent, #4f75ff));
   }
 
   .settings-card {
@@ -1073,7 +1073,7 @@ body {
   }
 
   .toggle-switch--on {
-    background: #8ab4f8;
+    background: var(--chrome-accent, #8ab4f8);
   }
 
   .toggle-switch::after {
@@ -1090,16 +1090,16 @@ body {
   }
 
   .relaunch-btn {
-    background: #8ab4f8;
+    background: var(--chrome-accent, #8ab4f8);
     color: #202124;
   }
 
   .relaunch-btn:hover {
-    background: #aecbfa;
+    background: var(--chrome-accent-hover, #aecbfa);
   }
 
   .relaunch-btn:active {
-    background: #8ab4f8;
+    background: var(--chrome-accent, #8ab4f8);
   }
 
   .diag-panel {
@@ -1107,17 +1107,17 @@ body {
   }
 
   .diag-btn {
-    background: #8ab4f8;
+    background: var(--chrome-accent, #8ab4f8);
     color: #202124;
   }
 
   .diag-btn:hover:not(:disabled) {
-    background: #aecbfa;
+    background: var(--chrome-accent-hover, #aecbfa);
   }
 
   .diag-btn--secondary {
     background: #202124;
-    color: #8ab4f8;
+    color: var(--chrome-content-active-fg, var(--chrome-accent, #8ab4f8));
     border-color: #5f6368;
   }
 
@@ -1139,15 +1139,15 @@ body {
 
   .diag-copy-icon-btn:hover {
     background: #3c4043;
-    color: #8ab4f8;
+    color: var(--chrome-content-active-fg, var(--chrome-accent, #8ab4f8));
   }
 
   .diag-copy-icon-btn:focus-visible {
-    outline-color: #8ab4f8;
+    outline-color: var(--chrome-accent, #8ab4f8);
   }
 
   .radio-input {
-    accent-color: #8ab4f8;
+    accent-color: var(--chrome-accent, #8ab4f8);
   }
 
   .settings-theme-select {
@@ -1162,8 +1162,8 @@ body {
   }
 
   .settings-theme-select:focus-visible {
-    border-color: #8ab4f8;
-    box-shadow: 0 0 0 3px rgba(138, 180, 248, 0.3);
+    border-color: var(--chrome-accent, #8ab4f8);
+    box-shadow: 0 0 0 3px var(--chrome-content-active-bg, rgba(138, 180, 248, 0.3));
   }
 
   .appearance-mode {
@@ -1270,7 +1270,7 @@ body.settings-stealth-ui .settings-header__title {
 }
 
 body.settings-stealth-ui .settings-section__title {
-  color: #8ab4f8;
+  color: var(--chrome-content-active-fg, var(--chrome-accent, #8ab4f8));
 }
 
 body.settings-stealth-ui .settings-card {
@@ -1308,11 +1308,11 @@ body.settings-stealth-ui .radio-row:hover {
 }
 
 body.settings-stealth-ui .radio-row--checked {
-  background: rgba(138, 180, 248, 0.12);
+  background: var(--chrome-content-active-bg, rgba(138, 180, 248, 0.12));
 }
 
 body.settings-stealth-ui .radio-row--checked:hover {
-  background: rgba(138, 180, 248, 0.16);
+  background: color-mix(in srgb, var(--chrome-accent, #8ab4f8) 16%, transparent);
 }
 
 body.settings-stealth-ui .radio-row__label {
@@ -1328,7 +1328,7 @@ body.settings-stealth-ui .toggle-switch {
 }
 
 body.settings-stealth-ui .toggle-switch--on {
-  background: #8ab4f8;
+  background: var(--chrome-accent, #8ab4f8);
 }
 
 body.settings-stealth-ui .toggle-switch::after {
@@ -1345,16 +1345,16 @@ body.settings-stealth-ui .relaunch-banner__text {
 }
 
 body.settings-stealth-ui .relaunch-btn {
-  background: #8ab4f8;
+  background: var(--chrome-accent, #8ab4f8);
   color: #202124;
 }
 
 body.settings-stealth-ui .relaunch-btn:hover {
-  background: #aecbfa;
+  background: var(--chrome-accent-hover, color-mix(in srgb, var(--chrome-accent, #8ab4f8) 85%, white));
 }
 
 body.settings-stealth-ui .relaunch-btn:active {
-  background: #8ab4f8;
+  background: var(--chrome-accent, #8ab4f8);
 }
 
 body.settings-stealth-ui .diag-panel {
@@ -1362,17 +1362,17 @@ body.settings-stealth-ui .diag-panel {
 }
 
 body.settings-stealth-ui .diag-btn {
-  background: #8ab4f8;
+  background: var(--chrome-accent, #8ab4f8);
   color: #202124;
 }
 
 body.settings-stealth-ui .diag-btn:hover:not(:disabled) {
-  background: #aecbfa;
+  background: var(--chrome-accent-hover, color-mix(in srgb, var(--chrome-accent, #8ab4f8) 85%, white));
 }
 
 body.settings-stealth-ui .diag-btn--secondary {
   background: #202124;
-  color: #8ab4f8;
+  color: var(--chrome-content-active-fg, var(--chrome-accent, #8ab4f8));
   border-color: #5f6368;
 }
 
@@ -1394,15 +1394,15 @@ body.settings-stealth-ui .diag-copy-icon-btn {
 
 body.settings-stealth-ui .diag-copy-icon-btn:hover {
   background: #3c4043;
-  color: #8ab4f8;
+  color: var(--chrome-content-active-fg, var(--chrome-accent, #8ab4f8));
 }
 
 body.settings-stealth-ui .diag-copy-icon-btn:focus-visible {
-  outline-color: #8ab4f8;
+  outline-color: var(--chrome-accent, #8ab4f8);
 }
 
 body.settings-stealth-ui .radio-input {
-  accent-color: #8ab4f8;
+  accent-color: var(--chrome-accent, #8ab4f8);
 }
 
 body.settings-stealth-ui .settings-theme-select {
@@ -1417,8 +1417,8 @@ body.settings-stealth-ui .settings-theme-select:hover {
 }
 
 body.settings-stealth-ui .settings-theme-select:focus-visible {
-  border-color: #8ab4f8;
-  box-shadow: 0 0 0 3px rgba(138, 180, 248, 0.3);
+  border-color: var(--chrome-accent, #8ab4f8);
+  box-shadow: 0 0 0 3px var(--chrome-content-active-bg, rgba(138, 180, 248, 0.3));
 }
 
 /* ── Unified settings shell ─────────────────────────────────────────────── */
@@ -1437,9 +1437,9 @@ body.settings-stealth-ui {
   --settings-hover-bg: var(--chrome-content-hover, #eee9eb);
   --settings-subtle-bg: var(--chrome-content-subtle, #f8f6f7);
   --settings-active-bg: var(--chrome-content-active-bg, #dfe7ff);
-  --settings-active-fg: var(--chrome-content-active-fg, #174ea6);
+  --settings-active-fg: var(--chrome-content-active-fg, var(--chrome-accent, #174ea6));
   --settings-active-rail: var(--chrome-content-active-rail, var(--chrome-accent, #5f84ff));
-  --settings-focus-ring: rgba(26, 115, 232, 0.28);
+  --settings-focus-ring: var(--chrome-content-active-bg, rgba(26, 115, 232, 0.28));
   --settings-code-bg: var(--chrome-content-subtle, #f8f9fa);
   --settings-code-fg: var(--chrome-content-text, var(--chrome-fg, #202124));
 }
@@ -1456,9 +1456,9 @@ body.settings-stealth-ui {
     --settings-hover-bg: var(--chrome-content-hover, rgba(255, 255, 255, 0.08));
     --settings-subtle-bg: var(--chrome-content-subtle, #202228);
     --settings-active-bg: var(--chrome-content-active-bg, rgba(79, 117, 255, 0.15));
-    --settings-active-fg: var(--chrome-content-active-fg, #4f75ff);
-    --settings-active-rail: var(--chrome-content-active-rail, #4f75ff);
-    --settings-focus-ring: rgba(79, 117, 255, 0.34);
+    --settings-active-fg: var(--chrome-content-active-fg, var(--chrome-accent, #4f75ff));
+    --settings-active-rail: var(--chrome-content-active-rail, var(--chrome-accent, #4f75ff));
+    --settings-focus-ring: var(--chrome-content-active-bg, rgba(79, 117, 255, 0.34));
     --settings-code-bg: var(--chrome-content-subtle, #121316);
     --settings-code-fg: var(--chrome-content-text, #f3f4f6);
   }
@@ -1477,8 +1477,8 @@ html[data-forced-appearance="light"] body.settings-stealth-ui {
   --settings-hover-bg: var(--chrome-content-hover, rgba(0, 0, 0, 0.05));
   --settings-subtle-bg: var(--chrome-content-subtle, #f0f2f5);
   --settings-active-bg: var(--chrome-content-active-bg, rgba(49, 92, 245, 0.1));
-  --settings-active-fg: var(--chrome-content-active-fg, #315cf5);
-  --settings-active-rail: var(--chrome-content-active-rail, #315cf5);
+  --settings-active-fg: var(--chrome-content-active-fg, var(--chrome-accent, #315cf5));
+  --settings-active-rail: var(--chrome-content-active-rail, var(--chrome-accent, #315cf5));
   --settings-code-bg: var(--chrome-content-subtle, #f0f2f5);
   --settings-code-fg: var(--chrome-content-text, #1e2025);
 }
@@ -1496,8 +1496,8 @@ html[data-forced-appearance="dark"] body.settings-stealth-ui {
   --settings-hover-bg: var(--chrome-content-hover, rgba(255, 255, 255, 0.08));
   --settings-subtle-bg: var(--chrome-content-subtle, #202228);
   --settings-active-bg: var(--chrome-content-active-bg, rgba(79, 117, 255, 0.15));
-  --settings-active-fg: var(--chrome-content-active-fg, #4f75ff);
-  --settings-active-rail: var(--chrome-content-active-rail, #4f75ff);
+  --settings-active-fg: var(--chrome-content-active-fg, var(--chrome-accent, #4f75ff));
+  --settings-active-rail: var(--chrome-content-active-rail, var(--chrome-accent, #4f75ff));
   --settings-code-bg: var(--chrome-content-subtle, #121316);
   --settings-code-fg: var(--chrome-content-text, #f3f4f6);
 }
@@ -2110,7 +2110,7 @@ body.settings-stealth-ui .text-highlight {
 .cookie-exception-site-icon {
   width: 16px;
   height: 16px;
-  color: #1a73e8;
+  color: var(--chrome-content-active-fg, var(--chrome-accent, #1a73e8));
 }
 
 .cookie-exception-status {

@@ -718,6 +718,23 @@ function AppShell() {
     init();
   }, [dispatch, createTab, createTabWithUrl]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    if (!window.electronAPI?.onBookmarksUpdated) return undefined;
+    const unsub = window.electronAPI.onBookmarksUpdated(async () => {
+      try {
+        const updated = await window.electronAPI.bookmarksGet();
+        if (updated) {
+          dispatch(setBookmarks(updated));
+        }
+      } catch (err) {
+        console.error('[App] Failed to refresh bookmarks after update:', err);
+      }
+    });
+    return () => {
+      if (typeof unsub === 'function') unsub();
+    };
+  }, [dispatch]);
+
   tabStripMenuHandlersRef.current = {
     [TAB_STRIP_MENU.NEW_TAB_RIGHT]: newTabToTheRightOf,
     [TAB_STRIP_MENU.MOVE_NEW_WINDOW]: moveTabToNewWindowFor,

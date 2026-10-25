@@ -128,4 +128,36 @@ describe('BookmarkService', () => {
     // Empty list returns false
     assert.equal(bookmarkService.deleteBookmarks(profileId, []), false);
   });
+
+  test('broadcastBookmarks notifies both window webContents and open tab views', () => {
+    const State = require('../../../main/state');
+    const sentMessages = [];
+    const mockWindow = {
+      webContents: {
+        isDestroyed: () => false,
+        send: (channel) => sentMessages.push({ target: 'window', channel }),
+      },
+    };
+    const mockTab = {
+      webContents: {
+        isDestroyed: () => false,
+        send: (channel) => sentMessages.push({ target: 'tab', channel }),
+      },
+    };
+
+    State.windowContextsById.set(999, {
+      profileId,
+      window: mockWindow,
+      tabs: { 'tab-1': mockTab },
+    });
+
+    try {
+      bookmarkService.broadcastBookmarks(profileId);
+      assert.equal(sentMessages.length, 2);
+      assert.deepEqual(sentMessages[0], { target: 'window', channel: 'bookmarks:updated' });
+      assert.deepEqual(sentMessages[1], { target: 'tab', channel: 'bookmarks:updated' });
+    } finally {
+      State.windowContextsById.delete(999);
+    }
+  });
 });

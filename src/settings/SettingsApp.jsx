@@ -1431,9 +1431,9 @@ export default function SettingsApp() {
       case 'allow-this-session':
         return {
           label: 'Allowed once',
-          bg: 'rgba(26, 115, 232, 0.15)',
-          color: '#1a73e8',
-          border: 'rgba(26, 115, 232, 0.3)',
+          bg: 'var(--chrome-content-active-bg, rgba(26, 115, 232, 0.15))',
+          color: 'var(--chrome-content-active-fg, var(--chrome-accent, #1a73e8))',
+          border: 'color-mix(in srgb, var(--chrome-accent, #1a73e8) 30%, transparent)',
         };
       case 'deny':
         return {

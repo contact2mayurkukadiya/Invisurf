@@ -44,7 +44,15 @@ function broadcastBookmarks(profileId) {
     for (const context of State.windowContextsById.values()) {
         if (context.profileId !== profileId) continue;
         if (!context.window.webContents.isDestroyed()) {
-            context.window.webContents.send('bookmarks:updated');
+            try {
+                context.window.webContents.send('bookmarks:updated');
+            } catch (_) { }
+        }
+        for (const view of Object.values(context.tabs || {})) {
+            if (!view || view.webContents.isDestroyed()) continue;
+            try {
+                view.webContents.send('bookmarks:updated');
+            } catch (_) { }
         }
     }
 }

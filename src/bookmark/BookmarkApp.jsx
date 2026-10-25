@@ -6,6 +6,7 @@ import Sidebar from './components/Sidebar';
 import BookmarkListView from './components/BookmarkListView';
 import ContextMenu from './components/ContextMenu';
 import EditBookmarkModal from './components/EditBookmarkModal';
+import DeleteBookmarkModal from './components/DeleteBookmarkModal';
 import { KEYBOARD } from '../constants/conditionStrings.js';
 import AssetMaskIcon from '../components/AssetMaskIcon.jsx';
 import InternalPageHeader from '../components/InternalPageHeader.jsx';
@@ -39,6 +40,7 @@ export default function BookmarkApp() {
     const [rawTree, setRawTree] = useState(null);
     const [clipboardItem, setClipboardItem] = useState(null); // { item, isCut }
     const [editingEntry, setEditingEntry] = useState(null);
+    const [deleteTarget, setDeleteTarget] = useState(null); // { type, entry?, ids, count?, isFolder? }
 
     // ── Folder navigation ────────────────────────────────────────────────────
     const [currentFolderId, setCurrentFolderId] = useState('1');
@@ -281,25 +283,43 @@ export default function BookmarkApp() {
 
     const closeContextMenu = useCallback(() => setContextMenu(null), []);
 
-    const removeEntry = useCallback(async (entry) => {
+    const requestDeleteEntry = useCallback((entry) => {
         if (!entry?.id) return;
-        const ok = await window.electronAPI.bookmarkDelete([entry.id]);
-        if (!ok) return;
-        setEntries((prev) => prev.filter((e) => e.id !== entry.id));
-        setSelected((prev) => { const n = new Set(prev); n.delete(entry.id); return n; });
-        loadRawTree();
-    }, [loadRawTree]);
+        setDeleteTarget({
+            type: 'single',
+            entry,
+            ids: [entry.id],
+            title: entry.title,
+            url: entry.url,
+            isFolder: !entry.url,
+        });
+    }, []);
 
-    const deleteSelected = useCallback(async () => {
+    const requestDeleteSelected = useCallback(() => {
         if (selected.size === 0) return;
         const ids = Array.from(selected);
+        setDeleteTarget({
+            type: 'multiple',
+            ids,
+            count: ids.length,
+        });
+    }, [selected]);
+
+    const handleConfirmDelete = useCallback(async () => {
+        if (!deleteTarget?.ids?.length) return;
+        const ids = deleteTarget.ids;
         const ok = await window.electronAPI.bookmarkDelete(ids);
         if (!ok) return;
         const removeSet = new Set(ids);
         setEntries((prev) => prev.filter((e) => !removeSet.has(e.id)));
-        setSelected(new Set());
+        setSelected((prev) => {
+            const next = new Set(prev);
+            ids.forEach((id) => next.delete(id));
+            return next;
+        });
+        setDeleteTarget(null);
         loadRawTree();
-    }, [loadRawTree, selected]);
+    }, [deleteTarget, loadRawTree]);
 
     // ── Menu actions implementation ───────────────────────────────────────────
     const handleEdit = useCallback((entry) => {
@@ -420,7 +440,7 @@ export default function BookmarkApp() {
                         <span className="b-selection-count">
                             {selectedCount} {selectedCount === 1 ? 'item' : 'items'} selected
                         </span>
-                        <button className="b-selection-delete" onClick={deleteSelected}>
+                        <button className="b-selection-delete" onClick={requestDeleteSelected}>
                             Delete
                         </button>
                     </div>
@@ -473,7 +493,7 @@ export default function BookmarkApp() {
                     tree={rawTree}
                     hasClipboard={!!clipboardItem}
                     onEdit={handleEdit}
-                    onDelete={removeEntry}
+                    onDelete={requestDeleteEntry}
                     onCut={handleCut}
                     onCopy={handleCopy}
                     onPaste={handlePaste}
@@ -489,6 +509,14 @@ export default function BookmarkApp() {
                     entry={editingEntry}
                     onSave={handleSaveEdit}
                     onClose={() => setEditingEntry(null)}
+                />
+            )}
+
+            {deleteTarget && (
+                <DeleteBookmarkModal
+                    target={deleteTarget}
+                    onConfirm={handleConfirmDelete}
+                    onClose={() => setDeleteTarget(null)}
                 />
             )}
         </div>

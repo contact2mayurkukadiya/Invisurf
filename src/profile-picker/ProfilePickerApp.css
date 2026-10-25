@@ -257,7 +257,7 @@ body {
 }
 
 .pp-card:focus-visible {
-  outline: 2px solid #1a73e8;
+  outline: 2px solid var(--chrome-accent, #1a73e8);
   outline-offset: 2px;
 }
 
@@ -371,7 +371,7 @@ body {
   width: 100%;
   max-width: 100%;
   padding: 6px 8px;
-  border: 1px solid #1a73e8;
+  border: 1px solid var(--chrome-accent, #1a73e8);
   border-radius: 6px;
   font: inherit;
   font-size: 13px;
@@ -407,7 +407,7 @@ body {
 }
 
 .pp-card--add:hover {
-  border-color: #1a73e8;
+  border-color: var(--chrome-accent, #1a73e8);
   background: var(--pp-hover);
 }
 
@@ -418,8 +418,8 @@ body {
   width: 72px;
   height: 72px;
   border-radius: 50%;
-  background: #e8f0fe;
-  color: #1a73e8;
+  background: var(--chrome-content-active-bg, #e8f0fe);
+  color: var(--chrome-content-active-fg, var(--chrome-accent, #1a73e8));
   font-size: 36px;
   font-weight: 300;
   line-height: 1;
