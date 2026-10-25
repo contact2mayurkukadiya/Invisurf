@@ -9,6 +9,7 @@ import AssetMaskIcon from '../components/AssetMaskIcon.jsx';
 import { angleLeftSvg, angleRightSvg, bugReportSvg, checkSvg, cookieSvg, earthAmericasSvg, menuCopySvg, menuFindSvg, menuMonitorSvg , tabCloseSvg, trashSvg } from '../constants/appAssetUrls.js';
 import { SETTINGS_NAV_ITEMS, REPORT_NAV_ITEMS, STARTUP_OPTIONS, SEARCH_ENGINE_OPTIONS, APPEARANCE_MODE_SEGMENTS, LOG_CLEAR_RANGES, COOKIE_EXCEPTION_GROUPS, COOKIE_POLICY_OPTIONS, SHORTCUT_DEFINITIONS, DEFAULT_SHORTCUTS } from '../constants/settings.js';
 import { formatShortcutForDisplay, eventToShortcutString } from '../utils/shortcutUtils.js';
+import InternalPageHeader from '../components/InternalPageHeader.jsx';
 
 function validateCookiePattern(pattern) {
   const value = String(pattern || '').trim();
@@ -299,7 +300,14 @@ export default function SettingsApp() {
       typeof api?.isStealthWindow === 'function' ? api.isStealthWindow() : Promise.resolve(false),
     ]).then(([s, stealth]) => {
       if (cancelled) return;
-      setSettings(s);
+      const initialSettings = s || {
+        colorTheme: 'automatic',
+        accentTheme: 'default',
+        searchEngine: 'google',
+        startupBehavior: 'continue',
+        shortcuts: DEFAULT_SHORTCUTS,
+      };
+      setSettings(initialSettings);
       setIsStealthWindow(!!stealth);
       if (s && !stealth) {
         applyChromeThemeFromSettings(s);
@@ -1798,16 +1806,13 @@ export default function SettingsApp() {
 
   return (
     <div className={`settings-page${isStealthWindow ? ' settings-page--stealth' : ''}`}>
-      <header className="settings-header">
-        <h1 className="settings-header__title">InviSurf</h1>
-        <SettingsSearchField
-          value={settingsSearch}
-          onChange={setSettingsSearch}
-          placeholder="Search settings"
-          label="Search settings"
-          className="settings-header-search"
-        />
-      </header>
+      <InternalPageHeader
+        title="Settings"
+        searchTerm={settingsSearch}
+        onSearchChange={setSettingsSearch}
+        searchPlaceholder="Search settings"
+        className="settings-header"
+      />
 
       <div className="settings-shell">
         <aside className="settings-sidebar" aria-label="Settings sections">

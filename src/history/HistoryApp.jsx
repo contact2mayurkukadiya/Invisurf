@@ -8,8 +8,9 @@ import ByGroupView from './components/ByGroupView';
 import ContextMenu from './components/ContextMenu';
 import ClearDataModal from './components/ClearDataModal';
 import { KEYBOARD } from '../constants/conditionStrings.js';
-import { menuBurgerSvg, menuFindSvg, rectangleVerticalHistorySvg } from '../constants/appAssetUrls.js';
+import { menuBurgerSvg, rectangleVerticalHistorySvg } from '../constants/appAssetUrls.js';
 import AssetMaskIcon from '../components/AssetMaskIcon.jsx';
+import InternalPageHeader from '../components/InternalPageHeader.jsx';
 
 export const VIEW_BY_DATE = 'byDate';
 export const VIEW_BY_GROUP = 'byGroup';
@@ -208,29 +209,28 @@ export default function HistoryApp() {
   }, [fetchHistory, searchTerm]);
 
   return (
-    <div className="h-page">
-      <Sidebar
-        activeItem="chrome-history"
-        onDeleteBrowsingData={() => setShowClearModal(true)}
-        onRefresh={refreshHistory}
+    <div className="h-page-container">
+      <InternalPageHeader
+        title="History"
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+        searchPlaceholder="Search history"
+        showClearAll={entries.length > 0}
+        onClearAll={() => setShowClearModal(true)}
+        clearAllTitle="Clear browsing data"
+        clearAllLabel="Clear all"
+        className="h-header"
       />
 
-      <main className="h-main">
-        <div className="h-search-wrap">
-          <label className="h-search" htmlFor="h-search-input">
-            <AssetMaskIcon icon={menuFindSvg} size={18} className="h-search-icon" />
-            <input
-              id="h-search-input"
-              type="text"
-              autoComplete="off"
-              placeholder="Search history"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </label>
-        </div>
+      <div className="h-body">
+        <Sidebar
+          activeItem="chrome-history"
+          onDeleteBrowsingData={() => setShowClearModal(true)}
+          onRefresh={refreshHistory}
+        />
 
-        <div className="h-view-tabs" role="tablist">
+        <main className="h-main">
+          <div className="h-view-tabs" role="tablist">
           <button
             role="tab"
             aria-selected={viewMode === VIEW_BY_DATE}
@@ -286,6 +286,7 @@ export default function HistoryApp() {
           {isLoadingMore ? <div className="h-empty">Loading more...</div> : null}
         </div>
       </main>
+      </div>
 
       {contextMenu && (
         <ContextMenu

@@ -33,7 +33,7 @@ body {
   margin: 0;
   font-family: 'InviSurfUIFont', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   /* Page canvas: strict light (#f7f8f9) / dark (#121316) aligned with downloads reference */
-  background: var(--chrome-content-bg, #f7f8f9);
+  background: var(--chrome-content-bg, var(--settings-app-bg, #f7f8f9));
   color: var(--chrome-content-text, #1e2025);
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
@@ -1466,6 +1466,7 @@ body.settings-stealth-ui {
 
 html[data-forced-appearance="light"] body,
 html[data-forced-appearance="light"] body.settings-stealth-ui {
+  background: var(--chrome-content-bg, #f7f8f9) !important;
   --settings-app-bg: var(--chrome-content-bg, #f7f8f9);
   --settings-surface: var(--chrome-content-surface, #ffffff);
   --settings-sidebar-bg: var(--chrome-content-sidebar-bg, var(--chrome-content-bg, #ffffff));
@@ -1484,6 +1485,7 @@ html[data-forced-appearance="light"] body.settings-stealth-ui {
 
 html[data-forced-appearance="dark"] body,
 html[data-forced-appearance="dark"] body.settings-stealth-ui {
+  background: var(--chrome-content-bg, #121316) !important;
   --settings-app-bg: var(--chrome-content-bg, #121316);
   --settings-surface: var(--chrome-content-surface, #18191d);
   --settings-sidebar-bg: var(--chrome-content-sidebar-bg, var(--chrome-content-bg, #18191d));
@@ -1514,12 +1516,7 @@ body.settings-stealth-ui .settings-header {
   position: sticky;
   top: 0;
   z-index: 30;
-  height: 50px;
-  padding: 0;
-  display: grid;
-  grid-template-columns: 204px minmax(0, 1fr);
-  align-items: center;
-  gap: 16px;
+  height: 56px;
   background: var(--settings-app-bg);
   border-bottom: 1px solid var(--settings-border);
 }
@@ -1603,21 +1600,22 @@ body.settings-stealth-ui .settings-header__title {
 }
 
 .settings-shell {
-  height: calc(100vh - 50px);
+  height: calc(100vh - 56px);
   min-height: 0;
   display: grid;
-  grid-template-columns: 204px minmax(0, 1fr);
+  grid-template-columns: 256px minmax(0, 1fr);
   overflow: hidden;
 }
 
 .settings-sidebar {
   position: sticky;
-  top: 50px;
-  height: calc(100vh - 50px);
+  top: 56px;
+  height: calc(100vh - 56px);
   padding: 15px 0 24px;
   overflow-y: auto;
   background: var(--settings-sidebar-bg);
   border-right: 1px solid var(--settings-border);
+  box-sizing: border-box;
 }
 
 .settings-sidebar-heading {

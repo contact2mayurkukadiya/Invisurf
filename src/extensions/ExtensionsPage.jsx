@@ -3,6 +3,7 @@ import './ExtensionsPage.css';
 import { useChromeTheme } from '../hooks/useChromeTheme';
 import { useInvsurfDocumentFavicon } from '../hooks/useInvsurfLogoFavicon';
 import ExtensionErrorModal from './ExtensionErrorModal';
+import InternalPageHeader from '../components/InternalPageHeader.jsx';
 
 export default function ExtensionsPage() {
   useChromeTheme();
@@ -154,8 +155,12 @@ export default function ExtensionsPage() {
   return (
     <div className="extensions-page">
       {/* ── Top Header ────────────────────────────────────────── */}
-      <header className="extensions-header">
-        <div className="extensions-header__left">
+      <InternalPageHeader
+        title="Extensions"
+        searchTerm={searchQuery}
+        onSearchChange={setSearchQuery}
+        searchPlaceholder="Search extensions"
+        leftExtra={
           <button
             type="button"
             className="extensions-header__menu-btn"
@@ -169,51 +174,8 @@ export default function ExtensionsPage() {
               <line x1="3" y1="18" x2="21" y2="18" />
             </svg>
           </button>
-
-          <div className="extensions-header__title">
-            <span className="extensions-header__title-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M20.5 11H19V7a2 2 0 0 0-2-2h-4V3.5a2.5 2.5 0 0 0-5 0V5H4a2 2 0 0 0-2 2v3.8h1.5a2.5 2.5 0 0 1 0 5H2V20a2 2 0 0 0 2 2h3.8v-1.5a2.5 2.5 0 0 1 5 0V22H17a2 2 0 0 0 2-2v-4h1.5a2.5 2.5 0 0 0 0-5z" />
-              </svg>
-            </span>
-            <span>Extensions</span>
-          </div>
-        </div>
-
-        {/* Center Search Bar */}
-        <div className="extensions-header__search-container">
-          <div className="extensions-header__search-box">
-            <span className="extensions-header__search-icon">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="11" cy="11" r="8" />
-                <line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
-            </span>
-            <input
-              type="text"
-              className="extensions-header__search-input"
-              placeholder="Search extensions"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                className="extensions-header__search-clear"
-                onClick={() => setSearchQuery('')}
-                title="Clear search"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Right Developer Mode Toggle */}
-        <div className="extensions-header__right">
+        }
+        rightExtra={
           <label className="extensions-header__devmode">
             <span>Developer mode</span>
             <span className="chrome-switch">
@@ -225,8 +187,9 @@ export default function ExtensionsPage() {
               <span className="chrome-switch__slider" />
             </span>
           </label>
-        </div>
-      </header>
+        }
+        className="extensions-header"
+      />
 
       {/* ── Developer Mode Toolbar ────────────────────────────── */}
       {devMode && (

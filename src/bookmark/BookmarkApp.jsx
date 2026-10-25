@@ -7,8 +7,8 @@ import BookmarkListView from './components/BookmarkListView';
 import ContextMenu from './components/ContextMenu';
 import EditBookmarkModal from './components/EditBookmarkModal';
 import { KEYBOARD } from '../constants/conditionStrings.js';
-import { menuFindSvg } from '../constants/appAssetUrls.js';
 import AssetMaskIcon from '../components/AssetMaskIcon.jsx';
+import InternalPageHeader from '../components/InternalPageHeader.jsx';
 
 const PAGE_SIZE = 50;
 
@@ -377,32 +377,26 @@ export default function BookmarkApp() {
 
     // ── Render ────────────────────────────────────────────────────────────────
     return (
-        <div className="b-page">
-            <Sidebar
-                activeFolderId={currentFolderId}
-                expandedIds={expandedIds}
-                onToggleExpand={handleToggleExpand}
-                onSelectFolder={handleSidebarFolderSelect}
+        <div className="b-page-container">
+            <InternalPageHeader
+                title="Bookmarks"
+                searchTerm={searchTerm}
+                onSearchChange={setSearchTerm}
+                searchPlaceholder="Search bookmarks"
+                className="b-header"
             />
 
-            <main className="b-main">
-                <div className="b-container">
-                    {/* Search bar */}
-                    <div className="b-search-wrap">
-                        <label className="b-search" htmlFor="b-search-input">
-                            <AssetMaskIcon icon={menuFindSvg} size={18} className="b-search-icon" />
-                            <input
-                                id="b-search-input"
-                                type="text"
-                                autoComplete="off"
-                                placeholder="Search bookmarks"
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                            />
-                        </label>
-                    </div>
+            <div className="b-body">
+                <Sidebar
+                    activeFolderId={currentFolderId}
+                    expandedIds={expandedIds}
+                    onToggleExpand={handleToggleExpand}
+                    onSelectFolder={handleSidebarFolderSelect}
+                />
 
-                    {/* Breadcrumbs (hidden when searching) */}
+                <main className="b-main">
+                    <div className="b-container">
+                        {/* Breadcrumbs (hidden when searching) */}
                     {!searchTerm && (
                         <div className="b-breadcrumbs">
                             {folderPath.map((folder, idx) => (
@@ -468,6 +462,7 @@ export default function BookmarkApp() {
                     </div>
                 </div>
             </main>
+            </div>
 
             {contextMenu && (
                 <ContextMenu

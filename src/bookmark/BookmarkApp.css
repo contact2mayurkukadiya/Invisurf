@@ -74,9 +74,17 @@ body {
 }
 
 /* ── Page layout ────────────────────────────────────────────────────────────── */
-.b-page {
+.b-page,
+.b-page-container {
     display: flex;
+    flex-direction: column;
     min-height: 100vh;
+}
+
+.b-body {
+    display: flex;
+    flex: 1;
+    min-height: calc(100vh - 56px);
 }
 
 /* ── Sidebar ────────────────────────────────────────────────────────────────── */
@@ -89,22 +97,14 @@ body {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    position: sticky;
+    top: 56px;
+    height: calc(100vh - 56px);
+    box-sizing: border-box;
 }
 
 .b-sidebar-brand {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 18px 20px;
-    font-size: 22px;
-    font-weight: 400;
-    color: var(--text-primary);
-    text-decoration: none;
-    flex-shrink: 0;
-}
-
-.b-sidebar-brand svg {
-    flex-shrink: 0;
+    display: none;
 }
 
 .b-sidebar-nav {

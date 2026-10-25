@@ -3,6 +3,7 @@ import './DownloadsApp.css';
 import { useChromeTheme } from '../hooks/useChromeTheme';
 import { useInvsurfDocumentFavicon } from '../hooks/useInvsurfLogoFavicon';
 import { logoPurpleLightSvg } from '../constants/appAssetUrls.js';
+import InternalPageHeader from '../components/InternalPageHeader.jsx';
 
 function formatBytes(bytes) {
   const num = Number(bytes);
@@ -279,73 +280,17 @@ export default function DownloadsApp() {
   return (
     <div className="dl-page-container">
       {/* Top Header */}
-      <header className="dl-header">
-        <div className="dl-header-left">
-          <img
-            src={logoPurpleLightSvg}
-            width={26}
-            height={26}
-            alt="InviSurf"
-            className="dl-invisurf-logo"
-          />
-          <h1 className="dl-title">Downloads</h1>
-        </div>
-
-        <div className="dl-header-center">
-          <div className="dl-search-box">
-            <svg
-              className="dl-search-icon"
-              width="15"
-              height="15"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <circle cx="11" cy="11" r="8"></circle>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-            </svg>
-            <input
-              type="text"
-              className="dl-search-input"
-              placeholder="Search download history"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              aria-label="Search download history"
-            />
-            {searchTerm && (
-              <button
-                type="button"
-                className="dl-search-clear-btn"
-                onClick={() => setSearchTerm('')}
-                title="Clear search"
-                aria-label="Clear search"
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                  <line x1="18" y1="6" x2="6" y2="18"></line>
-                  <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className="dl-header-right">
-          {downloadHistory.length > 0 && (
-            <button
-              type="button"
-              className="dl-clear-all-btn"
-              onClick={handleClearAll}
-              title="Clear all download records"
-              aria-label="Clear all download records"
-            >
-              Clear all
-            </button>
-          )}
-        </div>
-      </header>
+      <InternalPageHeader
+        title="Downloads"
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+        searchPlaceholder="Search download history"
+        showClearAll={downloadHistory.length > 0}
+        onClearAll={handleClearAll}
+        clearAllTitle="Clear all download records"
+        clearAllLabel="Clear all"
+        className="dl-header"
+      />
 
       {/* Main Content Area */}
       <main className="dl-main-content">
