@@ -250,59 +250,27 @@ function getActiveTabContentBounds(context, tabId = context?.activeTabId) {
     };
 }
 
-function applyLensSidebarMobileViewport(context, tabId = context?.activeTabId, options = {}) {
+function applyLensSidebarMobileViewport(context, tabId = context?.activeTabId) {
     const lensSession = getLensSession(context, tabId, false);
     const sidebarView = lensSession?.sidebarView;
     if (!context?.window || !sidebarView || sidebarView.webContents.isDestroyed()) return;
+
+    try {
+        if (typeof sidebarView.webContents.disableDeviceEmulation === 'function') {
+            sidebarView.webContents.disableDeviceEmulation();
+        }
+    } catch (_) { }
+
     const metrics = getLensLayoutMetrics(context, tabId);
     const sidebarWidth = Math.max(260, metrics?.sidebarBounds?.width || 360);
-    const sidebarHeight = Math.max(300, metrics?.sidebarBounds?.height || 640);
-    const targetZoom = Math.round(Math.max(0.75, Math.min(1.0, sidebarWidth / 375)) * 100) / 100;
-
-    const widthDiff = Math.abs(sidebarWidth - (lensSession.lastEmulatedWidth || 0));
-    const heightDiff = Math.abs(sidebarHeight - (lensSession.lastEmulatedHeight || 0));
-    const zoomDiff = Math.abs(targetZoom - (lensSession.lastEmulatedZoom || 0));
-
-    // When resizing live, avoid forcing full DevTools emulation restart on every pixel.
-    // Apply immediately if explicit or if size shifted significantly (>32px), otherwise debounce.
-    const shouldUpdateNow = options.immediate || !lensSession.lastEmulatedWidth || widthDiff >= 32 || heightDiff >= 48;
-
-    const applyEmulation = () => {
-        if (!isViewWebContentsAlive(sidebarView)) return;
-        try {
-            sidebarView.webContents.enableDeviceEmulation({
-                screenPosition: 'mobile',
-                screenSize: { width: sidebarWidth, height: sidebarHeight },
-                viewPosition: { x: 0, y: 0 },
-                deviceScaleFactor: 0,
-                viewSize: { width: sidebarWidth, height: sidebarHeight },
-                scale: 1,
-            });
-            lensSession.lastEmulatedWidth = sidebarWidth;
-            lensSession.lastEmulatedHeight = sidebarHeight;
-        } catch (_) { }
-
-        try {
-            if (zoomDiff > 0.02 || !lensSession.lastEmulatedZoom) {
-                sidebarView.webContents.setZoomFactor(targetZoom);
-                lensSession.lastEmulatedZoom = targetZoom;
-            }
-        } catch (_) { }
-    };
-
-    if (shouldUpdateNow) {
-        if (lensSession.viewportDebounceTimer) {
-            clearTimeout(lensSession.viewportDebounceTimer);
-            lensSession.viewportDebounceTimer = null;
+    // When resized narrower than 360px, smoothly adjust zoom factor so mobile elements comfortably fit
+    const targetZoom = Math.round(Math.min(1.0, Math.max(0.75, sidebarWidth / 360)) * 100) / 100;
+    try {
+        if (lensSession.lastEmulatedZoom !== targetZoom) {
+            sidebarView.webContents.setZoomFactor(targetZoom);
+            lensSession.lastEmulatedZoom = targetZoom;
         }
-        applyEmulation();
-    } else {
-        if (lensSession.viewportDebounceTimer) clearTimeout(lensSession.viewportDebounceTimer);
-        lensSession.viewportDebounceTimer = setTimeout(() => {
-            lensSession.viewportDebounceTimer = null;
-            applyEmulation();
-        }, 120);
-    }
+    } catch (_) { }
 }
 
 function layoutLensSidebar(context, tabId = context?.activeTabId) {
@@ -355,6 +323,7 @@ function layoutLensSidebar(context, tabId = context?.activeTabId) {
                 height: Math.max(0, metrics.sidebarBounds.height),
             });
         }
+        setNativeViewCornerRadius(lensSession.sidebarView, radius);
     } else {
         setNativeViewCornerRadius(lensSession.sidebarView, radius);
     }
@@ -434,6 +403,21 @@ function injectLensSidebarBorderStyles(sidebarView, context) {
         html, body {
             border-radius: ${LENS_PANEL_RADIUS}px !important;
             overflow-x: hidden !important;
+            box-sizing: border-box !important;
+            max-width: 100vw !important;
+        }
+        *, *::before, *::after {
+            box-sizing: border-box !important;
+        }
+        #center_col, #rso, #cnt, .GyAeWb, .main, .mw, [role="main"] {
+            min-width: 0 !important;
+            max-width: 100% !important;
+            width: 100% !important;
+            box-sizing: border-box !important;
+        }
+        form[role="search"], input[type="text"], img {
+            max-width: 100% !important;
+            box-sizing: border-box !important;
         }
         #invisurf-lens-sidebar-border,
         body::after {
@@ -553,6 +537,45 @@ function openLensSidebarNavigationInTab(context, url, options = {}) {
         background: options.background === true,
         keepLensOpen: true,
     });
+}
+
+function getLensSidebarCurrentUrl(context, tabId = context?.activeTabId) {
+    if (!context || !tabId) return null;
+    const lensSession = getLensSession(context, tabId, false);
+    if (!lensSession?.sidebarView || !isViewWebContentsAlive(lensSession.sidebarView)) {
+        return null;
+    }
+    try {
+        const url = lensSession.sidebarView.webContents.getURL();
+        if (url && /^https?:\/\//i.test(url)) {
+            return url;
+        }
+    } catch (_) { }
+    return null;
+}
+
+function openLensInNewTab(context, tabId = context?.activeTabId) {
+    if (!context || !tabId) return false;
+    const currentUrl = getLensSidebarCurrentUrl(context, tabId) || 'https://lens.google.com';
+    const { openUrlInNewTab } = require('./tabManager');
+    return openUrlInNewTab(currentUrl, {
+        context,
+        background: false,
+    });
+}
+
+function reloadLensSidebar(context, tabId = context?.activeTabId) {
+    if (!context || !tabId) return false;
+    const lensSession = getLensSession(context, tabId, false);
+    if (!lensSession?.sidebarView || !isViewWebContentsAlive(lensSession.sidebarView)) {
+        return false;
+    }
+    try {
+        lensSession.sidebarView.webContents.reload();
+        return true;
+    } catch (_) {
+        return false;
+    }
 }
 
 function createLensSidebar(context, tabId = context?.activeTabId) {
@@ -995,10 +1018,14 @@ async function startGoogleLensSelection(context = getWindowContextByBrowserWindo
 
     createLensSidebar(context, context.activeTabId);
     const sidePanelManager = require('./sidePanelManager');
+    const { width: windowWidth } = context.window.getContentBounds();
+    const defaultLensWidth = Math.max(390, Math.round(windowWidth * LENS_SIDEBAR_DEFAULT_RATIO));
+    const initialSidebarWidth = Math.max(380, lensSession.sidebarWidth || sidePanelManager.getSidePanelWidth(context) || defaultLensWidth);
+    lensSession.sidebarWidth = initialSidebarWidth;
     sidePanelManager.setSidePanelState(context, {
         isOpen: true,
         activePanelId: 'lens',
-        width: lensSession.sidebarWidth || sidePanelManager.getSidePanelWidth(context) || 360,
+        width: initialSidebarWidth,
     }, { broadcast: true });
     hideActiveTabViewForShellOverlay(context);
     layoutActiveTabView(context, context.activeTabId);
@@ -1258,6 +1285,9 @@ module.exports = {
     buildLensSidebarPlaceholderHtml,
     createLensSidebarHostView,
     openLensSidebarNavigationInTab,
+    getLensSidebarCurrentUrl,
+    openLensInNewTab,
+    reloadLensSidebar,
     createLensSidebar,
     closeGoogleLensSelection,
     postLensSelectionPatch,

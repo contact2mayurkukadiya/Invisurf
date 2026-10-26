@@ -246,6 +246,18 @@ function activateTabInContext(context, id) {
         overlayManager.dismissChromeShellMenuOverlay(context, 'browser-action');
         overlayManager.hideStatusBubble(context);
         overlayManager.hideExtensionPopup(context);
+
+        const sidePanelManager = require('./sidePanelManager');
+        const spState = sidePanelManager.getSidePanelState(context);
+        if (spState && spState.activePanelId === 'lens') {
+            const targetLens = lensManager.getLensSession(context, id, false);
+            const isLensActiveOnTarget = !!(targetLens && targetLens.selectionActive);
+            if (isLensActiveOnTarget && !spState.isOpen) {
+                sidePanelManager.setSidePanelState(context, { isOpen: true, activePanelId: 'lens' }, { broadcast: true });
+            } else if (!isLensActiveOnTarget && spState.isOpen) {
+                sidePanelManager.setSidePanelState(context, { isOpen: false }, { broadcast: true, closeLens: false });
+            }
+        }
     }
     const skipSameTab =
         context.activeTabId === id &&
@@ -280,6 +292,10 @@ function activateTabInContext(context, id) {
     addTabContentChildView(context, context.tabs[id]);
     context.activeTabId = id;
     layoutActiveTabView(context, id);
+    const targetLens = lensManager.getLensSession(context, id, false);
+    if (targetLens && targetLens.selectionActive) {
+        lensManager.restoreActiveLensTabPresentation(context, id);
+    }
     if (typeof context.tabs[id]?._invisurfSyncOverscrollHistoryState === 'function') {
         context.tabs[id]._invisurfSyncOverscrollHistoryState();
     }

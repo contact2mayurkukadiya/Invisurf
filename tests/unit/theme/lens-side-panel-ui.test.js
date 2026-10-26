@@ -74,6 +74,14 @@ describe('Unified Google Lens Side Panel UI (Playwright Automated Test)', () => 
         sidePanelGetState: () => Promise.resolve({ isOpen: false, width: 360, activePanelId: 'reading-list' }),
         runMenuCommand: () => {},
         closeGoogleLens: () => {},
+        openLensInNewTab: () => {
+          window.__openLensInNewTabCalled = (window.__openLensInNewTabCalled || 0) + 1;
+          return Promise.resolve(true);
+        },
+        reloadLensSidebar: () => {
+          window.__reloadLensSidebarCalled = (window.__reloadLensSidebarCalled || 0) + 1;
+          return Promise.resolve(true);
+        },
         newTab: () => {},
         switchTab: () => {},
         closeTab: () => {},
@@ -140,15 +148,45 @@ describe('Unified Google Lens Side Panel UI (Playwright Automated Test)', () => 
       path: path.join(artifactDir, 'side_panel_lens_unified_light.png'),
     });
 
-    // 6. Test pinning Google Lens to toolbar
-    const pinBtn = page.locator('.side-panel-pin-btn');
-    await pinBtn.click();
+    // 6. Verify pin button is removed from top header for Google Lens only
+    const lensPinBtn = page.locator('.side-panel-header .side-panel-pin-btn');
+    assert.equal(await lensPinBtn.count(), 0, 'Pin button must not be present in header for Google Lens');
 
-    // Verify pin icon appears in toolbar
-    const pinnedLensBtn = page.locator('#side-panel-pin-lens');
-    await assert.doesNotReject(pinnedLensBtn.waitFor({ state: 'visible', timeout: 2000 }));
+    // 7. Test "Open in new tab" on title bar for Google Lens invokes openLensInNewTab
+    await openTabBtn.click();
+    await page.waitForTimeout(100);
+    const openLensCallCount = await page.evaluate(() => window.__openLensInNewTabCalled || 0);
+    assert.equal(openLensCallCount, 1, 'openLensInNewTab must be invoked when clicking Open in new tab for Lens');
 
-    // 7. Test closing side panel
+    // 8. Verify refresh button is present on title bar for Google Lens
+    const lensRefreshBtn = page.locator('.side-panel-header .side-panel-refresh-btn');
+    assert.equal(await lensRefreshBtn.count(), 1, 'Refresh button must be present in header for Google Lens');
+    await lensRefreshBtn.click();
+    await page.waitForTimeout(100);
+    const reloadLensCallCount = await page.evaluate(() => window.__reloadLensSidebarCalled || 0);
+    assert.equal(reloadLensCallCount, 1, 'reloadLensSidebar must be invoked when clicking Refresh for Lens');
+
+    // 9. Verify pin button IS present for other features (e.g. Bookmarks) and refresh button is NOT
+    await page.evaluate(() => {
+      window.__triggerSidePanelState({ activePanelId: 'bookmarks', isOpen: true });
+    });
+    await page.waitForTimeout(100);
+    const bookmarksPinBtn = page.locator('.side-panel-header .side-panel-pin-btn');
+    assert.equal(await bookmarksPinBtn.count(), 1, 'Pin button must be present in header for Bookmarks panel');
+    assert.equal(await page.locator('.side-panel-header .side-panel-refresh-btn').count(), 0, 'Refresh button must not be present for Bookmarks panel');
+    await bookmarksPinBtn.click();
+    const pinnedBookmarksBtn = page.locator('#side-panel-pin-bookmarks');
+    await assert.doesNotReject(pinnedBookmarksBtn.waitFor({ state: 'visible', timeout: 2000 }));
+
+    // Switch back to Google Lens
+    await page.evaluate(() => {
+      window.__triggerSidePanelState({ activePanelId: 'lens', isOpen: true });
+    });
+    await page.waitForTimeout(100);
+    assert.equal(await page.locator('.side-panel-header .side-panel-pin-btn').count(), 0, 'Pin button remains removed for Google Lens');
+    assert.equal(await page.locator('.side-panel-header .side-panel-refresh-btn').count(), 1, 'Refresh button is present for Google Lens');
+
+    // 10. Test closing side panel
     const closeBtn = page.locator('.side-panel-close-btn');
     await closeBtn.click();
     await page.waitForTimeout(300);
@@ -156,16 +194,15 @@ describe('Unified Google Lens Side Panel UI (Playwright Automated Test)', () => 
     // Verify side panel closed
     assert.equal(await sidePanelContainer.count(), 0);
 
-    // Verify pinned button remains on toolbar
-    await assert.doesNotReject(pinnedLensBtn.waitFor({ state: 'visible', timeout: 2000 }));
-
-    // Capture screenshot of toolbar with pinned Google Lens button
+    // Capture screenshot of toolbar with pinned Bookmarks button
     await page.screenshot({
-      path: path.join(artifactDir, 'toolbar_pinned_lens_closed.png'),
+      path: path.join(artifactDir, 'toolbar_pinned_bookmarks_closed.png'),
     });
 
-    // 8. Click pinned Google Lens button to re-open Google Lens side panel
-    await pinnedLensBtn.click();
+    // Re-open Google Lens side panel
+    await page.evaluate(() => {
+      window.__triggerSidePanelState({ activePanelId: 'lens', isOpen: true });
+    });
     await assert.doesNotReject(sidePanelContainer.waitFor({ state: 'visible', timeout: 3000 }));
     assert.equal(await headerTitle.textContent(), 'Google Lens');
 

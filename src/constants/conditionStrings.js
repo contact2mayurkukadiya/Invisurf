@@ -281,6 +281,9 @@ export const MIME = freeze({
 export const IPC_INVOKE = freeze({
   RUN_MENU_COMMAND: 'app:run-menu-command',
   GOOGLE_LENS_ACTIVE_FOR_PROFILE: 'google-lens:active-for-profile',
+  LENS_OPEN_IN_NEW_TAB: 'lens:open-in-new-tab',
+  LENS_RELOAD: 'lens:reload',
+  LENS_CLOSE: 'lens:close',
   IS_STEALTH_WINDOW: 'context:is-stealth-window',
   IS_GHOST_WINDOW: 'context:is-ghost-window',
   WINDOW_CREATE: 'window:create',

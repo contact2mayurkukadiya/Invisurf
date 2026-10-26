@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { setBookmarks } from '../../store/bookmarksSlice';
 import { addTab } from '../../store/browserSlice';
@@ -20,10 +20,12 @@ export default function BookmarksPanel() {
   const currentTabId = useSelector((s) => s.browser.currentTabId);
   const bookmarkBar = useSelector((s) => s.bookmarks?.data?.bar || s.bookmarks?.bar || []);
   const [searchQuery, setSearchQuery] = useState('');
+  const fetchedRef = useRef(false);
 
   // Fetch bookmarks from disk if not yet populated in store
   useEffect(() => {
-    if ((!bookmarkBar || bookmarkBar.length === 0) && window.electronAPI?.bookmarksGet) {
+    if (!fetchedRef.current && (!bookmarkBar || bookmarkBar.length === 0) && window.electronAPI?.bookmarksGet) {
+      fetchedRef.current = true;
       window.electronAPI
         .bookmarksGet()
         .then((res) => {

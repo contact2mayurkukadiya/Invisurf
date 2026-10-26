@@ -91,7 +91,7 @@ function setSidePanelState(context, partial = {}, options = {}) {
     if (!state) return;
     if (typeof partial.isOpen === 'boolean') {
         state.isOpen = partial.isOpen;
-        if (!state.isOpen && context.activeTabId) {
+        if (!state.isOpen && context.activeTabId && options.closeLens !== false) {
             try {
                 const lensManager = require('./lensManager');
                 if (lensManager.getLensSession(context, context.activeTabId, false)) {

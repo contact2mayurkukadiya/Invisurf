@@ -221,6 +221,14 @@ html[data-forced-appearance="dark"] .side-panel-header-btn.pinned,
   color: #8ab4f8;
 }
 
+.side-panel-refresh-btn svg {
+  transition: transform 0.25s cubic-bezier(0.2, 0, 0, 1);
+}
+
+.side-panel-refresh-btn:active svg {
+  transform: rotate(180deg);
+}
+
 html[data-forced-appearance="light"] .side-panel-dropdown-item.active {
   background-color: rgba(0, 0, 0, 0.08);
 }

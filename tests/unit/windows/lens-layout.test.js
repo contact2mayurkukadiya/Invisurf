@@ -123,4 +123,127 @@ describe('LensManager Layout and Session State', () => {
     assert.equal(isGoogleLensSidebarUrl(googleRegionalRedirect), false);
     assert.equal(extractDestinationUrl(googleRegionalRedirect), 'https://example.com/item');
   });
+
+  test('getLensSidebarCurrentUrl retrieves loaded sidebar url and ignores invalid/placeholder', () => {
+    const mockContext = {
+      activeTabId: 'tab-1',
+      lensSessions: new Map([
+        ['tab-1', {
+          sidebarView: {
+            webContents: {
+              isDestroyed: () => false,
+              getURL: () => 'https://www.google.com/search?vsrid=12345&udm=26',
+            },
+          },
+        }],
+      ]),
+    };
+
+    const url = lensManager.getLensSidebarCurrentUrl(mockContext, 'tab-1');
+    assert.equal(url, 'https://www.google.com/search?vsrid=12345&udm=26');
+
+    // Data url placeholder returns null
+    mockContext.lensSessions.get('tab-1').sidebarView.webContents.getURL = () => 'data:text/html;base64,...';
+    assert.equal(lensManager.getLensSidebarCurrentUrl(mockContext, 'tab-1'), null);
+  });
+
+  test('openLensInNewTab opens active Google Lens search page in new tab', () => {
+    const tabManager = require('../../../main/windows/tabManager');
+    const originalOpenUrlInNewTab = tabManager.openUrlInNewTab;
+    let openedUrl = null;
+    let openedOptions = null;
+    tabManager.openUrlInNewTab = (url, opts) => {
+      openedUrl = url;
+      openedOptions = opts;
+      return true;
+    };
+
+    try {
+      const mockContext = {
+        activeTabId: 'tab-lens',
+        lensSessions: new Map([
+          ['tab-lens', {
+            sidebarView: {
+              webContents: {
+                isDestroyed: () => false,
+                getURL: () => 'https://www.google.com/search?vsrid=99999',
+              },
+            },
+          }],
+        ]),
+      };
+
+      const result = lensManager.openLensInNewTab(mockContext, 'tab-lens');
+      assert.equal(result, true);
+      assert.equal(openedUrl, 'https://www.google.com/search?vsrid=99999');
+      assert.equal(openedOptions.background, false);
+    } finally {
+      tabManager.openUrlInNewTab = originalOpenUrlInNewTab;
+    }
+  });
+
+  test('applyLensSidebarMobileViewport disables emulation and adjusts zoom factor for narrow sidebar', () => {
+    let disabledEmulationCalled = false;
+    let zoomFactorSet = null;
+    const mockSidebarView = {
+      webContents: {
+        isDestroyed: () => false,
+        disableDeviceEmulation: () => {
+          disabledEmulationCalled = true;
+        },
+        setZoomFactor: (zoom) => {
+          zoomFactorSet = zoom;
+        },
+      },
+    };
+
+    const mockContext = {
+      activeTabId: 'tab-1',
+      window: {
+        getContentBounds: () => ({ width: 1200, height: 800 }),
+        isDestroyed: () => false,
+      },
+      lensSessions: new Map([
+        ['tab-1', {
+          selectionActive: true,
+          sidebarWidth: 346,
+          sidebarView: mockSidebarView,
+        }],
+      ]),
+    };
+
+    lensManager.applyLensSidebarMobileViewport(mockContext, 'tab-1', { immediate: true });
+    assert.equal(disabledEmulationCalled, true);
+    assert.ok(zoomFactorSet !== null);
+    assert.ok(zoomFactorSet >= 0.75 && zoomFactorSet <= 1.0);
+  });
+
+  test('reloadLensSidebar reloads webContents of active Lens sidebar view', () => {
+    let reloadCalled = false;
+    const mockContext = {
+      activeTabId: 'tab-lens-reload',
+      lensSessions: new Map([
+        ['tab-lens-reload', {
+          sidebarView: {
+            webContents: {
+              isDestroyed: () => false,
+              reload: () => {
+                reloadCalled = true;
+              },
+            },
+          },
+        }],
+      ]),
+    };
+
+    const res = lensManager.reloadLensSidebar(mockContext, 'tab-lens-reload');
+    assert.equal(res, true);
+    assert.equal(reloadCalled, true);
+
+    // Destroyed or missing view returns false
+    mockContext.lensSessions.get('tab-lens-reload').sidebarView.webContents.isDestroyed = () => true;
+    assert.equal(lensManager.reloadLensSidebar(mockContext, 'tab-lens-reload'), false);
+    assert.equal(lensManager.reloadLensSidebar(mockContext, 'non-existent'), false);
+  });
 });
+

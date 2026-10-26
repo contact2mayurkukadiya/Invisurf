@@ -122,12 +122,26 @@ function registerIpcHandlers() {
         return !!lensManager.findActiveLensTabForProfile(context.profileId);
     });
 
-    ipcMain.handle('lens:close', (event) => {
+    ipcMain.handle(C.IPC_INVOKE.LENS_CLOSE || 'lens:close', (event) => {
         if (!isSenderTrusted(event)) return false;
         const context = getWindowContextByEventSender(event.sender);
         if (!context) return false;
         lensManager.closeGoogleLensSelection(context, { closeSidebar: true });
         return true;
+    });
+
+    ipcMain.handle(C.IPC_INVOKE.LENS_OPEN_IN_NEW_TAB || 'lens:open-in-new-tab', (event) => {
+        if (!isSenderTrusted(event)) return false;
+        const context = getWindowContextByEventSender(event.sender);
+        if (!context) return false;
+        return lensManager.openLensInNewTab(context);
+    });
+
+    ipcMain.handle(C.IPC_INVOKE.LENS_RELOAD || 'lens:reload', (event) => {
+        if (!isSenderTrusted(event)) return false;
+        const context = getWindowContextByEventSender(event.sender);
+        if (!context) return false;
+        return lensManager.reloadLensSidebar(context);
     });
 
     // === WINDOW MANAGEMENT ===
