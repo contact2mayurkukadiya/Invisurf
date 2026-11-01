@@ -26,6 +26,7 @@ import SidePanel from './components/sidepanel/SidePanel';
 import { buildCommandPaletteCommands } from './commandPaletteCommands';
 import { TabOverlayProvider } from './context/TabOverlayContext';
 import { ChromeOverlayProvider } from './context/ChromeOverlayContext';
+import { isSameInternalPage } from './utils/invisurfInternalPages';
 import {
   URL as URL_C,
   NAV_SOURCE,
@@ -62,6 +63,31 @@ function AppShell() {
   const [searchTabsOpen, setSearchTabsOpen] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [searchEngine, setSearchEngine] = useState('google');
+
+  const sidePanelState = useSelector(s => s.browser.sidePanel || {});
+  const isSidePanelOpen = !!sidePanelState.isOpen;
+  const sidePanelWidth = sidePanelState.width || 360;
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (isSidePanelOpen) {
+      root.style.setProperty('--side-panel-width', `${sidePanelWidth}px`);
+      root.style.setProperty('--side-panel-open', '1');
+      root.style.setProperty('--tab-content-top', '126px');
+      root.style.setProperty('--tab-content-left', '8px');
+      root.style.setProperty('--tab-content-width', `calc(100vw - ${sidePanelWidth}px - 14px)`);
+      root.style.setProperty('--tab-content-height', 'calc(100vh - 134px)');
+      root.style.setProperty('--tab-content-radius', '14px');
+    } else {
+      root.style.setProperty('--side-panel-width', '0px');
+      root.style.setProperty('--side-panel-open', '0');
+      root.style.setProperty('--tab-content-top', '122px');
+      root.style.setProperty('--tab-content-left', '0px');
+      root.style.setProperty('--tab-content-width', '100vw');
+      root.style.setProperty('--tab-content-height', 'calc(100vh - 122px)');
+      root.style.setProperty('--tab-content-radius', '0px');
+    }
+  }, [isSidePanelOpen, sidePanelWidth]);
 
   // Always-fresh ref so event-handler closures never capture stale state
   const stateRef = useRef({});
@@ -419,7 +445,7 @@ function AppShell() {
    */
   const openSingletonTab = useCallback((navigateTo, canonicalUrl) => {
     const { tabs, tabOrder } = stateRef.current;
-    const existingId = tabOrder.find(id => tabs[id]?.url === canonicalUrl);
+    const existingId = tabOrder.find(id => isSameInternalPage(tabs[id]?.url, canonicalUrl));
     if (existingId) {
       dispatch(setCurrentTab(existingId));
       window.electronAPI.switchTab(existingId);
@@ -781,23 +807,6 @@ function AppShell() {
   return (
     <>
       <div className={`header${isStealthShell ? ' header--stealth-window' : ''}${isGhostShell ? ' header--ghost-window' : ''}`}>
-        <CommandPaletteModal
-          open={commandPaletteOpen}
-          onClose={() => setCommandPaletteOpen(false)}
-          commands={paletteCommands}
-        />
-        <SearchTabsModal
-          open={searchTabsOpen}
-          onClose={() => setSearchTabsOpen(false)}
-          tabOrder={tabOrder}
-          tabs={tabs}
-          currentTabId={currentTabId}
-          onSelectTab={(id) => {
-            dispatch(setCurrentTab(id));
-            window.electronAPI.switchTab(id);
-          }}
-          onCloseTab={closeTab}
-        />
         <TabBar
           isGhostWindow={isGhostShell}
           onNewTab={createTab}
@@ -820,6 +829,23 @@ function AppShell() {
         <BookmarkBar currentTabId={currentTabId} />
       </div>
       <SidePanel />
+      <CommandPaletteModal
+        open={commandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+        commands={paletteCommands}
+      />
+      <SearchTabsModal
+        open={searchTabsOpen}
+        onClose={() => setSearchTabsOpen(false)}
+        tabOrder={tabOrder}
+        tabs={tabs}
+        currentTabId={currentTabId}
+        onSelectTab={(id) => {
+          dispatch(setCurrentTab(id));
+          window.electronAPI.switchTab(id);
+        }}
+        onCloseTab={closeTab}
+      />
     </>
   );
 }

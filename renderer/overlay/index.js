@@ -1,4 +1,4 @@
-import { DOM, hideAll, IS_OMNIBOX_OVERLAY, IS_LENS_OVERLAY } from './state.js';
+import { DOM, hideAll, IS_OMNIBOX_OVERLAY } from './state.js';
 import { applyChromeThemeTokens, notifyHost } from './api.js';
 
 import { renderAppMenu } from './components/appMenu.js';
@@ -10,7 +10,6 @@ import { renderSiteInfo } from './components/siteInfo.js';
 import { renderCookieControls } from './components/compactPanels.js';
 import { renderDownloadPanel } from './components/downloadPanel.js';
 import { renderOmniboxSuggestions } from './components/omnibox.js';
-import { renderLensSelection } from './components/lensSelection.js';
 import { renderPermissionPrompt } from './components/permissionPrompt.js';
 import { renderExtensionInstallPrompt } from './components/extensionInstallPrompt.js';
 import { renderDesktopMediaPicker } from './components/desktopMediaPicker.js';
@@ -25,23 +24,11 @@ DOM.backdrop.addEventListener('mousedown', function () {
 });
 
 document.addEventListener('keydown', function (e) {
-    const lensLayer = document.querySelector('.co-lens-layer');
-    if (lensLayer && (e.key === ' ' || e.code === 'Space')) {
-        e.preventDefault();
-        e.stopPropagation();
-        return;
-    }
     if (e.key === 'Escape') {
         if (DOM.panel.classList.contains('co-visible') || DOM.submenu.classList.contains('co-visible')) {
             e.preventDefault();
             e.stopPropagation();
             notifyHost({ type: 'dismiss' });
-            return;
-        }
-        if (lensLayer) {
-            e.preventDefault();
-            e.stopPropagation();
-            notifyHost({ type: 'lensSelectionCancel', closeSidebar: true });
             return;
         }
         notifyHost({ type: 'dismiss' });
@@ -58,12 +45,8 @@ if (window.electronAPI && window.electronAPI.onChromeOverlayV1Patch) {
                 if (patch.kind === 'omniboxSuggestions') renderOmniboxSuggestions(patch);
                 return;
             }
-            if (IS_LENS_OVERLAY) {
-                if (patch.kind === 'lensSelection') renderLensSelection(patch);
-                return;
-            }
 
-            if (patch.kind === 'lensSelection' || patch.kind === 'omniboxSuggestions') return;
+            if (patch.kind === 'omniboxSuggestions') return;
 
             switch (patch.kind) {
                 case 'profileMenu': return renderProfileMenu(patch);

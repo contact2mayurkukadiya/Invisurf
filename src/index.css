@@ -169,10 +169,11 @@ body {
 /* Frozen capture of tab while profile menu hides the WebContentsView */
 .tab-content-snapshot {
     position: fixed;
-    top: 122px;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    top: var(--tab-content-top, 122px);
+    left: var(--tab-content-left, 0px);
+    width: var(--tab-content-width, 100vw);
+    height: var(--tab-content-height, calc(100vh - 122px));
+    border-radius: var(--tab-content-radius, 0px);
     z-index: 0;
     pointer-events: none;
     overflow: hidden;
@@ -1625,7 +1626,7 @@ body:has(.header--stealth-window) .tab-content-snapshot {
 .search-tabs-overlay {
     position: fixed;
     inset: 0;
-    z-index: 10000;
+    z-index: 30000;
     display: flex;
     align-items: flex-start;
     justify-content: center;
@@ -1637,8 +1638,9 @@ body:has(.header--stealth-window) .tab-content-snapshot {
     position: absolute;
     inset: 0;
     border: none;
-    background: rgba(0, 0, 0, 0.35);
+    background: rgba(0, 0, 0, 0.45);
     cursor: default;
+    pointer-events: auto;
 }
 
 .command-palette-panel {

@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import ProfileAvatar from './ProfileAvatar';
+import ModalPortal from './ModalPortal';
+import { useOptionalTabOverlay } from '../context/TabOverlayContext';
 import './ProfileDeleteModal.css';
 import { KEYBOARD } from '../constants/conditionStrings.js';
 
@@ -9,6 +11,7 @@ export default function ProfileDeleteModal({
   onClose,
   onDeleted,
 }) {
+  const tabOverlay = useOptionalTabOverlay();
   const [summary, setSummary] = useState({
     historyCount: 0,
     bookmarksCount: 0,
@@ -128,88 +131,109 @@ export default function ProfileDeleteModal({
     return () => document.removeEventListener('keydown', onKey);
   }, [open, deleting, onClose]);
 
+  useEffect(() => {
+    if (!open || !tabOverlay?.beginOverlay) return undefined;
+    let endOverlayFn = null;
+    let active = true;
+
+    tabOverlay.beginOverlay().then((finish) => {
+      if (!active) {
+        finish?.();
+      } else {
+        endOverlayFn = finish;
+      }
+    }).catch(() => {});
+
+    return () => {
+      active = false;
+      if (endOverlayFn) endOverlayFn();
+    };
+  }, [open, tabOverlay]);
+
   if (!open || !profile) return null;
 
   const displayName = profile.displayName || profile.profileId || 'Profile';
 
   return (
-    <div className={`profile-delete-overlay profile-delete-overlay--${effectiveTheme}`} role="presentation">
-      <button
-        type="button"
-        className="profile-delete-backdrop"
-        tabIndex={-1}
-        aria-label="Close dialog"
-        disabled={deleting}
-        onClick={() => {
-          if (!deleting) onClose?.();
-        }}
-      />
-      <div
-        className="profile-delete-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="profile-delete-title"
-        aria-describedby="profile-delete-desc"
-      >
-        <h2 id="profile-delete-title" className="profile-delete-title">
-          Delete this profile and its data?
-        </h2>
-        <p id="profile-delete-desc" className="profile-delete-subtitle">
-          This will permanently delete your browsing data from this device.
-        </p>
+    <ModalPortal>
+      <div className={`profile-delete-overlay profile-delete-overlay--${effectiveTheme}`} role="presentation">
+        <button
+          type="button"
+          className="profile-delete-backdrop"
+          tabIndex={-1}
+          aria-label="Close dialog"
+          disabled={deleting}
+          onClick={() => {
+            if (!deleting) onClose?.();
+          }}
+        />
+        <div
+          className="profile-delete-dialog"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="profile-delete-title"
+          aria-describedby="profile-delete-desc"
+        >
+          <h2 id="profile-delete-title" className="profile-delete-title">
+            Delete this profile and its data?
+          </h2>
+          <p id="profile-delete-desc" className="profile-delete-subtitle">
+            This will permanently delete your browsing data from this device.
+          </p>
 
-        <div className="profile-delete-card">
-          <div className="profile-delete-card-identity">
-            <span className="profile-delete-card-name" title={displayName}>
-              {displayName}
-            </span>
-            <div className="profile-delete-avatar-wrap" aria-hidden="true">
-              <ProfileAvatar profile={profile} size="lg" />
-            </div>
-          </div>
-
-          <div className="profile-delete-card-stats">
-            <div className="profile-delete-stat-row">
-              <span className="profile-delete-stat-label">Browsing history</span>
-              <span className="profile-delete-stat-value">
-                {summary.loading ? '…' : summary.historyCount}
+          <div className="profile-delete-card">
+            <div className="profile-delete-card-identity">
+              <span className="profile-delete-card-name" title={displayName}>
+                {displayName}
               </span>
+              <div className="profile-delete-avatar-wrap" aria-hidden="true">
+                <ProfileAvatar profile={profile} size="lg" />
+              </div>
             </div>
-            <div className="profile-delete-stat-row">
-              <span className="profile-delete-stat-label">Bookmarks</span>
-              <span className="profile-delete-stat-value">
-                {summary.loading ? '…' : summary.bookmarksCount}
-              </span>
+
+            <div className="profile-delete-card-stats">
+              <div className="profile-delete-stat-row">
+                <span className="profile-delete-stat-label">Browsing history</span>
+                <span className="profile-delete-stat-value">
+                  {summary.loading ? '…' : summary.historyCount}
+                </span>
+              </div>
+              <div className="profile-delete-stat-row">
+                <span className="profile-delete-stat-label">Bookmarks</span>
+                <span className="profile-delete-stat-value">
+                  {summary.loading ? '…' : summary.bookmarksCount}
+                </span>
+              </div>
             </div>
           </div>
-        </div>
 
-        {error && (
-          <div className="profile-delete-error" role="alert">
-            {error}
+          {error && (
+            <div className="profile-delete-error" role="alert">
+              {error}
+            </div>
+          )}
+
+          <div className="profile-delete-actions">
+            <button
+              type="button"
+              className="profile-delete-btn profile-delete-btn--cancel"
+              disabled={deleting}
+              onClick={onClose}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="profile-delete-btn profile-delete-btn--delete"
+              disabled={deleting}
+              onClick={handleDelete}
+              autoFocus
+            >
+              {deleting ? 'Deleting…' : 'Delete'}
+            </button>
           </div>
-        )}
-
-        <div className="profile-delete-actions">
-          <button
-            type="button"
-            className="profile-delete-btn profile-delete-btn--cancel"
-            disabled={deleting}
-            onClick={onClose}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="profile-delete-btn profile-delete-btn--delete"
-            disabled={deleting}
-            onClick={handleDelete}
-            autoFocus
-          >
-            {deleting ? 'Deleting…' : 'Delete'}
-          </button>
         </div>
       </div>
-    </div>
+    </ModalPortal>
   );
 }

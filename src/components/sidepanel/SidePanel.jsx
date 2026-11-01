@@ -6,11 +6,12 @@ import {
   setSidePanelActiveView,
   togglePinSidePanel,
   addTab,
+  setCurrentTab,
 } from '../../store/browserSlice';
+import { isSameInternalPage } from '../../utils/invisurfInternalPages';
 import ReadingListPanel from './ReadingListPanel';
 import BookmarksPanel from './BookmarksPanel';
 import HistoryPanel from './HistoryPanel';
-import LensPanel from './LensPanel';
 import './SidePanel.css';
 
 const PANELS = [
@@ -28,7 +29,7 @@ const PANELS = [
   {
     id: 'bookmarks',
     title: 'Bookmarks',
-    pageUrl: 'invisurf://bookmarks',
+    pageUrl: 'invisurf://bookmark',
     icon: (
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
@@ -46,22 +47,13 @@ const PANELS = [
       </svg>
     ),
   },
-  {
-    id: 'lens',
-    title: 'Google Lens',
-    pageUrl: 'https://lens.google.com',
-    icon: (
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
-        <circle cx="12" cy="13" r="4"></circle>
-      </svg>
-    ),
-  },
 ];
 
 export default function SidePanel() {
   const dispatch = useDispatch();
   const sidePanelState = useSelector((s) => s.browser.sidePanel || {});
+  const tabs = useSelector((s) => s.browser.tabs || {});
+  const tabOrder = useSelector((s) => s.browser.tabOrder || []);
   const {
     isOpen = false,
     width = 360,
@@ -233,41 +225,41 @@ export default function SidePanel() {
           </div>
 
           <div className="side-panel-header-actions">
-            {/* Pinnable toggle button (hidden for Lens, available for other panels) */}
-            {activePanelId !== 'lens' && (
-              <button
-                type="button"
-                className={`side-panel-header-btn side-panel-pin-btn${isPinned ? ' pinned' : ''}`}
-                onClick={() => dispatch(togglePinSidePanel(activePanelId))}
-                title={isPinned ? 'Unpin from toolbar' : 'Pin to toolbar'}
-                aria-label={isPinned ? 'Unpin from toolbar' : 'Pin to toolbar'}
-                aria-pressed={isPinned}
-              >
-                {isPinned ? (
-                  /* Chrome Material Symbol: keep_off (pin with slash) */
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M2 5.27 3.28 4 20 20.72 18.73 22l-5.73-5.73V22h-2v-5.73H5v-2c1.66 0 3-1.34 3-3v-.73L2 5.27zM16 9V4l1 0V2H7.27l7 7H16z" />
-                  </svg>
-                ) : (
-                  /* Chrome Material Symbol: push_pin */
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M16 9V4l1 0V2H7v2l1 0v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3z" />
-                  </svg>
-                )}
-              </button>
-            )}
+            {/* Pinnable toggle button */}
+            <button
+              type="button"
+              className={`side-panel-header-btn side-panel-pin-btn${isPinned ? ' pinned' : ''}`}
+              onClick={() => dispatch(togglePinSidePanel(activePanelId))}
+              title={isPinned ? 'Unpin from toolbar' : 'Pin to toolbar'}
+              aria-label={isPinned ? 'Unpin from toolbar' : 'Pin to toolbar'}
+              aria-pressed={isPinned}
+            >
+              {isPinned ? (
+                /* Chrome Material Symbol: keep_off (pin with slash) */
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M2 5.27 3.28 4 20 20.72 18.73 22l-5.73-5.73V22h-2v-5.73H5v-2c1.66 0 3-1.34 3-3v-.73L2 5.27zM16 9V4l1 0V2H7.27l7 7H16z" />
+                </svg>
+              ) : (
+                /* Chrome Material Symbol: push_pin */
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M16 9V4l1 0V2H7v2l1 0v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3z" />
+                </svg>
+              )}
+            </button>
 
-            {/* Open in new tab icon button (shown when dedicated pageUrl exists or for lens) */}
-            {(targetUrl || activePanelId === 'lens') && (
+            {/* Open in new tab icon button (shown when dedicated pageUrl exists) */}
+            {targetUrl && (
               <button
                 type="button"
                 className="side-panel-header-btn side-panel-open-tab-btn"
-                onClick={async () => {
-                  if (activePanelId === 'lens') {
-                    if (window.electronAPI?.openLensInNewTab) {
-                      await window.electronAPI.openLensInNewTab();
-                      return;
+                onClick={() => {
+                  const existingTabId = tabOrder.find((id) => isSameInternalPage(tabs[id]?.url, targetUrl));
+                  if (existingTabId) {
+                    dispatch(setCurrentTab(existingTabId));
+                    if (window.electronAPI?.switchTab) {
+                      window.electronAPI.switchTab(existingTabId);
                     }
+                    return;
                   }
                   const newTabId = 'tab-' + Date.now();
                   dispatch(addTab({ id: newTabId, isStealth: false, initialUrl: targetUrl }));
@@ -286,34 +278,12 @@ export default function SidePanel() {
               </button>
             )}
 
-            {/* Refresh button for Google Lens */}
-            {activePanelId === 'lens' && (
-              <button
-                type="button"
-                className="side-panel-header-btn side-panel-refresh-btn"
-                onClick={async () => {
-                  if (window.electronAPI?.reloadLensSidebar) {
-                    await window.electronAPI.reloadLensSidebar();
-                  }
-                }}
-                title="Refresh Google Lens"
-                aria-label="Refresh Google Lens"
-              >
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" />
-                </svg>
-              </button>
-            )}
-
             {/* Close side panel button */}
             <button
               type="button"
               className="side-panel-header-btn side-panel-close-btn"
               onClick={() => {
                 dispatch(setSidePanelOpen(false));
-                if (activePanelId === 'lens' && window.electronAPI?.closeGoogleLens) {
-                  window.electronAPI.closeGoogleLens();
-                }
               }}
               title="Close side panel"
               aria-label="Close side panel"
@@ -332,7 +302,6 @@ export default function SidePanel() {
             {activePanelId === 'reading-list' && <ReadingListPanel />}
             {activePanelId === 'bookmarks' && <BookmarksPanel />}
             {activePanelId === 'history' && <HistoryPanel />}
-            {activePanelId === 'lens' && <LensPanel />}
           </div>
         </div>
       </div>

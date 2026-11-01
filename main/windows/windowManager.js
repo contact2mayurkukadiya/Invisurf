@@ -177,8 +177,6 @@ function createWindow({
         chromeOverlayBlurDismissPending: false,
         lastOmniboxOverlayPatch: null,
         chromeOmniboxOverlayReady: false,
-        lensSessions: new Map(),
-        lensOverlayBounds: null,
         chromeOverlayFullWindowMode: false,
         statusBubbleView: null,
         statusBubbleState: null,
@@ -217,7 +215,6 @@ function createWindow({
     });
 
     const { createTabContentContainer, layoutTabContentContainer, removeTabContentChildView, layoutActiveTabView, prewarmNewTabView } = require('./tabManager');
-    const { getLensSession, postLensSelectionPatch } = require('./lensManager');
 
     createTabContentContainer(context);
 
@@ -285,9 +282,6 @@ function createWindow({
             const { layoutSidePanel } = require('./sidePanelManager');
             layoutSidePanel(context);
         } catch (_) { }
-        if (getLensSession(context, context.activeTabId, false)?.selectionActive) {
-            postLensSelectionPatch(context);
-        }
         if ((context.chromeOmniboxOverlayAcquireCount || 0) > 0 && context.lastOmniboxOverlayPatch) {
             layoutOmniboxOverlayBounds(context, context.lastOmniboxOverlayPatch);
         }
@@ -376,20 +370,6 @@ function createWindow({
                 }
             } catch (_) { }
             context.chromeShellMenuOverlayView = null;
-        }
-        if (context.lensSessions) {
-            for (const sessionState of context.lensSessions.values()) {
-                const sidebarView = sessionState?.sidebarView;
-                if (!sidebarView) continue;
-                removeTabContentChildView(context, sessionState.sidebarHostView || sidebarView);
-                try {
-                    if (sessionState.sidebarHostView) {
-                        try { sessionState.sidebarHostView.removeChildView(sidebarView); } catch (_) { }
-                    }
-                    if (!sidebarView.webContents.isDestroyed()) sidebarView.webContents.destroy();
-                } catch (_) { }
-            }
-            context.lensSessions.clear();
         }
         if (context.tabContentView) {
             try { context.window.contentView.removeChildView(context.tabContentView); } catch (_) { }

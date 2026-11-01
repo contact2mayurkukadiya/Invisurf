@@ -91,6 +91,8 @@ describe('Navigation Utils', () => {
     test('normalizes stealth and invisurf schemes', () => {
       assert.equal(navUtils.normalizeInternalSchemeUrl('stealth://history'), C.URL.HISTORY_DISPLAY);
       assert.equal(navUtils.normalizeInternalSchemeUrl('invisurf://history'), C.URL.HISTORY_DISPLAY);
+      assert.equal(navUtils.normalizeInternalSchemeUrl('invisurf://bookmark'), C.URL.BOOKMARK_DISPLAY);
+      assert.equal(navUtils.normalizeInternalSchemeUrl('invisurf://bookmarks'), C.URL.BOOKMARK_DISPLAY);
       assert.equal(navUtils.normalizeInternalSchemeUrl('stealth://settings'), C.URL.SETTINGS_DISPLAY);
       assert.equal(navUtils.normalizeInternalSchemeUrl('invisurf://downloads'), C.URL.DOWNLOADS_DISPLAY);
       assert.equal(navUtils.normalizeInternalSchemeUrl('stealth://downloads'), C.URL.DOWNLOADS_DISPLAY);
@@ -98,6 +100,8 @@ describe('Navigation Utils', () => {
 
     test('resolves internal URLs to local application assets', () => {
       assert.equal(navUtils.resolveInternalPageUrl('invisurf://history'), C.URL.HISTORY_LOAD);
+      assert.equal(navUtils.resolveInternalPageUrl('invisurf://bookmark'), C.URL.BOOKMARK_LOAD);
+      assert.equal(navUtils.resolveInternalPageUrl('invisurf://bookmarks'), C.URL.BOOKMARK_LOAD);
       assert.equal(navUtils.resolveInternalPageUrl('invisurf://settings'), C.URL.SETTINGS_LOAD);
       assert.equal(navUtils.resolveInternalPageUrl('invisurf://downloads'), C.URL.DOWNLOADS_LOAD);
       assert.equal(navUtils.resolveInternalPageUrl(C.URL.NTP_DISPLAY), C.URL.NTP_CANONICAL_HTML);
@@ -114,21 +118,12 @@ describe('Navigation Utils', () => {
     });
   });
 
-  describe('isBlankTab and isGoogleLensSearchableUrl', () => {
+  describe('isBlankTab', () => {
     test('identifies blank and newtab states for omnibox autofocus', () => {
       assert.equal(navUtils.isBlankTab(''), true);
       assert.equal(navUtils.isBlankTab(C.URL.ABOUT_BLANK), true);
       assert.equal(navUtils.isBlankTab(C.URL.NTP_DISPLAY), true);
       assert.equal(navUtils.isBlankTab('https://github.com'), false);
-    });
-
-    test('isGoogleLensSearchableUrl only allows http/https pages', () => {
-      assert.equal(navUtils.isGoogleLensSearchableUrl('https://unsplash.com/photos/1'), true);
-      assert.equal(navUtils.isGoogleLensSearchableUrl('http://my-blog.org'), true);
-      assert.equal(navUtils.isGoogleLensSearchableUrl('invisurf://history'), false);
-      assert.equal(navUtils.isGoogleLensSearchableUrl('app://dist/index.html'), false);
-      assert.equal(navUtils.isGoogleLensSearchableUrl('about:blank'), false);
-      assert.equal(navUtils.isGoogleLensSearchableUrl(null), false);
     });
   });
 

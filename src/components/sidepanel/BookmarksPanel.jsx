@@ -61,10 +61,11 @@ export default function BookmarksPanel() {
     [currentTabId, dispatch]
   );
 
-  const renderItem = (item) => {
+  const renderItem = (item, idx) => {
+    const key = item.id ?? `${item.url || item.title || 'bm'}-${idx}`;
     if (item.type === 'folder') {
       return (
-        <div key={item.id} className="bm-folder-section">
+        <div key={key} className="bm-folder-section">
           <div className="bm-item-row bm-folder-header">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.8, color: '#fbbc04' }}>
               <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
@@ -73,7 +74,7 @@ export default function BookmarksPanel() {
           </div>
           {Array.isArray(item.children) && item.children.length > 0 && (
             <div style={{ paddingLeft: '16px' }}>
-              {item.children.map(renderItem)}
+              {item.children.map((child, cIdx) => renderItem(child, cIdx))}
             </div>
           )}
         </div>
@@ -82,7 +83,7 @@ export default function BookmarksPanel() {
 
     return (
       <div
-        key={item.id}
+        key={key}
         className="bm-item-row"
         onClick={() => handleOpenBookmark(item.url)}
         title={item.url}
@@ -111,10 +112,13 @@ export default function BookmarksPanel() {
         {filteredBookmarks !== null ? (
           filteredBookmarks.length === 0 ? (
             <div className="sp-empty-state">
-              <div>No bookmarks match "{searchQuery}"</div>
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5 }}>
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+              </svg>
+              <div>No matching bookmarks found</div>
             </div>
           ) : (
-            filteredBookmarks.map((item) => renderItem(item))
+            filteredBookmarks.map((item, idx) => renderItem(item, idx))
           )
         ) : bookmarkBar.length === 0 ? (
           <div className="sp-empty-state">
@@ -125,7 +129,7 @@ export default function BookmarksPanel() {
             <div style={{ fontSize: '11px', opacity: 0.7 }}>Bookmark pages using the star icon in the toolbar.</div>
           </div>
         ) : (
-          bookmarkBar.map(renderItem)
+          bookmarkBar.map((item, idx) => renderItem(item, idx))
         )}
       </div>
     </div>

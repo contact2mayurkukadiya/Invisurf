@@ -339,7 +339,6 @@ function buildApplicationMenu() {
 function runMenuCommandFromPalette(commandId) {
     const tabManager = require('../windows/tabManager');
     const windowManager = require('../windows/windowManager');
-    const lensManager = require('../windows/lensManager');
 
     switch (commandId) {
         case C.MENU_COMMAND.OPEN_SETTINGS:
@@ -419,8 +418,6 @@ function runMenuCommandFromPalette(commandId) {
             return tabManager.printActiveTab();
         case C.MENU_COMMAND.FIND_IN_PAGE:
             return tabManager.triggerFindInActiveTab();
-        case C.MENU_COMMAND.SEARCH_WITH_GOOGLE_LENS:
-            return lensManager.startGoogleLensSelection();
         default:
             return false;
     }

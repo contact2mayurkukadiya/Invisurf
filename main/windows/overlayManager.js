@@ -356,21 +356,15 @@ function ensureChromeOverlayOnTop(context) {
     const activeId = context.activeTabId;
     const tabView = activeId && !State.detachedTabWindows.has(activeId) ? context.tabs[activeId] : null;
 
-    // Lazy loaded to avoid circular dependencies
-    const { getLensSession } = require('./lensManager');
     const { layoutTabContentContainer, addTabContentChildView } = require('./tabManager');
 
-    const lensSession = getLensSession(context, activeId, false);
     try {
         if (context.tabContentView) {
             layoutTabContentContainer(context);
             cv.addChildView(context.tabContentView);
         }
         if (tabView && !tabView.webContents.isDestroyed()) {
-            const hideTabForLens = lensSession?.selectionActive && context.activeTabViewRemovedForShellOverlay;
-            if (!hideTabForLens) {
-                addTabContentChildView(context, tabView);
-            }
+            addTabContentChildView(context, tabView);
         }
         if (context.chromeOverlayView && !context.chromeOverlayView.webContents.isDestroyed()) {
             cv.addChildView(context.chromeOverlayView);
@@ -401,14 +395,6 @@ function ensureChromeOverlayOnTop(context) {
             }
             if (context.activeExtensionPopup?.view && !context.activeExtensionPopup.view.webContents.isDestroyed()) {
                 cv.addChildView(context.activeExtensionPopup.view);
-            }
-        }
-        if (lensSession?.selectionActive && lensSession.sidebarView && !lensSession.sidebarView.webContents.isDestroyed()) {
-            const hostView = lensSession.sidebarHostView || lensSession.sidebarView;
-            if (hostView && cv && typeof cv.addChildView === 'function') {
-                const { removeTabContentChildView } = require('./tabManager');
-                removeTabContentChildView(context, hostView);
-                cv.addChildView(hostView);
             }
         }
         if (context.tooltipView && !context.tooltipView.webContents.isDestroyed()) {
@@ -933,29 +919,9 @@ function layoutChromeOverlayBounds(context, patch) {
     if (context.chromeOverlayAcquireCount <= 0) return null;
     let bounds;
 
-    const { getLensSession, computeLensChromeOverlayBounds } = require('./lensManager');
-
-    if (patch?.kind === 'lensSelection') {
-        bounds = context.chromeOverlayFullWindowMode
-            ? (() => {
-                const { width, height } = context.window.getContentBounds();
-                return { x: 0, y: 0, width, height };
-            })()
-            : computeLensChromeOverlayBounds(context, context.activeTabId);
-        context.lensOverlayBounds = bounds;
-    } else if (getLensSession(context, context.activeTabId, false)?.selectionActive) {
-        bounds = context.chromeOverlayFullWindowMode
-            ? (() => {
-                const { width, height } = context.window.getContentBounds();
-                return { x: 0, y: 0, width, height };
-            })()
-            : computeLensChromeOverlayBounds(context, context.activeTabId);
-        context.lensOverlayBounds = bounds;
-    } else {
-        context.chromeOverlayFullWindowMode = false;
-        const { width, height } = context.window.getContentBounds();
-        bounds = { x: 0, y: 0, width, height };
-    }
+    context.chromeOverlayFullWindowMode = false;
+    const { width, height } = context.window.getContentBounds();
+    bounds = { x: 0, y: 0, width, height };
     try {
         context.chromeOverlayView.setBounds(bounds);
         return bounds;
@@ -1325,7 +1291,7 @@ async function showExtensionPopup(context, extension, anchorRect) {
                 try {
                     const { getTabRegistry } = require('../extensions/compat/TabRegistry');
                     getTabRegistry().create({ url: targetNavUrl }, { profileId: context.profileId, extensionId: actualId });
-                } catch (_) {}
+                } catch (_) { }
             }
         }
     });
@@ -1336,7 +1302,7 @@ async function showExtensionPopup(context, extension, anchorRect) {
             try {
                 const { getTabRegistry } = require('../extensions/compat/TabRegistry');
                 getTabRegistry().create({ url: openUrl }, { profileId: context.profileId, extensionId: actualId });
-            } catch (_) {}
+            } catch (_) { }
         }
         return { action: 'deny' };
     });

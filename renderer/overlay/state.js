@@ -8,7 +8,6 @@ export const DOM = {
 const overlaySearch = window.location.search || '';
 export const IS_SHELL_MENU_OVERLAY = overlaySearch.indexOf('shellMenu=1') >= 0;
 export const IS_OMNIBOX_OVERLAY = overlaySearch.indexOf('omnibox=1') >= 0;
-export const IS_LENS_OVERLAY = !IS_SHELL_MENU_OVERLAY && !IS_OMNIBOX_OVERLAY;
 
 const resetHooks = [];
 export function onHideAll(fn) {
@@ -17,7 +16,7 @@ export function onHideAll(fn) {
     }
 }
 
-export function hideAll(options = { hideLens: true }) {
+export function hideAll(options = {}) {
     // 1. Defensively clear DOM classes and ALL inline styles
     try {
         if (DOM.backdrop) {

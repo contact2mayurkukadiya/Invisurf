@@ -84,7 +84,7 @@ export function useChromeOverlay() {
   return ctx;
 }
 
-/** Compact overlay for settings/bookmark/profile menus — isolated from Lens + omnibox overlay. */
+/** Compact overlay for settings/bookmark/profile menus — isolated from omnibox overlay. */
 export function useChromeShellMenuOverlay() {
   const ctx = useContext(ChromeShellMenuOverlayContext);
   if (!ctx) {

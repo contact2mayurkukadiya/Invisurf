@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTabOverlay } from '../context/TabOverlayContext';
 import { KEYBOARD, PLATFORM } from '../constants/conditionStrings.js';
+import ModalPortal from './ModalPortal';
 
 function matchesQuery(item, queryLower) {
   if (!queryLower) return true;
@@ -91,56 +92,58 @@ export default function CommandPaletteModal({ open, onClose, commands }) {
   const shortcutHint = platform === PLATFORM.DARWIN ? '⇧⌘P' : 'Shift+Ctrl+P';
 
   return (
-    <div className="search-tabs-overlay" role="dialog" aria-label="Search menu commands">
-      <button type="button" className="search-tabs-backdrop" aria-label="Close" onClick={onClose} />
-      <div className="search-tabs-panel command-palette-panel">
-        <div className="search-tabs-field">
-          <span className="search-tabs-search-icon" aria-hidden>⌕</span>
-          <input
-            ref={inputRef}
-            type="search"
-            className="search-tabs-input"
-            placeholder="Search menu commands"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === KEYBOARD.ARROW_DOWN || e.key === KEYBOARD.ARROW_UP) e.stopPropagation();
-            }}
-          />
-          <span className="search-tabs-shortcut-hint">{shortcutHint}</span>
-        </div>
-        <div className="search-tabs-divider" />
-        <div className="search-tabs-section-label">Commands</div>
-        <div className="search-tabs-list" ref={listRef}>
-          {filtered.length === 0 ? (
-            <div className="search-tabs-empty">No matching commands</div>
-          ) : (
-            filtered.map((item, idx) => {
-              const isSel = idx === selectedIndex;
-              return (
-                <div
-                  key={`${item.category}-${item.label}-${idx}`}
-                  data-idx={idx}
-                  className={`search-tabs-row command-palette-row${isSel ? ' search-tabs-row--selected' : ''}`}
-                  onMouseEnter={() => setSelectedIndex(idx)}
-                  onClick={() => {
-                    item.run();
-                    onClose();
-                  }}
-                >
-                  <div className="search-tabs-row-text">
-                    <div className="search-tabs-row-title">{item.label}</div>
-                    <div className="search-tabs-row-meta">{item.category}</div>
+    <ModalPortal>
+      <div className="search-tabs-overlay" role="dialog" aria-label="Search menu commands">
+        <button type="button" className="search-tabs-backdrop" aria-label="Close" onClick={onClose} />
+        <div className="search-tabs-panel command-palette-panel">
+          <div className="search-tabs-field">
+            <span className="search-tabs-search-icon" aria-hidden>⌕</span>
+            <input
+              ref={inputRef}
+              type="search"
+              className="search-tabs-input"
+              placeholder="Search menu commands"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === KEYBOARD.ARROW_DOWN || e.key === KEYBOARD.ARROW_UP) e.stopPropagation();
+              }}
+            />
+            <span className="search-tabs-shortcut-hint">{shortcutHint}</span>
+          </div>
+          <div className="search-tabs-divider" />
+          <div className="search-tabs-section-label">Commands</div>
+          <div className="search-tabs-list" ref={listRef}>
+            {filtered.length === 0 ? (
+              <div className="search-tabs-empty">No matching commands</div>
+            ) : (
+              filtered.map((item, idx) => {
+                const isSel = idx === selectedIndex;
+                return (
+                  <div
+                    key={`${item.category}-${item.label}-${idx}`}
+                    data-idx={idx}
+                    className={`search-tabs-row command-palette-row${isSel ? ' search-tabs-row--selected' : ''}`}
+                    onMouseEnter={() => setSelectedIndex(idx)}
+                    onClick={() => {
+                      item.run();
+                      onClose();
+                    }}
+                  >
+                    <div className="search-tabs-row-text">
+                      <div className="search-tabs-row-title">{item.label}</div>
+                      <div className="search-tabs-row-meta">{item.category}</div>
+                    </div>
+                    {item.shortcut ? (
+                      <span className="command-palette-shortcut">{item.shortcut}</span>
+                    ) : null}
                   </div>
-                  {item.shortcut ? (
-                    <span className="command-palette-shortcut">{item.shortcut}</span>
-                  ) : null}
-                </div>
-              );
-            })
-          )}
+                );
+              })
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </ModalPortal>
   );
 }

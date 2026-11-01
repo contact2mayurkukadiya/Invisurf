@@ -108,7 +108,7 @@ function normalizeInternalSchemeUrl(displayUrl) {
     if (!displayUrl || typeof displayUrl !== 'string') return '';
     const t = displayUrl.trim().toLowerCase();
     if (t === 'chrome://history' || t === C.URL.STEALTH_HISTORY || t === C.URL.HISTORY_DISPLAY) return C.URL.HISTORY_DISPLAY;
-    if (t === 'chrome://bookmarks' || t === 'chrome://bookmark' || t === C.URL.STEALTH_BOOKMARK || t === C.URL.BOOKMARK_DISPLAY) return C.URL.BOOKMARK_DISPLAY;
+    if (t === 'chrome://bookmarks' || t === 'chrome://bookmark' || t === 'invisurf://bookmarks' || t === 'stealth://bookmarks' || t === C.URL.STEALTH_BOOKMARK || t === C.URL.BOOKMARK_DISPLAY) return C.URL.BOOKMARK_DISPLAY;
     if (t === 'chrome://settings' || t === C.URL.STEALTH_SETTINGS || t === C.URL.SETTINGS_DISPLAY) return C.URL.SETTINGS_DISPLAY;
     if (t === 'chrome://downloads' || t === 'chrome://download' || t === C.URL.STEALTH_DOWNLOADS || t === C.URL.DOWNLOADS_DISPLAY || t === 'invisurf://download' || t === 'stealth://download') return C.URL.DOWNLOADS_DISPLAY;
     if (t === 'chrome://extensions' || t === 'chrome://extension' || t === C.URL.STEALTH_EXTENSIONS || t === C.URL.EXTENSIONS_DISPLAY) return C.URL.EXTENSIONS_DISPLAY;
@@ -121,7 +121,7 @@ function resolveInternalPageUrl(rawUrl) {
     if (!trimmed) return '';
     const normalizedUrl = trimmed.toLowerCase();
     if (normalizedUrl === 'chrome://history' || normalizedUrl === C.URL.STEALTH_HISTORY || normalizedUrl === C.URL.HISTORY_DISPLAY) return C.URL.HISTORY_LOAD;
-    if (normalizedUrl === 'chrome://bookmarks' || normalizedUrl === 'chrome://bookmark' || normalizedUrl === C.URL.STEALTH_BOOKMARK || normalizedUrl === C.URL.BOOKMARK_DISPLAY) return C.URL.BOOKMARK_LOAD;
+    if (normalizedUrl === 'chrome://bookmarks' || normalizedUrl === 'chrome://bookmark' || normalizedUrl === 'invisurf://bookmarks' || normalizedUrl === 'stealth://bookmarks' || normalizedUrl === C.URL.STEALTH_BOOKMARK || normalizedUrl === C.URL.BOOKMARK_DISPLAY) return C.URL.BOOKMARK_LOAD;
     if (normalizedUrl === 'chrome://settings' || normalizedUrl === C.URL.STEALTH_SETTINGS || normalizedUrl === C.URL.SETTINGS_DISPLAY) return C.URL.SETTINGS_LOAD;
     if (normalizedUrl === 'chrome://downloads' || normalizedUrl === 'chrome://download' || normalizedUrl === C.URL.STEALTH_DOWNLOADS || normalizedUrl === C.URL.DOWNLOADS_DISPLAY || normalizedUrl === 'invisurf://download' || normalizedUrl === 'stealth://download') return C.URL.DOWNLOADS_LOAD;
     if (normalizedUrl === 'chrome://extensions' || normalizedUrl === 'chrome://extension' || normalizedUrl === C.URL.STEALTH_EXTENSIONS || normalizedUrl === C.URL.EXTENSIONS_DISPLAY) return C.URL.EXTENSIONS_LOAD;
@@ -161,22 +161,6 @@ function isCustomNewTabDocumentUrl(url) {
     if (!url || typeof url !== 'string') return false;
     const u = url.toLowerCase();
     return u === C.URL.NTP_DISPLAY || u.startsWith(C.URL.NTP_LOCALHOST_PREFIX);
-}
-
-function isGoogleLensSearchableUrl(url) {
-    if (!url || typeof url !== 'string') return false;
-    const u = url.trim().toLowerCase();
-    if (!u || u === C.URL.ABOUT_BLANK) return false;
-    if (
-        u === C.URL.NTP_DISPLAY ||
-        u.startsWith(C.URL.NTP_LOCALHOST_PREFIX) ||
-        u.startsWith(C.URL.SCHEME_APP) ||
-        u.startsWith(C.URL.SCHEME_INVISURF) ||
-        u.startsWith(C.URL.SCHEME_STEALTH)
-    ) {
-        return false;
-    }
-    return u.startsWith(C.URL.SCHEME_HTTP) || u.startsWith(C.URL.SCHEME_HTTPS);
 }
 
 function toDisplayUrl(rawUrl) {
@@ -247,44 +231,6 @@ function extractDestinationUrl(url) {
     return url;
 }
 
-function isGoogleHostname(hostname) {
-    if (!hostname) return false;
-    const h = hostname.toLowerCase();
-    return h === 'lens.google.com' ||
-           h === 'google.com' ||
-           h.endsWith('.google.com') ||
-           /(^|\.)google\.[a-z]{2,3}(\.[a-z]{2})?$/.test(h);
-}
-
-function isGoogleLensSidebarUrl(url) {
-    if (!url || typeof url !== 'string') return false;
-    if (url.startsWith('data:') || url === 'about:blank') return true;
-    if (url.startsWith('invisurf-lens://close')) return true;
-    try {
-        const parsed = new URL(url);
-        if (parsed.protocol !== 'https:') return false;
-        // Result links routed through Google /url redirect are outbound navigation
-        if (parsed.pathname === '/url' || parsed.pathname.startsWith('/url/')) return false;
-
-        if (parsed.hostname === 'lens.google.com') return true;
-        // Google Search & Visual matches across regional Google domains (google.com, google.co.in, etc.)
-        if (isGoogleHostname(parsed.hostname)) {
-            const path = parsed.pathname || '/';
-            if (
-                path === '/search' || path.startsWith('/search/') ||
-                path.startsWith('/imghp') || path.startsWith('/upload') ||
-                path.startsWith('/lens') || path.startsWith('/m') ||
-                path.startsWith('/webhp')
-            ) {
-                return true;
-            }
-        }
-        return false;
-    } catch (_) {
-        return false;
-    }
-}
-
 /**
  * Builds a search URL for the given engine key and query string.
  * Falls back to Google if the engine key is unrecognised.
@@ -319,12 +265,10 @@ module.exports = {
     isBlankTab,
     shouldReassertOmniboxAfterPageLoad,
     isCustomNewTabDocumentUrl,
-    isGoogleLensSearchableUrl,
     toDisplayUrl,
     canStoreRecentlyClosedUrl,
     transitionFromNavigationSource,
     isInternalPageUrl,
-    isGoogleLensSidebarUrl,
     extractDestinationUrl,
     buildSearchUrl,
     markNextNavigationTransition,

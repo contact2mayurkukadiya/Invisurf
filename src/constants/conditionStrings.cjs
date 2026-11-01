@@ -130,7 +130,6 @@ const MENU_COMMAND = freeze({
   OPEN_DOWNLOADS: 'open-downloads',
   PRINT_ACTIVE_TAB: 'print-active-tab',
   FIND_IN_PAGE: 'find-in-page',
-  SEARCH_WITH_GOOGLE_LENS: 'search-with-google-lens',
 });
 
 /** Navigation source strings (renderer → main) */
@@ -282,10 +281,6 @@ const MIME = freeze({
 /** IPC invoke channels (preload ↔ main) */
 const IPC_INVOKE = freeze({
   RUN_MENU_COMMAND: 'app:run-menu-command',
-  GOOGLE_LENS_ACTIVE_FOR_PROFILE: 'google-lens:active-for-profile',
-  LENS_OPEN_IN_NEW_TAB: 'lens:open-in-new-tab',
-  LENS_RELOAD: 'lens:reload',
-  LENS_CLOSE: 'lens:close',
   IS_STEALTH_WINDOW: 'context:is-stealth-window',
   IS_GHOST_WINDOW: 'context:is-ghost-window',
   WINDOW_CREATE: 'window:create',

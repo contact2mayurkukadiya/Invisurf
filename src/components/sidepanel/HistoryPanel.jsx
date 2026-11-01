@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { addTab } from '../../store/browserSlice';
 
@@ -8,12 +8,15 @@ export default function HistoryPanel() {
   const [query, setQuery] = useState('');
   const [historyItems, setHistoryItems] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const requestIdRef = useRef(0);
 
   const fetchHistory = useCallback(async (searchQuery = '') => {
     if (!window.electronAPI?.historySearch) return;
+    const reqId = ++requestIdRef.current;
     setIsLoading(true);
     try {
       const results = await window.electronAPI.historySearch({ query: searchQuery, limit: 100 });
+      if (reqId !== requestIdRef.current) return;
       const items = Array.isArray(results)
         ? results
         : Array.isArray(results?.items)
@@ -21,14 +24,25 @@ export default function HistoryPanel() {
         : [];
       setHistoryItems(items);
     } catch (err) {
+      if (reqId !== requestIdRef.current) return;
       console.error('[HistoryPanel] Search failed:', err);
     } finally {
-      setIsLoading(false);
+      if (reqId === requestIdRef.current) {
+        setIsLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
-    fetchHistory(query);
+    const trimmed = query.trim();
+    if (!trimmed) {
+      fetchHistory('');
+      return undefined;
+    }
+    const timer = setTimeout(() => {
+      fetchHistory(trimmed);
+    }, 150);
+    return () => clearTimeout(timer);
   }, [query, fetchHistory]);
 
   const handleOpenUrl = useCallback(
@@ -78,12 +92,12 @@ export default function HistoryPanel() {
               <circle cx="12" cy="12" r="10"></circle>
               <polyline points="12 6 12 12 16 14"></polyline>
             </svg>
-            <div>{query ? `No history entries match "${query}"` : 'No browsing history yet'}</div>
+            <div>{query.trim() ? 'No matching history found' : 'No browsing history yet'}</div>
           </div>
         ) : (
           historyItems.map((item, idx) => (
             <div
-              key={item.id || item.url || idx}
+              key={item.visitId ?? item.id ?? `${item.url}-${item.visitTime || idx}-${idx}`}
               className="hist-row"
               onClick={() => handleOpenUrl(item.url)}
               title={item.url}

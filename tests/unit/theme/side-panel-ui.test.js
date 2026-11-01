@@ -74,9 +74,13 @@ describe('Chrome Side Panel UI (Playwright Automated Test)', () => {
             },
           ],
         }),
-        historySearch: () => Promise.resolve([
-          { id: 'h-1', title: 'InviSurf Documentation', url: 'https://docs.invisurf.com', lastVisitTime: Date.now() },
-        ]),
+        historySearch: (payload) => {
+          const q = (payload?.query || '').toLowerCase();
+          if (q.includes('nomatch')) return Promise.resolve({ items: [] });
+          return Promise.resolve([
+            { visitId: 101, id: 'h-1', title: 'InviSurf Documentation', url: 'https://docs.invisurf.com', lastVisitTime: Date.now() },
+          ]);
+        },
         profileList: () => Promise.resolve([]),
         profileGetActive: () => Promise.resolve(null),
         windowGetBootstrap: () => Promise.resolve({}),
@@ -85,8 +89,8 @@ describe('Chrome Side Panel UI (Playwright Automated Test)', () => {
         sidePanelSyncState: () => {},
         sidePanelResize: () => {},
         sidePanelGetState: () => Promise.resolve({ isOpen: false, width: 360, activePanelId: 'reading-list' }),
-        newTab: () => {},
-        switchTab: () => {},
+        newTab: (id, isStealth, url) => { window.__lastNewTab = { id, isStealth, url }; },
+        switchTab: (id) => { window.__lastSwitchTab = id; },
         closeTab: () => {},
         tabSetAudioMuted: () => {},
         tabMenuSyncLabels: () => {},
@@ -155,10 +159,40 @@ describe('Chrome Side Panel UI (Playwright Automated Test)', () => {
     await bookmarksPanel.waitFor({ state: 'visible' });
     assert.ok(await bookmarksPanel.isVisible(), 'Bookmarks panel must be rendered');
 
-    // Verify "Open in new tab" icon button is visible for Bookmarks
+    // Verify "Open in new tab" icon button is visible for Bookmarks and opens invisurf://bookmark
     const openInNewTabBtn = sidePanel.locator('.side-panel-open-tab-btn');
     assert.ok(await openInNewTabBtn.isVisible(), 'Open in new tab button must be visible for Bookmarks');
     assert.ok((await openInNewTabBtn.getAttribute('title')).includes('Open Bookmarks in new tab'));
+
+    // First click opens invisurf://bookmark in a new tab
+    await openInNewTabBtn.click();
+    const newTabCall = await page.evaluate(() => window.__lastNewTab);
+    assert.ok(newTabCall, 'newTab should be called when clicking open in new tab button');
+    assert.equal(newTabCall.url, 'invisurf://bookmark', 'newTab URL must be invisurf://bookmark');
+    const bookmarkTabId = newTabCall.id;
+
+    // Reset spies
+    await page.evaluate(() => {
+      window.__lastNewTab = null;
+      window.__lastSwitchTab = null;
+    });
+
+    // Second click: bookmark page is already open, so it MUST redirect (switch) to it rather than opening duplicate tab
+    await openInNewTabBtn.click();
+    const secondNewTabCall = await page.evaluate(() => window.__lastNewTab);
+    assert.equal(secondNewTabCall, null, 'newTab must NOT be called when bookmark page is already open');
+    const switchedTabId = await page.evaluate(() => window.__lastSwitchTab);
+    assert.equal(switchedTabId, bookmarkTabId, 'switchTab must be called with the existing bookmark tab ID');
+
+    // Verify Bookmarks search and simple placeholder without search query
+    const bmSearchInput = bookmarksPanel.locator('.sp-search-input');
+    await bmSearchInput.fill('nomatch');
+    const bmEmptyState = bookmarksPanel.locator('.sp-empty-state');
+    await bmEmptyState.waitFor({ state: 'visible' });
+    const bmEmptyText = await bmEmptyState.textContent();
+    assert.ok(bmEmptyText.includes('No matching bookmarks found'), 'Bookmarks empty state should show simple placeholder');
+    assert.ok(!bmEmptyText.includes('nomatch'), 'Bookmarks empty state must not contain search query');
+    await bmSearchInput.fill('');
 
     // Pin Bookmarks to toolbar as well
     await pinBtn.click();
@@ -179,9 +213,49 @@ describe('Chrome Side Panel UI (Playwright Automated Test)', () => {
     await historyPanel.waitFor({ state: 'visible' });
     assert.ok(await historyPanel.isVisible(), 'History panel must be rendered');
 
-    // Verify "Open in new tab" icon button is visible for History
+    // Verify History search and simple placeholder without search query
+    const histSearchInput = historyPanel.locator('.sp-search-input');
+    await histSearchInput.fill('nomatch');
+    const histEmptyState = historyPanel.locator('.sp-empty-state');
+    await histEmptyState.waitFor({ state: 'visible' });
+    const histEmptyText = await histEmptyState.textContent();
+    assert.ok(histEmptyText.includes('No matching history found'), 'History empty state should show simple placeholder');
+    assert.ok(!histEmptyText.includes('nomatch'), 'History empty state must not contain search query');
+
+    // Search matching item and verify it replaces list cleanly
+    await histSearchInput.fill('InviSurf');
+    const histRow = historyPanel.locator('.hist-row');
+    await histRow.first().waitFor({ state: 'visible' });
+    assert.ok(await histRow.first().isVisible(), 'History matching search result must be visible');
+    await histSearchInput.fill('');
+
+    // Verify "Open in new tab" icon button is visible for History and opens invisurf://history
     assert.ok(await openInNewTabBtn.isVisible(), 'Open in new tab button must be visible for History');
     assert.ok((await openInNewTabBtn.getAttribute('title')).includes('Open History in new tab'));
+
+    // First click opens invisurf://history in a new tab
+    await page.evaluate(() => {
+      window.__lastNewTab = null;
+      window.__lastSwitchTab = null;
+    });
+    await openInNewTabBtn.click();
+    const histNewTabCall = await page.evaluate(() => window.__lastNewTab);
+    assert.ok(histNewTabCall, 'newTab should be called for history');
+    assert.equal(histNewTabCall.url, 'invisurf://history', 'newTab URL must be invisurf://history');
+    const histTabId = histNewTabCall.id;
+
+    // Reset spies
+    await page.evaluate(() => {
+      window.__lastNewTab = null;
+      window.__lastSwitchTab = null;
+    });
+
+    // Second click: history page is already open, so it MUST redirect (switch) to it rather than opening duplicate tab
+    await openInNewTabBtn.click();
+    const secondHistNewTabCall = await page.evaluate(() => window.__lastNewTab);
+    assert.equal(secondHistNewTabCall, null, 'newTab must NOT be called when history page is already open');
+    const switchedHistTabId = await page.evaluate(() => window.__lastSwitchTab);
+    assert.equal(switchedHistTabId, histTabId, 'switchTab must be called with the existing history tab ID');
 
     // Pin History to toolbar as well
     await pinBtn.click();

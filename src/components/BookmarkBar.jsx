@@ -146,9 +146,9 @@ export default function BookmarkBar({ currentTabId }) {
               break;
             case 'openManager':
               if (currentTabId) {
-                window.electronAPI.navigate(currentTabId, 'invisurf://bookmarks', { source: 'bookmark' });
+                window.electronAPI.navigate(currentTabId, 'invisurf://bookmark', { source: 'bookmark' });
               } else {
-                window.electronAPI.newTab(null, false, 'invisurf://bookmarks', { source: 'bookmark' });
+                window.electronAPI.newTab(null, false, 'invisurf://bookmark', { source: 'bookmark' });
               }
               break;
             case 'toggleBar':

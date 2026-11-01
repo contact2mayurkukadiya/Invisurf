@@ -19,7 +19,6 @@ const downloadService = require('../services/downloadService');
 const windowManager = require('../windows/windowManager');
 const tabManager = require('../windows/tabManager');
 const overlayManager = require('../windows/overlayManager');
-const lensManager = require('../windows/lensManager');
 const sidePanelManager = require('../windows/sidePanelManager');
 const { getWindowContextByEventSender, getWindowContextForShellFallback, getWindowContextByChromeOverlaySender, isViewWebContentsAlive } = require('../windows/windowContextUtils');
 const { truncateMenuLabel } = require('../services/sessionService');
@@ -108,40 +107,11 @@ async function resolveIdentityReportForContext(context, tabIdOverride, sender = 
 }
 
 function registerIpcHandlers() {
-    // === MENU & LENS SHORTCUTS ===
+    // === MENU SHORTCUTS ===
     ipcMain.handle(C.IPC_INVOKE.RUN_MENU_COMMAND, (event, commandId) => {
         if (!isSenderTrusted(event) || typeof commandId !== 'string') return false;
         const menuUI = require('../ui/menu');
         return menuUI.runMenuCommandFromPalette(commandId);
-    });
-
-    ipcMain.handle(C.IPC_INVOKE.GOOGLE_LENS_ACTIVE_FOR_PROFILE, (event) => {
-        if (!isSenderTrusted(event)) return false;
-        const context = getWindowContextByEventSender(event.sender);
-        if (!context?.profileId) return false;
-        return !!lensManager.findActiveLensTabForProfile(context.profileId);
-    });
-
-    ipcMain.handle(C.IPC_INVOKE.LENS_CLOSE || 'lens:close', (event) => {
-        if (!isSenderTrusted(event)) return false;
-        const context = getWindowContextByEventSender(event.sender);
-        if (!context) return false;
-        lensManager.closeGoogleLensSelection(context, { closeSidebar: true });
-        return true;
-    });
-
-    ipcMain.handle(C.IPC_INVOKE.LENS_OPEN_IN_NEW_TAB || 'lens:open-in-new-tab', (event) => {
-        if (!isSenderTrusted(event)) return false;
-        const context = getWindowContextByEventSender(event.sender);
-        if (!context) return false;
-        return lensManager.openLensInNewTab(context);
-    });
-
-    ipcMain.handle(C.IPC_INVOKE.LENS_RELOAD || 'lens:reload', (event) => {
-        if (!isSenderTrusted(event)) return false;
-        const context = getWindowContextByEventSender(event.sender);
-        if (!context) return false;
-        return lensManager.reloadLensSidebar(context);
     });
 
     // === WINDOW MANAGEMENT ===
@@ -941,30 +911,6 @@ function registerIpcHandlers() {
             return;
         }
 
-        if (data?.type === 'lensSelectionCapture') {
-            lensManager.captureGoogleLensSelection(context, data).catch((err) => { console.error('lensSelectionCapture', err?.message || err); });
-            return;
-        }
-        if (data?.type === 'lensSelectionCancel') {
-            lensManager.closeGoogleLensSelection(context, { closeSidebar: data.closeSidebar === true });
-            return;
-        }
-        if (data?.type === 'lensSidebarResize') {
-            lensManager.resizeGoogleLensSidebar(context, data.width);
-            return;
-        }
-        if (data?.type === 'lensSidebarResizeCommit') {
-            lensManager.commitGoogleLensSidebarResize(context, data.width);
-            return;
-        }
-        if (data?.type === 'lensCopyImage') {
-            lensManager.copyLensSelectionImage(context);
-            return;
-        }
-        if (data?.type === 'lensCopyText') {
-            lensManager.copyLensSelectionText(context).catch((err) => { console.error('lensCopyText', err?.message || err); });
-            return;
-        }
         if (data?.type === 'dismiss') {
             if (context?.activeExtensionPopup && !context.activeDesktopMediaPicker && !context.activeExtensionInstallPrompt) {
                 overlayManager.hideExtensionPopup(context);
@@ -1131,10 +1077,6 @@ function registerIpcHandlers() {
         const targetId = id === 'current' ? context.activeTabId : id;
         if (!context.tabs[targetId]) return;
         if (State.appLogger) State.appLogger.info('ipc:navigate-request', { windowId: context.windowId, profileId: context.profileId, tabId: targetId, url, source });
-
-        if (targetId === context.activeTabId && lensManager.getLensSession(context, targetId, false)?.selectionActive) {
-            lensManager.closeGoogleLensSelection(context, { closeSidebar: true });
-        }
         tabManager.resetTabWebContentsScale(context.tabs[targetId]);
 
         let formattedUrl = url.trim();

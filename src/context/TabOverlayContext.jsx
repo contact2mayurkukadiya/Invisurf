@@ -103,3 +103,9 @@ export function useTabOverlay() {
   }
   return ctx;
 }
+
+export function useOptionalTabOverlay() {
+  return useContext(TabOverlayContext);
+}
+
+export { TabOverlayContext };

@@ -1,10 +1,7 @@
 'use strict';
 
-const { WebContentsView } = require('electron');
 const State = require('../state');
 const { UI_HEIGHT } = require('../constants/defaults');
-const { buildSecureWebPreferences } = require('../../runtime/webPreferences');
-const { applyIdentityToWebContents } = require('../../runtime/browserIdentity');
 
 const SIDE_PANEL_MIN_WIDTH = 260;
 const SIDE_PANEL_DEFAULT_WIDTH = 360;
@@ -19,7 +16,6 @@ function getSidePanelState(context) {
             width: SIDE_PANEL_DEFAULT_WIDTH,
             activePanelId: 'reading-list',
             customUrl: null,
-            webContentView: null,
         };
     }
     return context.sidePanelState;
@@ -91,14 +87,6 @@ function setSidePanelState(context, partial = {}, options = {}) {
     if (!state) return;
     if (typeof partial.isOpen === 'boolean') {
         state.isOpen = partial.isOpen;
-        if (!state.isOpen && context.activeTabId && options.closeLens !== false) {
-            try {
-                const lensManager = require('./lensManager');
-                if (lensManager.getLensSession(context, context.activeTabId, false)) {
-                    lensManager.closeGoogleLensSelection(context, { closeSidebar: true });
-                }
-            } catch (_) { }
-        }
     }
     if (partial.width != null) {
         state.width = clampSidePanelWidth(context, partial.width);
@@ -118,78 +106,15 @@ function setSidePanelState(context, partial = {}, options = {}) {
 function layoutSidePanel(context) {
     if (!context?.window || context.window.isDestroyed()) return;
 
-    // Relayout tab content container and active tab view
+    // Relayout tab content container and active tab view (purely resizes the tab area)
     const { layoutTabContentContainer, layoutActiveTabView } = require('./tabManager');
     layoutTabContentContainer(context);
     if (context.activeTabId) {
         layoutActiveTabView(context, context.activeTabId);
     }
-
-    // Position WebContentsView if a web/extension URL is active
-    const state = getSidePanelState(context);
-    if (state?.webContentView && !state.webContentView.webContents.isDestroyed()) {
-        const sideWidth = getSidePanelWidth(context);
-        if (sideWidth > 0 && state.customUrl) {
-            const { width, height } = context.window.getContentBounds();
-            const panelX = Math.max(0, width - sideWidth + 6);
-            const panelY = UI_HEIGHT + 38;
-            const panelW = Math.max(0, sideWidth - 14);
-            const panelH = Math.max(0, height - panelY - 8);
-            state.webContentView.setBounds({
-                x: panelX,
-                y: panelY,
-                width: panelW,
-                height: panelH,
-            });
-            const { setNativeViewCornerRadius } = require('./tabManager');
-            setNativeViewCornerRadius(state.webContentView, 14);
-        } else {
-            state.webContentView.setBounds({ x: 0, y: 0, width: 0, height: 0 });
-        }
-    }
-}
-
-function attachSidePanelWebContentView(context, url) {
-    const state = getSidePanelState(context);
-    if (!state || !context?.window?.contentView) return null;
-
-    if (!state.webContentView || state.webContentView.webContents.isDestroyed()) {
-        const view = new WebContentsView({
-            webPreferences: buildSecureWebPreferences(),
-        });
-        applyIdentityToWebContents(view.webContents);
-        state.webContentView = view;
-        context.window.contentView.addChildView(view);
-    }
-
-    state.customUrl = url;
-    if (url) {
-        state.webContentView.webContents.loadURL(url).catch((err) => {
-            console.error('Failed to load side panel URL:', url, err?.message || err);
-        });
-    }
-    layoutSidePanel(context);
-    return state.webContentView;
-}
-
-function detachSidePanelWebContentView(context) {
-    const state = getSidePanelState(context);
-    if (!state?.webContentView) return;
-    try {
-        if (!state.webContentView.webContents.isDestroyed()) {
-            state.webContentView.setBounds({ x: 0, y: 0, width: 0, height: 0 });
-            if (context?.window?.contentView) {
-                context.window.contentView.removeChildView(state.webContentView);
-            }
-        }
-    } catch (_) { }
-    state.webContentView = null;
-    state.customUrl = null;
-    layoutSidePanel(context);
 }
 
 function destroySidePanel(context) {
-    detachSidePanelWebContentView(context);
     context.sidePanelState = null;
 }
 
@@ -205,7 +130,5 @@ module.exports = {
     setSidePanelWidth,
     setSidePanelState,
     layoutSidePanel,
-    attachSidePanelWebContentView,
-    detachSidePanelWebContentView,
     destroySidePanel,
 };

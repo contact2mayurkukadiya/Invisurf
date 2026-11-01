@@ -5,6 +5,8 @@ import './ProfileEditorModal.css';
 import { PROFILE } from '../constants/conditionStrings.js';
 import AssetMaskIcon from './AssetMaskIcon.jsx';
 import { cameraSvg, checkSvg } from '../constants/appAssetUrls.js';
+import ModalPortal from './ModalPortal';
+import { useOptionalTabOverlay } from '../context/TabOverlayContext';
 
 
 export default function ProfileEditorModal({
@@ -25,6 +27,19 @@ export default function ProfileEditorModal({
   const [error, setError] = useState(null);
   const [presetAvatars, setPresetAvatars] = useState([]);
   const fileRef = useRef(null);
+  const overlayCtx = useOptionalTabOverlay();
+
+  useEffect(() => {
+    if (!open || !overlayCtx?.beginOverlay) return undefined;
+    let cancelled = false;
+    (async () => {
+      await overlayCtx.beginOverlay();
+    })();
+    return () => {
+      cancelled = true;
+      overlayCtx.endOverlay?.();
+    };
+  }, [open, overlayCtx]);
 
   useEffect(() => {
     if (!open) return;
@@ -249,17 +264,17 @@ export default function ProfileEditorModal({
   const previewProfile =
     mode === PROFILE.MODE_EDIT && initialProfile
       ? {
-          ...initialProfile,
-          displayName: name || initialProfile.displayName,
-          hasCustomAvatar: !!(avatarPreviewSrc && !removeAvatarOnSave),
-          avatarSource: previewAvatarSource,
-        }
+        ...initialProfile,
+        displayName: name || initialProfile.displayName,
+        hasCustomAvatar: !!(avatarPreviewSrc && !removeAvatarOnSave),
+        avatarSource: previewAvatarSource,
+      }
       : {
-          profileId: '__preview__',
-          displayName: name || 'Profile',
-          hasCustomAvatar: !!avatarPreviewSrc,
-          avatarSource: previewAvatarSource,
-        };
+        profileId: '__preview__',
+        displayName: name || 'Profile',
+        hasCustomAvatar: !!avatarPreviewSrc,
+        avatarSource: previewAvatarSource,
+      };
 
   const avatarImageOverride =
     avatarPreviewSrc != null
@@ -269,8 +284,9 @@ export default function ProfileEditorModal({
         : undefined;
 
   return (
-    <div className="profile-editor-overlay" role="dialog" aria-modal="true" aria-labelledby="profile-editor-title">
-      <button type="button" className="profile-editor-backdrop" aria-label="Close" onClick={onClose} />
+    <ModalPortal>
+      <div className="profile-editor-overlay" role="dialog" aria-modal="true" aria-labelledby="profile-editor-title">
+        <button type="button" className="profile-editor-backdrop" aria-label="Close" onClick={onClose} />
       <div
         className={
           presetAvatars.length > 0
@@ -383,5 +399,6 @@ export default function ProfileEditorModal({
         </div>
       </div>
     </div>
-  );
+  </ModalPortal>
+);
 }

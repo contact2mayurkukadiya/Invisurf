@@ -25,7 +25,6 @@ const {
 
 // We use lazy requires for these to prevent circular dependencies
 // const overlayManager = require('./overlayManager');
-// const lensManager = require('./lensManager');
 
 function createTabContentContainer(context) {
     const electron = require('electron');
@@ -155,6 +154,18 @@ function resetTabWebContentsScale(view) {
     }
 }
 
+function getActiveTabContentBounds(context) {
+    if (!context?.window || context.window.isDestroyed()) return { x: 0, y: UI_HEIGHT, width: 0, height: 0 };
+    const { width, height } = context.window.getContentBounds();
+    const isFullscreen = (State.htmlFullscreenTabId && State.htmlFullscreenTabId === context.activeTabId) || (typeof context.window.isFullScreen === 'function' && context.window.isFullScreen());
+    return {
+        x: 0,
+        y: isFullscreen ? 0 : UI_HEIGHT,
+        width,
+        height: isFullscreen ? height : Math.max(0, height - UI_HEIGHT),
+    };
+}
+
 function layoutTabContentContainer(context) {
     if (!context?.tabContentView || !context?.window || context.window.isDestroyed()) return;
     try {
@@ -163,10 +174,6 @@ function layoutTabContentContainer(context) {
         const sidePanelWidth = getSidePanelWidth(context);
         const containerWidth = Math.max(0, width - (sidePanelWidth || 0));
         context.tabContentView.setBounds({ x: 0, y: 0, width: containerWidth, height });
-        if (typeof context.tabContentView.setBackgroundColor === 'function') {
-            const { getChromeShellBackgroundColor } = require('./lensManager');
-            context.tabContentView.setBackgroundColor(sidePanelWidth > 0 ? '#00000000' : getChromeShellBackgroundColor(context));
-        }
     } catch (_) { }
 }
 
@@ -175,41 +182,25 @@ function layoutActiveTabView(context, tabId = context?.activeTabId) {
     const view = context.tabs[tabId];
     if (!view || view.webContents.isDestroyed()) return;
 
-    const { getLensSession, getActiveTabContentBounds, layoutLensSidebar } = require('./lensManager');
-    const lensSession = getLensSession(context, tabId, false);
-
-    if (lensSession?.selectionActive) {
-        // Keep the live view hidden/collapsed during selection
-        const cur = view.getBounds?.() || {};
-        if (cur.width !== 0 || cur.height !== 0) {
-            try { view.setBounds({ x: 0, y: 0, width: 0, height: 0 }); } catch (_) { }
-        }
-        const { postLensSelectionPatch } = require('./lensManager');
-        postLensSelectionPatch(context);
+    resetTabWebContentsScale(view);
+    const bounds = getActiveTabContentBounds(context);
+    const { getSidePanelWidth, WEB_CONTENTS_MIN_WIDTH } = require('./sidePanelManager');
+    const sidePanelWidth = getSidePanelWidth(context);
+    if (sidePanelWidth > 0 && bounds && bounds.width > 0) {
+        const leftMargin = 8;
+        const topMargin = 4;
+        const bottomMargin = 8;
+        const rightGap = 6;
+        bounds.x = leftMargin;
+        bounds.y = bounds.y + topMargin;
+        bounds.width = Math.max(WEB_CONTENTS_MIN_WIDTH, bounds.width - sidePanelWidth - leftMargin - rightGap);
+        bounds.height = Math.max(0, bounds.height - topMargin - bottomMargin);
+        view.setBounds(bounds);
+        setNativeViewCornerRadius(view, 14);
     } else {
-        // Restore standard bounds on exit
-        resetTabWebContentsScale(view);
-        const bounds = getActiveTabContentBounds(context, tabId);
-        const { getSidePanelWidth, WEB_CONTENTS_MIN_WIDTH } = require('./sidePanelManager');
-        const sidePanelWidth = getSidePanelWidth(context);
-        if (sidePanelWidth > 0 && bounds && bounds.width > 0) {
-            const leftMargin = 8;
-            const topMargin = 4;
-            const bottomMargin = 8;
-            const rightGap = 6;
-            bounds.x = leftMargin;
-            bounds.y = bounds.y + topMargin;
-            bounds.width = Math.max(WEB_CONTENTS_MIN_WIDTH, bounds.width - sidePanelWidth - leftMargin - rightGap);
-            bounds.height = Math.max(0, bounds.height - topMargin - bottomMargin);
-            view.setBounds(bounds);
-            setNativeViewCornerRadius(view, 14);
-        } else {
-            view.setBounds(bounds);
-            setNativeViewCornerRadius(view, 0);
-        }
+        view.setBounds(bounds);
+        setNativeViewCornerRadius(view, 0);
     }
-
-    layoutLensSidebar(context, tabId);
 }
 
 function sendOmniboxFocusToShell(context, tabId, selectAll, openOverlay = false) {
@@ -239,25 +230,11 @@ function activateTabInContext(context, id) {
     if (!context || !context.tabs[id]) return false;
 
     const overlayManager = require('./overlayManager');
-    const lensManager = require('./lensManager');
 
     if (context.activeTabId !== id) {
-        lensManager.suspendLensSessionPresentation(context, context.activeTabId);
         overlayManager.dismissChromeShellMenuOverlay(context, 'browser-action');
         overlayManager.hideStatusBubble(context);
         overlayManager.hideExtensionPopup(context);
-
-        const sidePanelManager = require('./sidePanelManager');
-        const spState = sidePanelManager.getSidePanelState(context);
-        if (spState && spState.activePanelId === 'lens') {
-            const targetLens = lensManager.getLensSession(context, id, false);
-            const isLensActiveOnTarget = !!(targetLens && targetLens.selectionActive);
-            if (isLensActiveOnTarget && !spState.isOpen) {
-                sidePanelManager.setSidePanelState(context, { isOpen: true, activePanelId: 'lens' }, { broadcast: true });
-            } else if (!isLensActiveOnTarget && spState.isOpen) {
-                sidePanelManager.setSidePanelState(context, { isOpen: false }, { broadcast: true, closeLens: false });
-            }
-        }
     }
     const skipSameTab =
         context.activeTabId === id &&
@@ -288,14 +265,9 @@ function activateTabInContext(context, id) {
             removeTabContentChildView(context, context.tabs[tid]);
         } catch (_) { }
     }
-    lensManager.detachLensSidebarsExcept(context, id);
     addTabContentChildView(context, context.tabs[id]);
     context.activeTabId = id;
     layoutActiveTabView(context, id);
-    const targetLens = lensManager.getLensSession(context, id, false);
-    if (targetLens && targetLens.selectionActive) {
-        lensManager.restoreActiveLensTabPresentation(context, id);
-    }
     if (typeof context.tabs[id]?._invisurfSyncOverscrollHistoryState === 'function') {
         context.tabs[id]._invisurfSyncOverscrollHistoryState();
     }
@@ -338,10 +310,7 @@ function activateTabInContext(context, id) {
             : 1.0;
         context.window.webContents.send(C.IPC_EVENT.TAB_UPDATE, { id, zoomFactor: currentZoom });
     }
-    const lensSession = lensManager.getLensSession(context, id, false);
-    if (lensSession?.selectionActive) {
-        lensManager.restoreActiveLensTabPresentation(context, id);
-    } else if (context.chromeOverlayView && !context.chromeOverlayView.webContents.isDestroyed()) {
+    if (context.chromeOverlayView && !context.chromeOverlayView.webContents.isDestroyed()) {
         try {
             context.chromeOverlayView.webContents.send(C.IPC_EVENT.CHROME_OVERLAY_PATCH, { kind: 'hide' });
             context.chromeOverlayView.setBounds({ x: 0, y: 0, width: 0, height: 0 });
@@ -425,7 +394,6 @@ function moveTabToDetachedWindow(id, fallbackTabId) {
         view.webContents.destroy();
     } catch (_) { }
 
-    require('./lensManager').destroyLensSession(context, id);
     delete context.tabs[id];
     delete context.sleepingTabs[id];
     State.tabIdToWindowId.delete(id);
@@ -530,11 +498,6 @@ function openOrActivateSettingsTab() {
 }
 
 function navigateActiveTabHome() {
-    const context = getWindowContextForShellFallback();
-    const { getLensSession, closeGoogleLensSelection } = require('./lensManager');
-    if (getLensSession(context, context?.activeTabId, false)?.selectionActive) {
-        closeGoogleLensSelection(context, { closeSidebar: true });
-    }
     const activeView = getActiveTabView();
     if (!activeView || activeView.webContents.isDestroyed()) return;
     resetTabWebContentsScale(activeView);
@@ -1521,7 +1484,6 @@ function closeTab(context, id, options = {}) {
     if (!context || !id) return false;
     const overlayManager = require('./overlayManager');
     const sessionService = require('../services/sessionService');
-    const lensManager = require('./lensManager');
     const compatDiagnostics = require('../../compatibilityDiagnostics');
 
     overlayManager.dismissChromeShellMenuOverlay(context, 'browser-action');
@@ -1554,7 +1516,6 @@ function closeTab(context, id, options = {}) {
         if (Array.isArray(context.tabOrder)) {
             context.tabOrder = context.tabOrder.filter(tid => tid !== id);
         }
-        lensManager.destroyLensSession(context, id);
         if (context.activeTabId === id) context.activeTabId = null;
     }
     State.pendingTransitionsByTab.delete(String(id));

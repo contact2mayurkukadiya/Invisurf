@@ -38,34 +38,34 @@ function setupTestEnvironment() {
     nativeTheme: {
       shouldUseDarkColors: true,
       themeSource: 'system',
-      on: () => {},
-      removeListener: () => {},
+      on: () => { },
+      removeListener: () => { },
     },
     ipcMain: new EventEmitter(),
     clipboard: {
       readText: () => '',
-      writeText: () => {},
+      writeText: () => { },
     },
     Menu: {
-      buildFromTemplate: () => ({ popup: () => {} }),
+      buildFromTemplate: () => ({ popup: () => { } }),
     },
     WebContentsView: class MockWebContentsView {
       constructor() {
         this.webContents = new EventEmitter();
-        this.webContents.loadURL = async () => {};
-        this.webContents.send = () => {};
-        this.webContents.setZoomFactor = () => {};
+        this.webContents.loadURL = async () => { };
+        this.webContents.send = () => { };
+        this.webContents.setZoomFactor = () => { };
         this.webContents.isDestroyed = () => false;
       }
-      setBackgroundColor() {}
-      setBounds() {}
-      setVisible() {}
+      setBackgroundColor() { }
+      setBounds() { }
+      setVisible() { }
     },
     BaseWindow: class MockBaseWindow {
       constructor() {
         this.contentView = {
-          addChildView: () => {},
-          removeChildView: () => {},
+          addChildView: () => { },
+          removeChildView: () => { },
         };
       }
     },
@@ -73,16 +73,16 @@ function setupTestEnvironment() {
       defaultSession: {
         cookies: {
           get: async () => [],
-          remove: async () => {},
-          on: () => {},
+          remove: async () => { },
+          on: () => { },
         },
       },
       fromPartition: (partition) => ({
         partition,
         cookies: {
           get: async () => [],
-          remove: async () => {},
-          on: () => {},
+          remove: async () => { },
+          on: () => { },
         },
       }),
     },
@@ -105,7 +105,7 @@ function setupTestEnvironment() {
     cleanup: () => {
       try {
         fs.rmSync(tempUserData, { recursive: true, force: true });
-      } catch (_) {}
+      } catch (_) { }
     },
   };
 }
