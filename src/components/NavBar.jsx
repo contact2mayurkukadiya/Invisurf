@@ -32,6 +32,7 @@ import {
   menuFindSvg,
   menuGhostWindowSvg,
   menuHistorySvg,
+  menuLensSvg,
   menuNewTabSvg,
   menuNewWindowSvg,
   menuPasteSvg,
@@ -135,6 +136,12 @@ function isInternalOrBlankTab(tab) {
   );
 }
 
+function canSearchTabWithGoogleLens(tab) {
+  if (!tab || tab.isNewTab || isInternalOrBlankTab(tab)) return false;
+  const lower = String(tab.url || '').trim().toLowerCase();
+  return lower.startsWith(URL_C.SCHEME_HTTP) || lower.startsWith(URL_C.SCHEME_HTTPS);
+}
+
 function canBookmarkTab(tab) {
   if (!tab || tab.isNewTab || isInternalOrBlankTab(tab)) return false;
   const lower = String(tab.url || '').trim().toLowerCase();
@@ -187,17 +194,21 @@ export default function NavBar({
   const sidePanelState = useSelector(s => s.browser.sidePanel || {});
   const isSidePanelOpen = !!sidePanelState.isOpen;
   const activePanelId = sidePanelState.activePanelId || 'reading-list';
-  const pinnedPanelIds = Array.isArray(sidePanelState.pinnedPanelIds) ? sidePanelState.pinnedPanelIds : [];
+  const pinnedPanelIds = (Array.isArray(sidePanelState.pinnedPanelIds) ? sidePanelState.pinnedPanelIds : []).filter(id => id !== 'lens');
   const bookmarksData = useSelector(s => s.bookmarks.data);
   const bookmarksBarRef = useRef(bookmarksData.bar);
   bookmarksBarRef.current = bookmarksData.bar;
 
   const handleToggleSidePanel = useCallback(() => {
+    if (activePanelId === 'lens' && window.electronAPI?.closeGoogleLens) {
+      window.electronAPI.closeGoogleLens();
+    }
     dispatch(toggleSidePanel());
-  }, [dispatch]);
+  }, [activePanelId, dispatch]);
 
   const tab = tabs[currentTabId];
   const currentUrl = tab && !tab.isNewTab ? (tab.url || '') : '';
+  const canSearchWithGoogleLens = canSearchTabWithGoogleLens(tab);
 
   const existingBookmark = findBookmarkByUrl(currentUrl, bookmarksData.bar);
   const isBookmarked = !!existingBookmark;
@@ -535,6 +546,13 @@ export default function NavBar({
       { iconSrc: menuCopySvg, label: 'Copy', shortcut: shortcut('⌘C', 'Ctrl+C'), commandId: 'copy' },
       { iconSrc: menuPasteSvg, label: 'Paste', shortcut: shortcut('⌘V', 'Ctrl+V'), commandId: 'paste' },
     ];
+    let googleLensMenuDisabled = false;
+    try {
+      googleLensMenuDisabled = !canSearchWithGoogleLens || await window.electronAPI?.isGoogleLensActiveForProfile?.() === true;
+    } catch (_) {
+      googleLensMenuDisabled = !canSearchWithGoogleLens;
+    }
+
     await post({
       kind: 'appMenu',
       menuRect: { left: menuLeft, top: menuTop, width: 320 },
@@ -551,6 +569,12 @@ export default function NavBar({
         { iconSrc: menuDeleteDataSvg, label: 'Delete Browsing Data...', shortcut: shortcut('⇧⌘⌫', 'Ctrl+Shift+Del'), commandId: 'deleteBrowsingData' },
         { type: 'separator' },
         { iconSrc: menuPrintSvg, label: 'Print...', shortcut: shortcut('⌘P', 'Ctrl+P'), commandId: 'print' },
+        {
+          iconSrc: menuLensSvg,
+          label: 'Search this tab with Google Lens',
+          commandId: 'searchWithGoogleLens',
+          disabled: googleLensMenuDisabled,
+        },
         { iconSrc: menuFindSvg, label: 'Find and Edit', submenuKey: 'find' },
         { type: 'separator' },
         { iconSrc: menuSettingsSvg, label: 'Settings', shortcut: shortcut('⌘,', 'Ctrl+,'), commandId: 'openSettings' },
@@ -564,7 +588,7 @@ export default function NavBar({
         find: findRows,
       },
     });
-  }, [bookmarksData.bar, buildProfileAvatarPayloadForMenu, canBookmark, currentProfile, existingBookmark, profiles, recentlyClosed, post, shortcut]);
+  }, [bookmarksData.bar, buildProfileAvatarPayloadForMenu, canBookmark, canSearchWithGoogleLens, currentProfile, existingBookmark, profiles, recentlyClosed, post, shortcut]);
 
   const openAppMenu = useCallback(async (e) => {
     const anchor = e.currentTarget?.getBoundingClientRect?.();
@@ -631,10 +655,16 @@ export default function NavBar({
             window.electronAPI.createGhostWindow?.(currentProfile?.profileId ? { profileId: currentProfile.profileId } : {});
           }
           else if (commandId === 'openHistorySidePanel') {
+            if (activePanelId === 'lens' && window.electronAPI?.closeGoogleLens) {
+              window.electronAPI.closeGoogleLens();
+            }
             dispatch(setSidePanelActiveView('history'));
             dispatch(setSidePanelOpen(true));
           }
           else if (commandId === 'openBookmarksSidePanel') {
+            if (activePanelId === 'lens' && window.electronAPI?.closeGoogleLens) {
+              window.electronAPI.closeGoogleLens();
+            }
             dispatch(setSidePanelActiveView('bookmarks'));
             dispatch(setSidePanelOpen(true));
           }
@@ -647,6 +677,7 @@ export default function NavBar({
           }
           else if (commandId === 'deleteBrowsingData') onDeleteBrowsingData?.();
           else if (commandId === 'print') window.electronAPI.runMenuCommand?.('print-active-tab');
+          else if (commandId === 'searchWithGoogleLens') window.electronAPI.runMenuCommand?.('search-with-google-lens');
           else if (commandId === 'findInPage') window.electronAPI.runMenuCommand?.('find-in-page');
           else if (commandId === 'cut') window.electronAPI.runMenuCommand?.('edit-cut');
           else if (commandId === 'copy') window.electronAPI.runMenuCommand?.('edit-copy');
@@ -855,6 +886,9 @@ export default function NavBar({
               if (isActive) {
                 dispatch(setSidePanelOpen(false));
               } else {
+                if (activePanelId === 'lens' && window.electronAPI?.closeGoogleLens) {
+                  window.electronAPI.closeGoogleLens();
+                }
                 dispatch(setSidePanelActiveView(panelId));
                 dispatch(setSidePanelOpen(true));
               }

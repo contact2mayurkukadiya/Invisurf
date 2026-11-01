@@ -163,6 +163,22 @@ function isCustomNewTabDocumentUrl(url) {
     return u === C.URL.NTP_DISPLAY || u.startsWith(C.URL.NTP_LOCALHOST_PREFIX);
 }
 
+function isGoogleLensSearchableUrl(url) {
+    if (!url || typeof url !== 'string') return false;
+    const u = url.trim().toLowerCase();
+    if (!u || u === C.URL.ABOUT_BLANK) return false;
+    if (
+        u === C.URL.NTP_DISPLAY ||
+        u.startsWith(C.URL.NTP_LOCALHOST_PREFIX) ||
+        u.startsWith(C.URL.SCHEME_APP) ||
+        u.startsWith(C.URL.SCHEME_INVISURF) ||
+        u.startsWith(C.URL.SCHEME_STEALTH)
+    ) {
+        return false;
+    }
+    return u.startsWith(C.URL.SCHEME_HTTP) || u.startsWith(C.URL.SCHEME_HTTPS);
+}
+
 function toDisplayUrl(rawUrl) {
     if (!rawUrl) return '';
     if (rawUrl.startsWith(C.URL.SCHEME_APP) && rawUrl.includes(C.URL.FRAGMENT_HISTORY)) return C.URL.HISTORY_DISPLAY;
@@ -231,6 +247,44 @@ function extractDestinationUrl(url) {
     return url;
 }
 
+function isGoogleHostname(hostname) {
+    if (!hostname) return false;
+    const h = hostname.toLowerCase();
+    return h === 'lens.google.com' ||
+           h === 'google.com' ||
+           h.endsWith('.google.com') ||
+           /(^|\.)google\.[a-z]{2,3}(\.[a-z]{2})?$/.test(h);
+}
+
+function isGoogleLensSidebarUrl(url) {
+    if (!url || typeof url !== 'string') return false;
+    if (url.startsWith('data:') || url === 'about:blank') return true;
+    if (url.startsWith('invisurf-lens://close')) return true;
+    try {
+        const parsed = new URL(url);
+        if (parsed.protocol !== 'https:') return false;
+        // Result links routed through Google /url redirect are outbound navigation
+        if (parsed.pathname === '/url' || parsed.pathname.startsWith('/url/')) return false;
+
+        if (parsed.hostname === 'lens.google.com') return true;
+        // Google Search & Visual matches across regional Google domains (google.com, google.co.in, etc.)
+        if (isGoogleHostname(parsed.hostname)) {
+            const path = parsed.pathname || '/';
+            if (
+                path === '/search' || path.startsWith('/search/') ||
+                path.startsWith('/imghp') || path.startsWith('/upload') ||
+                path.startsWith('/lens') || path.startsWith('/m') ||
+                path.startsWith('/webhp')
+            ) {
+                return true;
+            }
+        }
+        return false;
+    } catch (_) {
+        return false;
+    }
+}
+
 /**
  * Builds a search URL for the given engine key and query string.
  * Falls back to Google if the engine key is unrecognised.
@@ -265,10 +319,12 @@ module.exports = {
     isBlankTab,
     shouldReassertOmniboxAfterPageLoad,
     isCustomNewTabDocumentUrl,
+    isGoogleLensSearchableUrl,
     toDisplayUrl,
     canStoreRecentlyClosedUrl,
     transitionFromNavigationSource,
     isInternalPageUrl,
+    isGoogleLensSidebarUrl,
     extractDestinationUrl,
     buildSearchUrl,
     markNextNavigationTransition,

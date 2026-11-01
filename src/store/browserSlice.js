@@ -36,7 +36,13 @@ const getInitialPinnedPanels = () => {
       const saved = window.localStorage.getItem('invisurf:pinned-sidepanels');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) {
+          const cleaned = parsed.filter(id => id !== 'lens');
+          if (cleaned.length !== parsed.length) {
+            window.localStorage.setItem('invisurf:pinned-sidepanels', JSON.stringify(cleaned));
+          }
+          return cleaned;
+        }
       }
     }
   } catch (_) {}
@@ -77,6 +83,7 @@ const browserSlice = createSlice({
     },
     togglePinSidePanel(state, action) {
       const panelId = action.payload;
+      if (panelId === 'lens') return;
       if (!Array.isArray(state.sidePanel.pinnedPanelIds)) {
         state.sidePanel.pinnedPanelIds = [];
       }
@@ -86,6 +93,7 @@ const browserSlice = createSlice({
       } else {
         state.sidePanel.pinnedPanelIds.push(panelId);
       }
+      state.sidePanel.pinnedPanelIds = state.sidePanel.pinnedPanelIds.filter(id => id !== 'lens');
       try {
         if (typeof window !== 'undefined' && window.localStorage) {
           window.localStorage.setItem('invisurf:pinned-sidepanels', JSON.stringify(state.sidePanel.pinnedPanelIds));
@@ -93,7 +101,7 @@ const browserSlice = createSlice({
       } catch (_) {}
     },
     setPinnedPanels(state, action) {
-      state.sidePanel.pinnedPanelIds = Array.isArray(action.payload) ? action.payload : [];
+      state.sidePanel.pinnedPanelIds = (Array.isArray(action.payload) ? action.payload : []).filter(id => id !== 'lens');
       try {
         if (typeof window !== 'undefined' && window.localStorage) {
           window.localStorage.setItem('invisurf:pinned-sidepanels', JSON.stringify(state.sidePanel.pinnedPanelIds));

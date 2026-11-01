@@ -174,13 +174,48 @@ body {
     width: var(--tab-content-width, 100vw);
     height: var(--tab-content-height, calc(100vh - 122px));
     border-radius: var(--tab-content-radius, 0px);
-    z-index: 0;
+    z-index: 5;
     pointer-events: none;
     overflow: hidden;
     background: var(--chrome-bg-snapshot);
 }
 
 .tab-content-snapshot img {
+    width: 100%;
+    height: 100%;
+    object-fit: fill;
+    display: block;
+    pointer-events: none;
+}
+
+.tab-content-snapshot.tab-content-snapshot--lens {
+    background: #18191c;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tab-content-snapshot.tab-content-snapshot--lens img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+/* Frozen capture of right sidebar (Lens/Side Panel) while modal hides the WebContentsView */
+.side-panel-content-snapshot {
+    position: fixed;
+    top: calc(var(--tab-content-top, 122px) + 38px);
+    right: 8px;
+    width: calc(var(--side-panel-width, 360px) - 14px);
+    bottom: 8px;
+    border-radius: 14px;
+    z-index: 5;
+    pointer-events: none;
+    overflow: hidden;
+    background: var(--chrome-bg-snapshot);
+}
+
+.side-panel-content-snapshot img {
     width: 100%;
     height: 100%;
     object-fit: fill;
@@ -228,7 +263,8 @@ body:has(.header--stealth-window) {
     color: rgba(255, 255, 255, 0.95);
 }
 
-body:has(.header--stealth-window) .tab-content-snapshot {
+body:has(.header--stealth-window) .tab-content-snapshot,
+body:has(.header--stealth-window) .side-panel-content-snapshot {
     background: #253035;
 }
 

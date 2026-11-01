@@ -118,12 +118,21 @@ describe('Navigation Utils', () => {
     });
   });
 
-  describe('isBlankTab', () => {
+  describe('isBlankTab and isGoogleLensSearchableUrl', () => {
     test('identifies blank and newtab states for omnibox autofocus', () => {
       assert.equal(navUtils.isBlankTab(''), true);
       assert.equal(navUtils.isBlankTab(C.URL.ABOUT_BLANK), true);
       assert.equal(navUtils.isBlankTab(C.URL.NTP_DISPLAY), true);
       assert.equal(navUtils.isBlankTab('https://github.com'), false);
+    });
+
+    test('isGoogleLensSearchableUrl only allows http/https pages', () => {
+      assert.equal(navUtils.isGoogleLensSearchableUrl('https://unsplash.com/photos/1'), true);
+      assert.equal(navUtils.isGoogleLensSearchableUrl('http://my-blog.org'), true);
+      assert.equal(navUtils.isGoogleLensSearchableUrl('invisurf://history'), false);
+      assert.equal(navUtils.isGoogleLensSearchableUrl('app://dist/index.html'), false);
+      assert.equal(navUtils.isGoogleLensSearchableUrl('about:blank'), false);
+      assert.equal(navUtils.isGoogleLensSearchableUrl(null), false);
     });
   });
 

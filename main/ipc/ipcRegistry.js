@@ -20,6 +20,7 @@ const windowManager = require('../windows/windowManager');
 const tabManager = require('../windows/tabManager');
 const overlayManager = require('../windows/overlayManager');
 const sidePanelManager = require('../windows/sidePanelManager');
+const lensManager = require('../windows/lensManager');
 const { getWindowContextByEventSender, getWindowContextForShellFallback, getWindowContextByChromeOverlaySender, isViewWebContentsAlive } = require('../windows/windowContextUtils');
 const { truncateMenuLabel } = require('../services/sessionService');
 
@@ -112,6 +113,35 @@ function registerIpcHandlers() {
         if (!isSenderTrusted(event) || typeof commandId !== 'string') return false;
         const menuUI = require('../ui/menu');
         return menuUI.runMenuCommandFromPalette(commandId);
+    });
+
+    ipcMain.handle(C.IPC_INVOKE.GOOGLE_LENS_ACTIVE_FOR_PROFILE || 'google-lens:active-for-profile', (event) => {
+        if (!isSenderTrusted(event)) return false;
+        const context = getWindowContextByEventSender(event.sender);
+        if (!context?.profileId) return false;
+        return !!lensManager.findActiveLensTabForProfile(context.profileId);
+    });
+
+    ipcMain.handle(C.IPC_INVOKE.LENS_CLOSE || 'lens:close', (event) => {
+        if (!isSenderTrusted(event)) return false;
+        const context = getWindowContextByEventSender(event.sender);
+        if (!context) return false;
+        lensManager.closeGoogleLensSelection(context, { closeSidebar: true });
+        return true;
+    });
+
+    ipcMain.handle(C.IPC_INVOKE.LENS_OPEN_IN_NEW_TAB || 'lens:open-in-new-tab', (event) => {
+        if (!isSenderTrusted(event)) return false;
+        const context = getWindowContextByEventSender(event.sender);
+        if (!context) return false;
+        return lensManager.openLensInNewTab(context);
+    });
+
+    ipcMain.handle(C.IPC_INVOKE.LENS_RELOAD || 'lens:reload', (event) => {
+        if (!isSenderTrusted(event)) return false;
+        const context = getWindowContextByEventSender(event.sender);
+        if (!context) return false;
+        return lensManager.reloadLensSidebar(context);
     });
 
     // === WINDOW MANAGEMENT ===
@@ -911,6 +941,31 @@ function registerIpcHandlers() {
             return;
         }
 
+        if (data?.type === 'lensSelectionCapture') {
+            lensManager.captureGoogleLensSelection(context, data).catch((err) => { console.error('lensSelectionCapture', err?.message || err); });
+            return;
+        }
+        if (data?.type === 'lensSelectionCancel') {
+            lensManager.closeGoogleLensSelection(context, { closeSidebar: data.closeSidebar === true });
+            return;
+        }
+        if (data?.type === 'lensSidebarResize') {
+            lensManager.resizeGoogleLensSidebar(context, data.width);
+            return;
+        }
+        if (data?.type === 'lensSidebarResizeCommit') {
+            lensManager.commitGoogleLensSidebarResize(context, data.width);
+            return;
+        }
+        if (data?.type === 'lensCopyImage') {
+            lensManager.copyLensSelectionImage(context);
+            return;
+        }
+        if (data?.type === 'lensCopyText') {
+            lensManager.copyLensSelectionText(context).catch((err) => { console.error('lensCopyText', err?.message || err); });
+            return;
+        }
+
         if (data?.type === 'dismiss') {
             if (context?.activeExtensionPopup && !context.activeDesktopMediaPicker && !context.activeExtensionInstallPrompt) {
                 overlayManager.hideExtensionPopup(context);
@@ -1077,6 +1132,10 @@ function registerIpcHandlers() {
         const targetId = id === 'current' ? context.activeTabId : id;
         if (!context.tabs[targetId]) return;
         if (State.appLogger) State.appLogger.info('ipc:navigate-request', { windowId: context.windowId, profileId: context.profileId, tabId: targetId, url, source });
+
+        if (targetId === context.activeTabId && lensManager.getLensSession(context, targetId, false)?.selectionActive) {
+            lensManager.closeGoogleLensSelection(context, { closeSidebar: true });
+        }
         tabManager.resetTabWebContentsScale(context.tabs[targetId]);
 
         let formattedUrl = url.trim();
@@ -1145,22 +1204,87 @@ function registerIpcHandlers() {
     });
 
     ipcMain.handle(C.IPC_INVOKE.TAB_PREPARE_SHELL_OVERLAY, async (e) => {
-        if (!isSenderTrusted(e)) return { dataUrl: null };
+        if (!isSenderTrusted(e)) return { dataUrl: null, sidebarDataUrl: null };
         const context = getWindowContextByEventSender(e.sender);
-        if (!context) return { dataUrl: null };
+        if (!context) return { dataUrl: null, sidebarDataUrl: null };
         const id = context.activeTabId;
-        if (!id || State.detachedTabWindows.has(id)) return { dataUrl: null };
-        const view = context.tabs[id];
-        if (!view || view.webContents.isDestroyed()) return { dataUrl: null };
         let dataUrl = null;
-        try {
-            const image = await view.webContents.capturePage();
-            if (image && !image.isEmpty()) {
-                dataUrl = `data:image/jpeg;base64,${image.toJPEG(85).toString('base64')}`;
+        let sidebarDataUrl = null;
+
+        // 1. Capture active tab view (left viewer)
+        if (id && !State.detachedTabWindows.has(id)) {
+            const view = context.tabs[id];
+            if (view && !view.webContents.isDestroyed()) {
+                try {
+                    const image = await view.webContents.capturePage();
+                    if (image && !image.isEmpty()) {
+                        dataUrl = `data:image/jpeg;base64,${image.toJPEG(85).toString('base64')}`;
+                    }
+                } catch (err) { console.error('tab:prepare-shell-overlay capture', err); }
             }
-        } catch (err) { console.error('tab:prepare-shell-overlay capture', err); }
+        }
+
+        let isLensMode = false;
+        // If left view was detached for Google Lens selection, capture the exact rendered lens overlay
+        try {
+            const { getLensSession, getLensLayoutMetrics, computeLensChromeOverlayBounds } = require('../windows/lensManager');
+            const lensSession = getLensSession(context, id, false);
+            if (lensSession?.selectionActive) {
+                isLensMode = true;
+                if (context.chromeOverlayView && !context.chromeOverlayView.webContents?.isDestroyed()) {
+                    try {
+                        const overlayImage = await context.chromeOverlayView.webContents.capturePage();
+                        if (overlayImage && !overlayImage.isEmpty()) {
+                            const metrics = getLensLayoutMetrics(context, id);
+                            const overlayBounds = computeLensChromeOverlayBounds(context, id);
+                            if (metrics?.leftPanelBounds && overlayBounds) {
+                                const relX = Math.max(0, metrics.leftPanelBounds.x - (overlayBounds.x || 0));
+                                const relY = Math.max(0, metrics.leftPanelBounds.y - (overlayBounds.y || 0));
+                                const imgSize = overlayImage.getSize();
+                                const scale = imgSize.width / Math.max(1, overlayBounds.width);
+                                const safeX = Math.max(0, Math.round(relX * scale));
+                                const safeY = Math.max(0, Math.round(relY * scale));
+                                const safeW = Math.max(1, Math.min(Math.round(metrics.leftPanelBounds.width * scale), imgSize.width - safeX));
+                                const safeH = Math.max(1, Math.min(Math.round(metrics.leftPanelBounds.height * scale), imgSize.height - safeY));
+                                const cropped = overlayImage.crop({ x: safeX, y: safeY, width: safeW, height: safeH });
+                                if (cropped && !cropped.isEmpty()) {
+                                    dataUrl = `data:image/jpeg;base64,${cropped.toJPEG(85).toString('base64')}`;
+                                }
+                            }
+                            if (!dataUrl) {
+                                dataUrl = `data:image/jpeg;base64,${overlayImage.toJPEG(85).toString('base64')}`;
+                            }
+                        }
+                    } catch (captureErr) {
+                        console.error('tab:prepare-shell-overlay lens overlay capture', captureErr);
+                    }
+                }
+                if (!dataUrl && lensSession.snapshotDataUrl) {
+                    dataUrl = lensSession.snapshotDataUrl;
+                }
+            }
+
+            // 2. Capture right viewer (Lens sidebar / Side Panel webContentView)
+            const sidePanelManager = require('../windows/sidePanelManager');
+            const sideState = sidePanelManager.getSidePanelState(context);
+
+            let rightView = null;
+            if (lensSession?.sidebarView && !lensSession.sidebarView.webContents.isDestroyed()) {
+                rightView = lensSession.sidebarView;
+            } else if (sideState?.webContentView && !sideState.webContentView.webContents.isDestroyed() && sideState.customUrl && sidePanelManager.getSidePanelWidth(context) > 0) {
+                rightView = sideState.webContentView;
+            }
+
+            if (rightView) {
+                const sideImage = await rightView.webContents.capturePage();
+                if (sideImage && !sideImage.isEmpty()) {
+                    sidebarDataUrl = `data:image/jpeg;base64,${sideImage.toJPEG(85).toString('base64')}`;
+                }
+            }
+        } catch (err) { console.error('tab:prepare-shell-overlay sidebar capture', err); }
+
         try { tabManager.hideActiveTabViewForShellOverlay(context); } catch (err) { console.error('tab:prepare-shell-overlay hide', err); }
-        return { dataUrl };
+        return { dataUrl, sidebarDataUrl, isLensMode };
     });
 
     ipcMain.handle(C.IPC_INVOKE.TAB_MOVE_NEW_WINDOW, async (e, { id, fallbackTabId }) => {

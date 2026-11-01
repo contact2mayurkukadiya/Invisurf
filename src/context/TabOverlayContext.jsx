@@ -17,6 +17,8 @@ const TabOverlayContext = createContext(null);
  */
 export function TabOverlayProvider({ children }) {
   const [tabSnapshotDataUrl, setTabSnapshotDataUrl] = useState(null);
+  const [sidebarSnapshotDataUrl, setSidebarSnapshotDataUrl] = useState(null);
+  const [isLensSnapshot, setIsLensSnapshot] = useState(false);
   const overlayCountRef = useRef(0);
 
   const endOverlay = useCallback(() => {
@@ -24,6 +26,8 @@ export function TabOverlayProvider({ children }) {
     overlayCountRef.current -= 1;
     if (overlayCountRef.current === 0) {
       setTabSnapshotDataUrl(null);
+      setSidebarSnapshotDataUrl(null);
+      setIsLensSnapshot(false);
       window.electronAPI.tabRestoreActive?.();
     }
   }, []);
@@ -35,8 +39,8 @@ export function TabOverlayProvider({ children }) {
 
     /**
      * Native WebContentsView stacks above the BrowserWindow shell. Main must capture
-     * the tab while it is still visible, then hide it in one handler so no frame shows
-     * shell UI (e.g. omnibox autocomplete) behind a full-size tab.
+     * the tab and sidebar while they are still visible, then hide them in one handler
+     * so no frame shows shell UI (e.g. modals, omnibox) behind native views.
      */
     try {
       let result = null;
@@ -45,11 +49,14 @@ export function TabOverlayProvider({ children }) {
         result = await prep;
       } else {
         await window.electronAPI.tabHideActive?.();
-        result = { dataUrl: null };
+        result = { dataUrl: null, sidebarDataUrl: null, isLensMode: false };
       }
       if (overlayCountRef.current === 0) return;
       const dataUrl = result?.dataUrl ?? null;
+      const sidebarDataUrl = result?.sidebarDataUrl ?? null;
+      setIsLensSnapshot(!!result?.isLensMode);
       if (dataUrl) setTabSnapshotDataUrl(dataUrl);
+      if (sidebarDataUrl) setSidebarSnapshotDataUrl(sidebarDataUrl);
     } catch (err) {
       console.error('beginOverlay', err);
       endOverlay();
@@ -59,6 +66,8 @@ export function TabOverlayProvider({ children }) {
   const forceResetOverlay = useCallback(() => {
     overlayCountRef.current = 0;
     setTabSnapshotDataUrl(null);
+    setSidebarSnapshotDataUrl(null);
+    setIsLensSnapshot(false);
     window.electronAPI.tabRestoreActive?.();
   }, []);
 
@@ -87,8 +96,13 @@ export function TabOverlayProvider({ children }) {
   return (
     <TabOverlayContext.Provider value={value}>
       {tabSnapshotDataUrl ? (
-        <div className="tab-content-snapshot" aria-hidden>
+        <div className={`tab-content-snapshot ${isLensSnapshot ? 'tab-content-snapshot--lens' : ''}`} aria-hidden>
           <img src={tabSnapshotDataUrl} alt="" draggable={false} />
+        </div>
+      ) : null}
+      {sidebarSnapshotDataUrl ? (
+        <div className="side-panel-content-snapshot" aria-hidden>
+          <img src={sidebarSnapshotDataUrl} alt="" draggable={false} />
         </div>
       ) : null}
       {children}

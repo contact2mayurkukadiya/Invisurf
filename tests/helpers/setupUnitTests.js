@@ -56,9 +56,33 @@ function setupTestEnvironment() {
         this.webContents.send = () => { };
         this.webContents.setZoomFactor = () => { };
         this.webContents.isDestroyed = () => false;
+        this.webContents.setWindowOpenHandler = () => { };
+        this.webContents.executeJavaScript = async () => '';
+        this.webContents.getUserAgent = () => 'Chrome/130';
+        this.webContents.getURL = () => '';
+        this.webContents.disableDeviceEmulation = () => { };
+        this.webContents.capturePage = async () => ({
+          isEmpty: () => false,
+          getSize: () => ({ width: 1000, height: 800 }),
+          toJPEG: () => Buffer.from('fake-jpeg-data'),
+          toPNG: () => Buffer.from('fake-png-data'),
+          crop: () => ({
+            isEmpty: () => false,
+            toJPEG: () => Buffer.from('fake-jpeg-data'),
+            toPNG: () => Buffer.from('fake-png-data'),
+          }),
+        });
+        this.webContents.session = {
+          cookies: {
+            get: async () => [],
+            set: async () => { },
+            remove: async () => { },
+          },
+        };
       }
       setBackgroundColor() { }
       setBounds() { }
+      getBounds() { return { x: 0, y: 0, width: 0, height: 0 }; }
       setVisible() { }
     },
     BaseWindow: class MockBaseWindow {

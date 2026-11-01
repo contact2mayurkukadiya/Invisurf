@@ -356,17 +356,50 @@ function ensureChromeOverlayOnTop(context) {
     const activeId = context.activeTabId;
     const tabView = activeId && !State.detachedTabWindows.has(activeId) ? context.tabs[activeId] : null;
 
+    // Lazy loaded to avoid circular dependencies
+    const { getLensSession } = require('./lensManager');
     const { layoutTabContentContainer, addTabContentChildView } = require('./tabManager');
+    const sidePanelManager = require('./sidePanelManager');
 
+    const lensSession = getLensSession(context, activeId, false);
+    const sidePanelState = sidePanelManager.getSidePanelState(context);
     try {
+        // TIER 1: Content Layer (Left and Right Viewers)
         if (context.tabContentView) {
             layoutTabContentContainer(context);
             cv.addChildView(context.tabContentView);
         }
+
+        // Left content viewer (active tab)
         if (tabView && !tabView.webContents.isDestroyed()) {
-            addTabContentChildView(context, tabView);
+            const hideTabForLens = lensSession?.selectionActive && context.activeTabViewRemovedForShellOverlay;
+            const hideTabForModal = context.isActiveTabTemporarilyHidden || context.activeTabViewRemovedForShellOverlay;
+            if (!hideTabForLens && !hideTabForModal) {
+                addTabContentChildView(context, tabView);
+            }
         }
-        if (context.chromeOverlayView && !context.chromeOverlayView.webContents.isDestroyed()) {
+
+        // Right content viewer (sidebar web content):
+        // 1. Google Lens sidebar view
+        if (lensSession?.sidebarView && !lensSession.sidebarView.webContents.isDestroyed() && !context.isLensSidebarTemporarilyHidden) {
+            const hostView = lensSession.sidebarHostView || lensSession.sidebarView;
+            if (hostView && cv && typeof cv.addChildView === 'function') {
+                const { removeTabContentChildView } = require('./tabManager');
+                removeTabContentChildView(context, hostView);
+                cv.addChildView(hostView);
+            }
+        }
+
+        // 2. Side Panel custom webContentView
+        if (sidePanelState?.webContentView && !sidePanelState.webContentView.webContents.isDestroyed() && !context.isSidePanelWebContentViewTemporarilyHidden) {
+            const sideWidth = sidePanelManager.getSidePanelWidth(context);
+            if (sideWidth > 0 && sidePanelState.customUrl) {
+                cv.addChildView(sidePanelState.webContentView);
+            }
+        }
+
+        // TIER 2: Overlay Layer (strictly on top of both content viewers)
+        if (context.chromeOverlayView && !context.chromeOverlayView.webContents.isDestroyed() && !context.isLensOverlayTemporarilyHidden) {
             cv.addChildView(context.chromeOverlayView);
         }
         if (context.statusBubbleView && !context.statusBubbleView.webContents.isDestroyed()) {
@@ -397,6 +430,8 @@ function ensureChromeOverlayOnTop(context) {
                 cv.addChildView(context.activeExtensionPopup.view);
             }
         }
+
+        // TIER 3: Topmost notifications and tooltips
         if (context.tooltipView && !context.tooltipView.webContents.isDestroyed()) {
             cv.addChildView(context.tooltipView);
         }
@@ -405,6 +440,28 @@ function ensureChromeOverlayOnTop(context) {
         }
     } catch (err) {
         console.error('ensureChromeOverlayOnTop', err?.message || err);
+    }
+}
+
+function hideChromeOverlayForShellOverlay(context) {
+    if (!context?.chromeOverlayView || context.chromeOverlayView.webContents.isDestroyed()) return;
+    const { getLensSession } = require('./lensManager');
+    const lensSession = getLensSession(context, context.activeTabId, false);
+    if (lensSession?.selectionActive) {
+        context.isLensOverlayTemporarilyHidden = true;
+        try {
+            context.chromeOverlayView.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+        } catch (_) { }
+    }
+}
+
+function restoreChromeOverlayFromShellOverlay(context) {
+    if (!context?.chromeOverlayView || context.chromeOverlayView.webContents.isDestroyed()) return;
+    if (context.isLensOverlayTemporarilyHidden) {
+        context.isLensOverlayTemporarilyHidden = false;
+        try {
+            layoutChromeOverlayBounds(context, { kind: 'lensSelection' });
+        } catch (_) { }
     }
 }
 
@@ -919,9 +976,29 @@ function layoutChromeOverlayBounds(context, patch) {
     if (context.chromeOverlayAcquireCount <= 0) return null;
     let bounds;
 
-    context.chromeOverlayFullWindowMode = false;
-    const { width, height } = context.window.getContentBounds();
-    bounds = { x: 0, y: 0, width, height };
+    const { getLensSession, computeLensChromeOverlayBounds } = require('./lensManager');
+
+    if (patch?.kind === 'lensSelection') {
+        bounds = context.chromeOverlayFullWindowMode
+            ? (() => {
+                const { width, height } = context.window.getContentBounds();
+                return { x: 0, y: 0, width, height };
+            })()
+            : computeLensChromeOverlayBounds(context, context.activeTabId);
+        context.lensOverlayBounds = bounds;
+    } else if (getLensSession(context, context.activeTabId, false)?.selectionActive) {
+        bounds = context.chromeOverlayFullWindowMode
+            ? (() => {
+                const { width, height } = context.window.getContentBounds();
+                return { x: 0, y: 0, width, height };
+            })()
+            : computeLensChromeOverlayBounds(context, context.activeTabId);
+        context.lensOverlayBounds = bounds;
+    } else {
+        context.chromeOverlayFullWindowMode = false;
+        const { width, height } = context.window.getContentBounds();
+        bounds = { x: 0, y: 0, width, height };
+    }
     try {
         context.chromeOverlayView.setBounds(bounds);
         return bounds;
@@ -1474,6 +1551,8 @@ module.exports = {
     createChromeShellMenuOverlayLayer,
     createTooltipOverlay,
     ensureChromeOverlayOnTop,
+    hideChromeOverlayForShellOverlay,
+    restoreChromeOverlayFromShellOverlay,
     clampNumber,
     estimateMenuRowsHeight,
     menuOverlayBoundsFromPanel,

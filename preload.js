@@ -548,6 +548,7 @@ try {
 const C = Object.freeze({
     "IPC_INVOKE": {
         "RUN_MENU_COMMAND": "app:run-menu-command",
+        "GOOGLE_LENS_ACTIVE_FOR_PROFILE": "google-lens:active-for-profile",
         "IS_STEALTH_WINDOW": "context:is-stealth-window",
         "IS_GHOST_WINDOW": "context:is-ghost-window",
         "WINDOW_CREATE": "window:create",
@@ -812,6 +813,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onShortcutCommandPalette: (callback) => ipcRenderer.on(C.IPC_EVENT.SHORTCUT_COMMAND_PALETTE, () => callback()),
 
     runMenuCommand: (commandId) => ipcRenderer.invoke(C.IPC_INVOKE.RUN_MENU_COMMAND, commandId),
+    isGoogleLensActiveForProfile: () => ipcRenderer.invoke(C.IPC_INVOKE.GOOGLE_LENS_ACTIVE_FOR_PROFILE),
+    closeGoogleLens: () => ipcRenderer.invoke(C.IPC_INVOKE.LENS_CLOSE || 'lens:close'),
+    openLensInNewTab: () => ipcRenderer.invoke(C.IPC_INVOKE.LENS_OPEN_IN_NEW_TAB || 'lens:open-in-new-tab'),
+    reloadLensSidebar: () => ipcRenderer.invoke(C.IPC_INVOKE.LENS_RELOAD || 'lens:reload'),
     createWindow: (payload = {}) => ipcRenderer.invoke(C.IPC_INVOKE.WINDOW_CREATE, typeof payload === 'string' ? { profileId: payload } : payload),
     createStealthWindow: (payload = {}) => ipcRenderer.invoke(C.IPC_INVOKE.WINDOW_CREATE_STEALTH, typeof payload === 'string' ? { profileId: payload } : payload),
     createGhostWindow: (payload = {}) => ipcRenderer.invoke(C.IPC_INVOKE.WINDOW_CREATE_GHOST, typeof payload === 'string' ? { profileId: payload } : payload),

@@ -43,6 +43,7 @@ export const menuDownloadsSvg = `${BASE}/download.svg`;
 export const menuEditProfileSvg = `${BASE}/user-pen.svg`;
 export const menuFindSvg = `${BASE}/search.svg`;
 export const menuHistorySvg = `${BASE}/time-past.svg`;
+export const menuLensSvg = `${BASE}/camera-viewfinder.svg`;
 export const cameraSvg = `${BASE}/camera.svg`;
 export const checkSvg = `${BASE}/check.svg`;
 export const calenderDaysSvg = `${BASE}/calendar-days.svg`;

@@ -24,7 +24,23 @@ function handleShortcuts(event, input) {
     const senderContext = event?.sender ? getWindowContextByEventSender(event.sender) : null;
     const context = senderContext || getWindowContextForShellFallback();
 
-    // 1. Tab switching with Ctrl+Tab (browser standard)
+    // 1. Google Lens shortcut guard
+    const { getLensSession, closeGoogleLensSelection } = require('../windows/lensManager');
+    const lensSelectionActive = getLensSession(context, context?.activeTabId, false)?.selectionActive;
+
+    if (lensSelectionActive) {
+        if (key === ' ' || key === 'space' || input.code === 'Space') {
+            event.preventDefault();
+            return;
+        }
+        if (key === 'escape') {
+            event.preventDefault();
+            closeGoogleLensSelection(context, { closeSidebar: true });
+            return;
+        }
+    }
+
+    // 2. Tab switching with Ctrl+Tab (browser standard)
     if (input.control && input.key === 'Tab') {
         event.preventDefault();
         focusedShellWebContents()?.send(C.IPC_EVENT.SHORTCUT_SWITCH_TAB, { direction: input.shift ? -1 : 1 });
