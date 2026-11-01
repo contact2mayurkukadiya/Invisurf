@@ -656,14 +656,14 @@ export default function NavBar({
           }
           else if (commandId === 'openHistorySidePanel') {
             if (activePanelId === 'lens' && window.electronAPI?.closeGoogleLens) {
-              window.electronAPI.closeGoogleLens();
+              window.electronAPI.closeGoogleLens({ closeSidebar: false });
             }
             dispatch(setSidePanelActiveView('history'));
             dispatch(setSidePanelOpen(true));
           }
           else if (commandId === 'openBookmarksSidePanel') {
             if (activePanelId === 'lens' && window.electronAPI?.closeGoogleLens) {
-              window.electronAPI.closeGoogleLens();
+              window.electronAPI.closeGoogleLens({ closeSidebar: false });
             }
             dispatch(setSidePanelActiveView('bookmarks'));
             dispatch(setSidePanelOpen(true));
@@ -887,7 +887,7 @@ export default function NavBar({
                 dispatch(setSidePanelOpen(false));
               } else {
                 if (activePanelId === 'lens' && window.electronAPI?.closeGoogleLens) {
-                  window.electronAPI.closeGoogleLens();
+                  window.electronAPI.closeGoogleLens({ closeSidebar: false });
                 }
                 dispatch(setSidePanelActiveView(panelId));
                 dispatch(setSidePanelOpen(true));

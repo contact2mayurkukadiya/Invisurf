@@ -122,11 +122,12 @@ function registerIpcHandlers() {
         return !!lensManager.findActiveLensTabForProfile(context.profileId);
     });
 
-    ipcMain.handle(C.IPC_INVOKE.LENS_CLOSE || 'lens:close', (event) => {
+    ipcMain.handle(C.IPC_INVOKE.LENS_CLOSE || 'lens:close', (event, options = {}) => {
         if (!isSenderTrusted(event)) return false;
         const context = getWindowContextByEventSender(event.sender);
         if (!context) return false;
-        lensManager.closeGoogleLensSelection(context, { closeSidebar: true });
+        const closeSidebar = options?.closeSidebar !== false;
+        lensManager.closeGoogleLensSelection(context, { closeSidebar, destroySidebar: true });
         return true;
     });
 

@@ -110,7 +110,7 @@ function setSidePanelState(context, partial = {}, options = {}) {
             try {
                 const lensManager = require('./lensManager');
                 if (lensManager.getLensSession(context, context.activeTabId, false)) {
-                    lensManager.closeGoogleLensSelection(context, { closeSidebar: false });
+                    lensManager.closeGoogleLensSelection(context, { closeSidebar: false, destroySidebar: true });
                 }
             } catch (_) { }
         }

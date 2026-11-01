@@ -713,7 +713,7 @@ function createLensSidebar(context, tabId = context?.activeTabId) {
     return sidebar;
 }
 
-function closeGoogleLensSelection(context, { closeSidebar = false } = {}) {
+function closeGoogleLensSelection(context, { closeSidebar = false, destroySidebar = closeSidebar } = {}) {
     if (!context) return;
     const tabId = context.activeTabId;
     const lensSession = getLensSession(context, tabId, false);
@@ -751,9 +751,11 @@ function closeGoogleLensSelection(context, { closeSidebar = false } = {}) {
         lensSession.textSnapshot = null;
         lensSession.hasSearchResults = false;
     }
-    if (closeSidebar && lensSession) {
+    if ((destroySidebar || closeSidebar) && lensSession) {
         destroyLensSidebarViews(context, lensSession);
         context.lensSessions.delete(tabId);
+    }
+    if (closeSidebar) {
         const sidePanelManager = require('./sidePanelManager');
         const spState = sidePanelManager.getSidePanelState(context);
         if (spState && spState.activePanelId === 'lens') {

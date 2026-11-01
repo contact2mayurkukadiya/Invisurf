@@ -278,7 +278,7 @@ describe('Dual-Viewer Overlay Relayering and Modal Compatibility', () => {
     assert.ok(sideMatch, 'side-panel-content-snapshot must define z-index');
     assert.equal(sideMatch[1], '5', 'side-panel-content-snapshot z-index must be 5 to sit above side-panel-container (z-index: 2)');
   });
-  test('Switching side panel from lens to bookmarks or history exits lens mode', () => {
+  test('Switching side panel from lens to bookmarks or history exits lens mode and keeps side panel open', () => {
     const ctx = createMockContext();
     ctx.sidePanelState.isOpen = true;
     ctx.sidePanelState.activePanelId = 'lens';
@@ -286,11 +286,14 @@ describe('Dual-Viewer Overlay Relayering and Modal Compatibility', () => {
     const lensSession = lensManager.getLensSession(ctx, 'tab-1', true);
     lensSession.selectionActive = true;
     lensSession.hasSearchResults = true;
+    lensSession.sidebarHostView = createMockView('lens-sidebar-host-view');
+    lensSession.sidebarView = createMockView('lens-sidebar-view');
 
     // Switch to bookmarks
     sidePanelManager.setSidePanelState(ctx, { activePanelId: 'bookmarks' });
 
     assert.equal(ctx.sidePanelState.activePanelId, 'bookmarks');
+    assert.equal(ctx.sidePanelState.isOpen, true, 'Side panel must stay open on single click when switching to bookmarks');
     assert.equal(lensSession.selectionActive, false, 'Lens selection must be inactive after switching to bookmarks');
   });
 
