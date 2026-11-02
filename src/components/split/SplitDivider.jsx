@@ -22,9 +22,11 @@ export default function SplitDivider() {
 
   if (!splitPair) return null;
 
+  const isStacked = !!splitPair.isStacked;
   const effectiveRatio = isDragging && dragRatio !== null ? dragRatio : (splitPair.ratio || 0.5);
   const sidePanelWidth = sidePanel?.isOpen ? (sidePanel.width || 360) : 0;
   const availableWidth = Math.max(300, window.innerWidth - sidePanelWidth);
+  const availableHeight = Math.max(200, window.innerHeight - 122); // UI_HEIGHT = 122px
 
   // Exact card metrics matching splitTabManager.js layout
   const leftMargin = 8;
@@ -33,6 +35,7 @@ export default function SplitDivider() {
   const rightMargin = sidePanelWidth > 0 ? 6 : 8;
   const paneGap = 8; // Spacing between the two panes
 
+  // Horizontal metrics
   const usableTotalWidth = Math.max(0, availableWidth - leftMargin - rightMargin - paneGap);
   const minViewWidth = 240;
 
@@ -53,6 +56,29 @@ export default function SplitDivider() {
   const rightX = leftMargin + leftWidth + paneGap;
   const dividerX = leftMargin + leftWidth;
 
+  // Vertical stacked metrics
+  const paneWidth = Math.max(0, availableWidth - leftMargin - rightMargin);
+  const usableTotalHeight = Math.max(0, availableHeight - topMargin - bottomMargin - paneGap);
+  const minViewHeight = 120;
+
+  let topHeight = Math.floor(usableTotalHeight * effectiveRatio);
+  let bottomHeight = usableTotalHeight - topHeight;
+
+  if (usableTotalHeight >= minViewHeight * 2) {
+    if (topHeight < minViewHeight) {
+      topHeight = minViewHeight;
+      bottomHeight = usableTotalHeight - topHeight;
+    } else if (bottomHeight < minViewHeight) {
+      bottomHeight = minViewHeight;
+      topHeight = usableTotalHeight - bottomHeight;
+    }
+  }
+
+  const paneX = leftMargin;
+  const topY = topMargin;
+  const bottomY = topMargin + topHeight + paneGap;
+  const dividerY = topMargin + topHeight;
+
   const sendIpcRatio = (ratio) => {
     const now = performance.now();
     if (now - lastIpcTimeRef.current >= 16) { // ~60fps throttle
@@ -71,22 +97,37 @@ export default function SplitDivider() {
 
     const onPointerMove = (moveEvent) => {
       moveEvent.preventDefault();
-      const currentAvail = Math.max(300, window.innerWidth - sidePanelWidth);
-      const usable = Math.max(100, currentAvail - leftMargin - rightMargin - paneGap);
-      const rawRatio = (moveEvent.clientX - leftMargin) / usable;
-      const clamped = Math.max(0.2, Math.min(0.8, rawRatio));
-
-      setDragRatio(clamped);
-      sendIpcRatio(clamped);
+      if (isStacked) {
+        const currentAvail = Math.max(200, window.innerHeight - 122);
+        const usable = Math.max(100, currentAvail - topMargin - bottomMargin - paneGap);
+        const rawRatio = (moveEvent.clientY - 122 - topMargin) / usable;
+        const clamped = Math.max(0.2, Math.min(0.8, rawRatio));
+        setDragRatio(clamped);
+        sendIpcRatio(clamped);
+      } else {
+        const currentAvail = Math.max(300, window.innerWidth - sidePanelWidth);
+        const usable = Math.max(100, currentAvail - leftMargin - rightMargin - paneGap);
+        const rawRatio = (moveEvent.clientX - leftMargin) / usable;
+        const clamped = Math.max(0.2, Math.min(0.8, rawRatio));
+        setDragRatio(clamped);
+        sendIpcRatio(clamped);
+      }
     };
 
     const onPointerUp = (upEvent) => {
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
 
-      const currentAvail = Math.max(300, window.innerWidth - sidePanelWidth);
-      const usable = Math.max(100, currentAvail - leftMargin - rightMargin - paneGap);
-      const finalRatio = Math.max(0.2, Math.min(0.8, (upEvent.clientX - leftMargin) / usable));
+      let finalRatio = 0.5;
+      if (isStacked) {
+        const currentAvail = Math.max(200, window.innerHeight - 122);
+        const usable = Math.max(100, currentAvail - topMargin - bottomMargin - paneGap);
+        finalRatio = Math.max(0.2, Math.min(0.8, (upEvent.clientY - 122 - topMargin) / usable));
+      } else {
+        const currentAvail = Math.max(300, window.innerWidth - sidePanelWidth);
+        const usable = Math.max(100, currentAvail - leftMargin - rightMargin - paneGap);
+        finalRatio = Math.max(0.2, Math.min(0.8, (upEvent.clientX - leftMargin) / usable));
+      }
 
       setIsDragging(false);
       setDragRatio(null);
@@ -118,16 +159,27 @@ export default function SplitDivider() {
 
   const chooserX = isSwapped ? leftX : rightX;
   const chooserWidth = isSwapped ? leftWidth : rightWidth;
+  const chooserY = isSwapped ? topY : bottomY;
+  const chooserHeight = isSwapped ? topHeight : bottomHeight;
+
+  const dragClass = isDragging
+    ? (isStacked ? ' split-overlay-container--dragging-row' : ' split-overlay-container--dragging')
+    : '';
 
   return (
     <div
-      className={`split-overlay-container split-divider${isDragging ? ' split-overlay-container--dragging' : ''}`}
+      className={`split-overlay-container split-divider${dragClass}`}
       style={{ right: sidePanelWidth }}
     >
-      {/* Left subview card frame: active pane displays outline border with theme color */}
+      {/* First subview card frame (Left in horizontal, Top in stacked) */}
       <div
-        className={`split-subview-frame split-subview-frame--left${isScreenLeftFocused ? ' split-subview-frame--focused' : ''}`}
-        style={{
+        className={`split-subview-frame split-subview-frame--${isStacked ? 'top' : 'left'}${isScreenLeftFocused ? ' split-subview-frame--focused' : ''}`}
+        style={isStacked ? {
+          left: paneX,
+          top: topY,
+          width: paneWidth,
+          height: topHeight,
+        } : {
           left: leftX,
           top: topMargin,
           width: leftWidth,
@@ -135,10 +187,15 @@ export default function SplitDivider() {
         }}
       />
 
-      {/* Right subview card frame: active pane displays outline border with theme color */}
+      {/* Second subview card frame (Right in horizontal, Bottom in stacked) */}
       <div
-        className={`split-subview-frame split-subview-frame--right${isScreenRightFocused ? ' split-subview-frame--focused' : ''}`}
-        style={{
+        className={`split-subview-frame split-subview-frame--${isStacked ? 'bottom' : 'right'}${isScreenRightFocused ? ' split-subview-frame--focused' : ''}`}
+        style={isStacked ? {
+          left: paneX,
+          top: bottomY,
+          width: paneWidth,
+          height: bottomHeight,
+        } : {
           left: rightX,
           top: topMargin,
           width: rightWidth,
@@ -150,7 +207,12 @@ export default function SplitDivider() {
       {splitPair.isChoosing && (
         <SplitTabChooser
           splitPair={splitPair}
-          style={{
+          style={isStacked ? {
+            left: paneX,
+            top: chooserY,
+            width: paneWidth,
+            height: chooserHeight,
+          } : {
             left: chooserX,
             top: topMargin,
             width: chooserWidth,
@@ -162,8 +224,13 @@ export default function SplitDivider() {
       {/* Interactive Divider Sash positioned in the 8px gap between panes */}
       {!splitPair.isChoosing && (
         <div
-          className={`split-divider-handle${isDragging ? ' split-divider-handle--dragging' : ''}`}
-          style={{
+          className={`split-divider-handle${isStacked ? ' split-divider-handle--horizontal' : ''}${isDragging ? ' split-divider-handle--dragging' : ''}`}
+          style={isStacked ? {
+            left: paneX,
+            top: dividerY,
+            width: paneWidth,
+            height: paneGap,
+          } : {
             left: dividerX,
             top: topMargin,
             width: paneGap,

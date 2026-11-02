@@ -16,6 +16,7 @@ import {
   setSplitGroup,
   removeSplitGroup,
   swapSplitSides,
+  toggleSplitStacked,
 } from './store/browserSlice';
 import { setBookmarks } from './store/bookmarksSlice';
 import { useElectronIPC } from './hooks/useElectronIPC';
@@ -412,12 +413,15 @@ function AppShell() {
     const pinLabel = t.isPinned ? 'Unpin' : 'Pin';
     const stealthShell = stealthWindowRef.current;
 
+    const splitGroup = t.splitPairId ? (stateRef.current.splitGroups[t.splitPairId] || Object.values(stateRef.current.splitGroups || {}).find(p => p.leftTabId === targetId || p.rightTabId === targetId)) : null;
+
     const splitItems = t.splitPairId ? [
-      { type: CONTEXT_MENU.TYPE_ITEM, id: TAB_STRIP_MENU.SPLIT_SWITCH_SIDES, label: 'Switch sides', enabled: true },
-      { type: CONTEXT_MENU.TYPE_ITEM, id: TAB_STRIP_MENU.SPLIT_SEPARATE, label: 'Separate tabs', enabled: true },
+      { type: CONTEXT_MENU.TYPE_ITEM, id: TAB_STRIP_MENU.SPLIT_SWITCH_SIDES, label: 'Switch Sides', enabled: true },
+      { type: CONTEXT_MENU.TYPE_ITEM, id: TAB_STRIP_MENU.SPLIT_TOGGLE_STACKED, label: splitGroup?.isStacked ? 'Show Side by Side' : 'Show Stacked', enabled: true },
+      { type: CONTEXT_MENU.TYPE_ITEM, id: TAB_STRIP_MENU.SPLIT_SEPARATE, label: 'Separate Tabs', enabled: true },
       { type: CONTEXT_MENU.TYPE_SEPARATOR },
     ] : [
-      { type: CONTEXT_MENU.TYPE_ITEM, id: TAB_STRIP_MENU.ADD_TO_SPLIT, label: 'Add tab to new split view', enabled: true },
+      { type: CONTEXT_MENU.TYPE_ITEM, id: TAB_STRIP_MENU.ADD_TO_SPLIT, label: 'New in Split View', enabled: true },
       { type: CONTEXT_MENU.TYPE_SEPARATOR },
     ];
 
@@ -824,6 +828,14 @@ function AppShell() {
       if (pid) {
         dispatch(swapSplitSides(pid));
         window.electronAPI?.splitTabSwapSides?.(pid);
+      }
+    },
+    [TAB_STRIP_MENU.SPLIT_TOGGLE_STACKED]: (tid) => {
+      const pid = stateRef.current.tabs[tid]?.splitPairId
+        || Object.values(stateRef.current.splitGroups || {}).find(p => p.leftTabId === tid || p.rightTabId === tid)?.id;
+      if (pid) {
+        dispatch(toggleSplitStacked(pid));
+        window.electronAPI?.splitTabToggleStacked?.(pid);
       }
     },
     [TAB_STRIP_MENU.SPLIT_SEPARATE]: (tid) => {

@@ -139,6 +139,42 @@ describe('SplitTabManager Unit Tests', () => {
     assert.equal(swappedRightX, initialLeftX);
   });
 
+  test('toggleSplitStacked toggles vertical stacked order and swapSplitSides works when stacked', () => {
+    const context = createMockContext();
+    const pair = splitTabManager.enterSplitView(context, 'tab-1', 'tab-2', { focusedSide: 'left' });
+
+    assert.equal(pair.isStacked, false);
+
+    // Toggle to vertical stacked order
+    splitTabManager.toggleSplitStacked(context, pair.id);
+    assert.equal(pair.isStacked, true);
+
+    const leftBoundsStacked = context.tabs['tab-1'].getBounds();
+    const rightBoundsStacked = context.tabs['tab-2'].getBounds();
+
+    // In stacked mode, widths match full width, and views are vertically stacked
+    assert.equal(leftBoundsStacked.width, rightBoundsStacked.width);
+    assert.equal(leftBoundsStacked.x, rightBoundsStacked.x);
+    assert.ok(leftBoundsStacked.y < rightBoundsStacked.y, 'Top view should have smaller Y than bottom view');
+
+    // Test swapSplitSides in stacked mode: top and bottom views flip
+    splitTabManager.swapSplitSides(context, pair.id);
+    assert.equal(pair.isSwapped, true);
+
+    const leftBoundsSwapped = context.tabs['tab-1'].getBounds();
+    const rightBoundsSwapped = context.tabs['tab-2'].getBounds();
+
+    assert.ok(rightBoundsSwapped.y < leftBoundsSwapped.y, 'After swap in stacked mode, right tab is on top');
+
+    // Toggle back to horizontal side-by-side
+    splitTabManager.toggleSplitStacked(context, pair.id);
+    assert.equal(pair.isStacked, false);
+
+    const leftBoundsHorizontal = context.tabs['tab-1'].getBounds();
+    const rightBoundsHorizontal = context.tabs['tab-2'].getBounds();
+    assert.equal(leftBoundsHorizontal.y, rightBoundsHorizontal.y);
+  });
+
   test('enterSplitView in choosing mode and selectTabForSplit', () => {
     const context = createMockContext();
     const pair = splitTabManager.enterSplitView(context, 'tab-1', 'choose-tab');

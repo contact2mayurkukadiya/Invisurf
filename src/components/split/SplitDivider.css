@@ -14,6 +14,11 @@
   pointer-events: auto;
 }
 
+.split-overlay-container--dragging-row {
+  cursor: row-resize !important;
+  pointer-events: auto;
+}
+
 /* Card frames around the two subviews matching the sidebar card border */
 .split-subview-frame {
   position: absolute;
@@ -87,3 +92,23 @@ html[data-forced-appearance="dark"] .split-divider-handle:hover .split-divider-p
 html[data-forced-appearance="dark"] .split-divider-handle--dragging .split-divider-pill {
   background-color: var(--chrome-accent, var(--chrome-focus-ring, #8ab4f8));
 }
+
+/* Horizontal Divider Handle in Stacked Mode */
+.split-divider-handle--horizontal {
+  cursor: row-resize;
+  width: 100%;
+}
+
+.split-divider-handle--horizontal .split-divider-pill {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  transition: opacity 0.15s ease, width 0.15s ease, background-color 0.15s ease;
+}
+
+.split-divider-handle--horizontal:hover .split-divider-pill,
+.split-divider-handle--horizontal.split-divider-handle--dragging .split-divider-pill {
+  width: 50px;
+  height: 4px;
+}
+

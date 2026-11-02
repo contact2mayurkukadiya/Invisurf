@@ -55,6 +55,7 @@ function broadcastSplitUpdate(context, pair, options = {}) {
             focusedSide: pair.focusedSide,
             isChoosing: !!pair.isChoosing,
             isSwapped: !!pair.isSwapped,
+            isStacked: !!pair.isStacked,
         } : null,
     });
 }
@@ -87,54 +88,100 @@ function layoutSplitTabViews(context, splitId) {
         const rightMargin = isFullscreen ? 0 : (sidePanelWidth > 0 ? 6 : 8);
         const paneGap = isFullscreen ? 2 : 8; // Spacing between the two panes
 
-        const usableTotalWidth = Math.max(0, availableTotalWidth - leftMargin - rightMargin - paneGap);
-        const minViewWidth = 240;
-
-        let leftWidth = Math.floor(usableTotalWidth * (pair.ratio || 0.5));
-        let rightWidth = usableTotalWidth - leftWidth;
-
-        if (usableTotalWidth >= minViewWidth * 2) {
-            if (leftWidth < minViewWidth) {
-                leftWidth = minViewWidth;
-                rightWidth = usableTotalWidth - leftWidth;
-            } else if (rightWidth < minViewWidth) {
-                rightWidth = minViewWidth;
-                leftWidth = usableTotalWidth - rightWidth;
-            }
-        }
-
-        const leftX = leftMargin;
-        const rightX = leftMargin + leftWidth + paneGap;
-        const contentY = contentTop + topMargin;
-        const paneHeight = Math.max(0, contentHeight - topMargin - bottomMargin);
-
         const { setNativeViewCornerRadius } = require('./tabManager');
         const cornerRadius = isFullscreen ? 0 : 14;
-
-        // Content view side swapping:
-        // When pair.isSwapped is true, viewOnLeft is rightView and viewOnRight is leftView.
         const isSwapped = !!pair.isSwapped;
-        const viewOnLeft = isSwapped ? rightView : leftView;
-        const viewOnRight = isSwapped ? leftView : rightView;
 
-        if (viewOnLeft && !viewOnLeft.webContents?.isDestroyed()) {
-            viewOnLeft.setBounds({
-                x: leftX,
-                y: contentY,
-                width: Math.max(0, leftWidth),
-                height: paneHeight,
-            });
-            setNativeViewCornerRadius(viewOnLeft, cornerRadius);
-        }
+        if (pair.isStacked) {
+            // Vertical stacked layout: top pane and bottom pane
+            const paneWidth = Math.max(0, availableTotalWidth - leftMargin - rightMargin);
+            const usableTotalHeight = Math.max(0, contentHeight - topMargin - bottomMargin - paneGap);
+            const minViewHeight = 120;
 
-        if (viewOnRight && !viewOnRight.webContents?.isDestroyed()) {
-            viewOnRight.setBounds({
-                x: rightX,
-                y: contentY,
-                width: Math.max(0, rightWidth),
-                height: paneHeight,
-            });
-            setNativeViewCornerRadius(viewOnRight, cornerRadius);
+            let topHeight = Math.floor(usableTotalHeight * (pair.ratio || 0.5));
+            let bottomHeight = usableTotalHeight - topHeight;
+
+            if (usableTotalHeight >= minViewHeight * 2) {
+                if (topHeight < minViewHeight) {
+                    topHeight = minViewHeight;
+                    bottomHeight = usableTotalHeight - topHeight;
+                } else if (bottomHeight < minViewHeight) {
+                    bottomHeight = minViewHeight;
+                    topHeight = usableTotalHeight - bottomHeight;
+                }
+            }
+
+            const paneX = leftMargin;
+            const topY = contentTop + topMargin;
+            const bottomY = topY + topHeight + paneGap;
+
+            const viewOnTop = isSwapped ? rightView : leftView;
+            const viewOnBottom = isSwapped ? leftView : rightView;
+
+            if (viewOnTop && !viewOnTop.webContents?.isDestroyed()) {
+                viewOnTop.setBounds({
+                    x: paneX,
+                    y: topY,
+                    width: Math.max(0, paneWidth),
+                    height: Math.max(0, topHeight),
+                });
+                setNativeViewCornerRadius(viewOnTop, cornerRadius);
+            }
+
+            if (viewOnBottom && !viewOnBottom.webContents?.isDestroyed()) {
+                viewOnBottom.setBounds({
+                    x: paneX,
+                    y: bottomY,
+                    width: Math.max(0, paneWidth),
+                    height: Math.max(0, bottomHeight),
+                });
+                setNativeViewCornerRadius(viewOnBottom, cornerRadius);
+            }
+        } else {
+            // Horizontal side-by-side layout: left pane and right pane
+            const usableTotalWidth = Math.max(0, availableTotalWidth - leftMargin - rightMargin - paneGap);
+            const minViewWidth = 240;
+
+            let leftWidth = Math.floor(usableTotalWidth * (pair.ratio || 0.5));
+            let rightWidth = usableTotalWidth - leftWidth;
+
+            if (usableTotalWidth >= minViewWidth * 2) {
+                if (leftWidth < minViewWidth) {
+                    leftWidth = minViewWidth;
+                    rightWidth = usableTotalWidth - leftWidth;
+                } else if (rightWidth < minViewWidth) {
+                    rightWidth = minViewWidth;
+                    leftWidth = usableTotalWidth - rightWidth;
+                }
+            }
+
+            const leftX = leftMargin;
+            const rightX = leftMargin + leftWidth + paneGap;
+            const contentY = contentTop + topMargin;
+            const paneHeight = Math.max(0, contentHeight - topMargin - bottomMargin);
+
+            const viewOnLeft = isSwapped ? rightView : leftView;
+            const viewOnRight = isSwapped ? leftView : rightView;
+
+            if (viewOnLeft && !viewOnLeft.webContents?.isDestroyed()) {
+                viewOnLeft.setBounds({
+                    x: leftX,
+                    y: contentY,
+                    width: Math.max(0, leftWidth),
+                    height: paneHeight,
+                });
+                setNativeViewCornerRadius(viewOnLeft, cornerRadius);
+            }
+
+            if (viewOnRight && !viewOnRight.webContents?.isDestroyed()) {
+                viewOnRight.setBounds({
+                    x: rightX,
+                    y: contentY,
+                    width: Math.max(0, rightWidth),
+                    height: paneHeight,
+                });
+                setNativeViewCornerRadius(viewOnRight, cornerRadius);
+            }
         }
 
         if (context.tabContentView && typeof context.tabContentView.setBackgroundColor === 'function') {
@@ -192,6 +239,7 @@ function enterSplitView(context, leftTabId, maybeRightTabId = null, options = {}
         focusedSide: initialFocusedSide,
         isChoosing,
         isSwapped: false,
+        isStacked: !!options.isStacked,
     };
 
     context.splitPairs.set(splitId, splitPair);
@@ -527,6 +575,17 @@ function restoreSplitViewsFromShellOverlay(context, splitId) {
     layoutSplitTabViews(context, pair);
 }
 
+function toggleSplitStacked(context, splitId) {
+    const pair = getSplitPair(context, splitId);
+    if (!pair) return false;
+
+    pair.isStacked = !pair.isStacked;
+
+    layoutSplitTabViews(context, pair);
+    broadcastSplitUpdate(context, pair);
+    return true;
+}
+
 module.exports = {
     getSplitPair,
     getSplitPairByTabId,
@@ -536,6 +595,7 @@ module.exports = {
     exitSplitView,
     setSplitRatio,
     swapSplitSides,
+    toggleSplitStacked,
     setFocusedSplitSide,
     layoutSplitTabViews,
     handleTabDestroyed,

@@ -687,6 +687,7 @@ const C = Object.freeze({
         "SPLIT_TAB_SET_RATIO": "split-tab:set-ratio",
         "SPLIT_TAB_FOCUS_SIDE": "split-tab:focus-side",
         "SPLIT_TAB_SWAP_SIDES": "split-tab:swap-sides",
+        "SPLIT_TAB_TOGGLE_STACKED": "split-tab:toggle-stacked",
         "SPLIT_TAB_SELECT_TAB": "split-tab:select-tab"
     },
     "IPC_EVENT": {
@@ -795,6 +796,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     splitTabSetRatio: (splitId, ratio) => ipcRenderer.send(C.IPC_SEND.SPLIT_TAB_SET_RATIO, { splitId, ratio }),
     splitTabFocusSide: (splitId, side) => ipcRenderer.send(C.IPC_SEND.SPLIT_TAB_FOCUS_SIDE, { splitId, side }),
     splitTabSwapSides: (splitId) => ipcRenderer.send(C.IPC_SEND.SPLIT_TAB_SWAP_SIDES, { splitId }),
+    splitTabToggleStacked: (splitId) => ipcRenderer.send(C.IPC_SEND.SPLIT_TAB_TOGGLE_STACKED, { splitId }),
     splitTabSelectTab: (splitId, tabId) => ipcRenderer.send(C.IPC_SEND.SPLIT_TAB_SELECT_TAB, { splitId, tabId }),
     onSplitTabUpdated: (callback) => ipcRenderer.on(C.IPC_EVENT.SPLIT_TAB_UPDATED, (event, data) => callback(data)),
     appLog: (level, event, data = {}) => sendRendererLog(level, event, data),

@@ -338,6 +338,13 @@ const browserSlice = createSlice({
       }
     },
 
+    toggleSplitStacked(state, action) {
+      const splitId = action.payload;
+      if (state.splitGroups[splitId]) {
+        state.splitGroups[splitId].isStacked = !state.splitGroups[splitId].isStacked;
+      }
+    },
+
     setCurrentTab(state, action) {
       const id = action.payload;
       state.currentTabId = id;
@@ -471,6 +478,7 @@ export const {
   setSplitRatio,
   setSplitFocusedSide,
   swapSplitSides,
+  toggleSplitStacked,
 } = browserSlice.actions;
 
 export default browserSlice.reducer;

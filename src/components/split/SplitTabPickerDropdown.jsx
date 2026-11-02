@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { swapSplitSides } from '../../store/browserSlice';
+import { swapSplitSides, toggleSplitStacked } from '../../store/browserSlice';
 import './SplitTabPickerDropdown.css';
 
 const DEFAULT_FAVICON = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI2NjYyI+PHBhdGggZD0iTTEyIDJDNi40OCAyIDIgNi40OCAyIDEyczQuNDggMTAgMTAgMTAgMTAtNC40OCAxMC0xMFMxNy41MiAyIDEyIDJ6bTAgMThjLTQuNDEgMC04LTMuNTktOC04czMuNTktOCA4LTggOCAzLjU5IDggOC0zLjU5IDgtOCA4eiIvPjwvc3ZnPg==';
@@ -70,6 +70,14 @@ export default function SplitTabPickerDropdown({
     }
   };
 
+  const handleToggleStacked = () => {
+    onClose();
+    if (splitPair && window.electronAPI?.splitTabToggleStacked) {
+      dispatch(toggleSplitStacked(splitPair.id));
+      window.electronAPI.splitTabToggleStacked(splitPair.id);
+    }
+  };
+
   const handleSeparate = () => {
     onClose();
     const sid = splitPair?.id || (currentTabId && tabs[currentTabId]?.splitPairId) || currentTabId;
@@ -95,20 +103,30 @@ export default function SplitTabPickerDropdown({
           <svg className="split-picker-icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
             <path d="M4.5 2.5a.5.5 0 0 0-.5.5v2.5H2a.5.5 0 0 0 0 1h2V9a.5.5 0 0 0 .854.354l2.5-2.5a.5.5 0 0 0 0-.708l-2.5-2.5A.5.5 0 0 0 4.5 2.5zm7 11a.5.5 0 0 0 .5-.5V10.5H14a.5.5 0 0 0 0-1h-2V7a.5.5 0 0 0-.854-.354l-2.5 2.5a.5.5 0 0 0 0 .708l2.5 2.5a.5.5 0 0 0 .854.146z" />
           </svg>
-          <span className="split-picker-item-label">Switch sides</span>
+          <span className="split-picker-item-label">Switch Sides</span>
+        </button>
+        <button type="button" className="split-picker-item" onClick={handleToggleStacked}>
+          <svg className="split-picker-icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            {splitPair.isStacked ? (
+              <path d="M2 3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3zm1 0v10h4V3H3zm5 0v10h5V3H8z" />
+            ) : (
+              <path d="M2 3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3zm1 5h10v5H3V8zm0-1V3h10v4H3z" />
+            )}
+          </svg>
+          <span className="split-picker-item-label">{splitPair.isStacked ? 'Show Side by Side' : 'Show Stacked'}</span>
         </button>
         <button type="button" className="split-picker-item" onClick={handleSeparate}>
           <svg className="split-picker-icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
             <path d="M2 3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3zm7 0a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1V3z" />
           </svg>
-          <span className="split-picker-item-label">Separate tabs</span>
+          <span className="split-picker-item-label">Separate Tabs</span>
         </button>
         <div className="split-picker-separator" />
         <button type="button" className="split-picker-item split-picker-item--danger" onClick={handleCloseActiveSide}>
           <svg className="split-picker-icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
             <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z" />
           </svg>
-          <span className="split-picker-item-label">Close active split tab</span>
+          <span className="split-picker-item-label">Close Active Split Tab</span>
         </button>
       </div>
     );

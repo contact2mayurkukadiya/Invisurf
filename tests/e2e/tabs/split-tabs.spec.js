@@ -471,5 +471,155 @@ test.describe('Split Tabs E2E Verification', () => {
     const progressiveArtifact = '/Users/mayurkukadiya/.gemini/antigravity-ide/brain/5ae8d87b-41bf-48ce-83cc-54ba82f59a5f/split-tabs-progressive-shrinking.png';
     await shellWindow.screenshot({ path: progressiveArtifact });
   });
+
+  test('should support vertical stacked order, switch sides in both horizontal and stacked modes, and use capitalized context menu labels', async ({ invisurfApp }) => {
+    const { shellWindow } = invisurfApp;
+    await expect(shellWindow.locator('#split-tab-btn')).toBeVisible({ timeout: 10000 });
+
+    // 1. Hook into Electron's main process Menu.buildFromTemplate to avoid popup blocking
+    await invisurfApp.app.evaluate(({ Menu }) => {
+      if (!global.__menuHooked) {
+        global.__menuHooked = true;
+        const originalBuild = Menu.buildFromTemplate;
+        Menu.buildFromTemplate = function(template) {
+          const menu = originalBuild.call(this, template);
+          menu.popup = () => {};
+          return menu;
+        };
+      }
+      global.__lastTabStripContextMenuTemplate = null;
+    });
+
+    // 2. Right-click the single normal tab and verify Capitalized label "New in Split View"
+    const firstTab = shellWindow.locator('.tab').first();
+    await firstTab.click({ button: 'right' });
+    await shellWindow.waitForTimeout(300);
+
+    const menuItemsNormal = await invisurfApp.app.evaluate(() => global.__lastTabStripContextMenuTemplate);
+    expect(menuItemsNormal).toBeTruthy();
+    const addToSplitItem = menuItemsNormal.find(item => item.label === 'New in Split View');
+    expect(addToSplitItem).toBeTruthy();
+
+    // 3. Create a second tab and merge them into a split view
+    const addTabBtn = shellWindow.locator('#add-tab');
+    await addTabBtn.click();
+    await shellWindow.waitForTimeout(500);
+
+    const normalTabs = shellWindow.locator('.tab:not(.split-compound-tab)');
+    const tabAId = await normalTabs.first().getAttribute('id');
+    const tabBId = await normalTabs.nth(1).getAttribute('id');
+
+    await shellWindow.evaluate(({ leftId, rightId }) => {
+      window.electronAPI.splitTabEnter(leftId, rightId);
+    }, { leftId: tabAId, rightId: tabBId });
+    await shellWindow.waitForTimeout(400);
+
+    const splitTab = shellWindow.locator('.split-compound-tab');
+    await expect(splitTab).toBeVisible({ timeout: 5000 });
+
+    // 4. Right-click the split tab and verify Capitalized context menu items in horizontal mode
+    await invisurfApp.app.evaluate(() => { global.__lastTabStripContextMenuTemplate = null; });
+    await splitTab.click({ button: 'right' });
+    await shellWindow.waitForTimeout(300);
+
+    const menuItemsSplit = await invisurfApp.app.evaluate(() => global.__lastTabStripContextMenuTemplate);
+    expect(menuItemsSplit).toBeTruthy();
+    const splitLabels = menuItemsSplit.map(item => item.label);
+    expect(splitLabels).toContain('Switch Sides');
+    expect(splitLabels).toContain('Show Stacked');
+    expect(splitLabels).toContain('Separate Tabs');
+
+    // 5. Check Toolbar Split Dropdown menu items are also capitalized
+    const splitBtn = shellWindow.locator('#split-tab-btn');
+    await splitBtn.click();
+    const dropdown = shellWindow.locator('.split-picker-dropdown');
+    await expect(dropdown).toBeVisible();
+
+    const dropdownLabels = await dropdown.locator('.split-picker-item-label').allTextContents();
+    expect(dropdownLabels).toContain('Switch Sides');
+    expect(dropdownLabels).toContain('Show Stacked');
+    expect(dropdownLabels).toContain('Separate Tabs');
+    expect(dropdownLabels).toContain('Close Active Split Tab');
+
+    // 6. Click "Show Stacked" button in the dropdown to switch to vertical stacked layout
+    const showStackedBtn = dropdown.locator('.split-picker-item', { hasText: 'Show Stacked' });
+    await showStackedBtn.click();
+    await expect(dropdown).not.toBeVisible();
+    await shellWindow.waitForTimeout(400);
+
+    // 7. Verify vertical stacked layout in content area:
+    // Tab bar compound tab remains horizontal (mini-tabs side-by-side)
+    const leftMini = splitTab.locator('.split-mini-tab--left');
+    const rightMini = splitTab.locator('.split-mini-tab--right');
+    await expect(leftMini).toBeVisible();
+    await expect(rightMini).toBeVisible();
+    const leftBox = await leftMini.boundingBox();
+    const rightBox = await rightMini.boundingBox();
+    expect(leftBox.y).toBeCloseTo(rightBox.y, 1);
+    expect(leftBox.x).toBeLessThan(rightBox.x);
+
+    // Content view has top and bottom frames, and horizontal divider
+    const topFrame = shellWindow.locator('.split-subview-frame--top');
+    const bottomFrame = shellWindow.locator('.split-subview-frame--bottom');
+    await expect(topFrame).toBeVisible();
+    await expect(bottomFrame).toBeVisible();
+
+    const topBox = await topFrame.boundingBox();
+    const bottomBox = await bottomFrame.boundingBox();
+    expect(topBox.y).toBeLessThan(bottomBox.y);
+    expect(topBox.width).toBeCloseTo(bottomBox.width, 1);
+
+    const horizontalDivider = shellWindow.locator('.split-divider-handle--horizontal');
+    await expect(horizontalDivider).toBeVisible();
+
+    // 8. In stacked mode, right-click context menu now offers "Show Side by Side"
+    await invisurfApp.app.evaluate(() => { global.__lastTabStripContextMenuTemplate = null; });
+    await splitTab.click({ button: 'right' });
+    await shellWindow.waitForTimeout(300);
+
+    const menuItemsStacked = await invisurfApp.app.evaluate(() => global.__lastTabStripContextMenuTemplate);
+    expect(menuItemsStacked).toBeTruthy();
+    const stackedLabels = menuItemsStacked.map(item => item.label);
+    expect(stackedLabels).toContain('Show Side by Side');
+
+    // 9. Verify "Switch Sides" in stacked mode:
+    const leftMiniTitleBefore = await leftMini.locator('.tab-title').textContent();
+    const rightMiniTitleBefore = await rightMini.locator('.tab-title').textContent();
+
+    await shellWindow.evaluate(() => {
+      const splitId = document.querySelector('.split-compound-tab')?.getAttribute('data-split-id');
+      if (splitId && window.electronAPI?.splitTabSwapSides) {
+        window.electronAPI.splitTabSwapSides(splitId);
+      }
+    });
+    await shellWindow.waitForTimeout(400);
+
+    // Subtabs swapped sides
+    const leftMiniTitleAfter = await leftMini.locator('.tab-title').textContent();
+    const rightMiniTitleAfter = await rightMini.locator('.tab-title').textContent();
+    expect(leftMiniTitleAfter).toBe(rightMiniTitleBefore);
+    expect(rightMiniTitleAfter).toBe(leftMiniTitleBefore);
+
+    // Capture visual screenshot of vertical stacked split view
+    const stackedArtifactPath = '/Users/mayurkukadiya/.gemini/antigravity-ide/brain/5ae8d87b-41bf-48ce-83cc-54ba82f59a5f/split-tabs-stacked.png';
+    await shellWindow.screenshot({ path: stackedArtifactPath });
+
+    // 10. Switch back to side-by-side mode via toggleStacked
+    await shellWindow.evaluate(() => {
+      const splitId = document.querySelector('.split-compound-tab')?.getAttribute('data-split-id');
+      if (splitId && window.electronAPI?.splitTabToggleStacked) {
+        window.electronAPI.splitTabToggleStacked(splitId);
+      }
+    });
+    await shellWindow.waitForTimeout(400);
+
+    // Side-by-side frames restored
+    const sideBySideLeftFrame = shellWindow.locator('.split-subview-frame--left');
+    const sideBySideRightFrame = shellWindow.locator('.split-subview-frame--right');
+    await expect(sideBySideLeftFrame).toBeVisible();
+    await expect(sideBySideRightFrame).toBeVisible();
+    await expect(horizontalDivider).not.toBeVisible();
+  });
 });
+
 

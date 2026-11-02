@@ -124,6 +124,7 @@ const TAB_STRIP_CONTEXT_MENU_ACTION_IDS = new Set([
     'closeRight',
     'addToSplit',
     'splitSwitchSides',
+    'splitToggleStacked',
     'splitSeparate',
 ]);
 

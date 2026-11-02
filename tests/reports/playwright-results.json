@@ -127,19 +127,19 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 6737,
+                      "duration": 7648,
                       "errors": [],
                       "stdout": [
                         {
-                          "text": "BROWSER CONSOLE: log handleTabCreated tab-split-1793633372075-2 app://newtab false\n"
+                          "text": "BROWSER CONSOLE: log handleTabCreated tab-split-1793635303387-2 app://newtab false\n"
                         },
                         {
-                          "text": "BROWSER CONSOLE: log handleTabCreated tab-1793633373460 app://localhost/dist/newtab.html false\n"
+                          "text": "BROWSER CONSOLE: log handleTabCreated tab-1793635304732 app://localhost/dist/newtab.html false\n"
                         }
                       ],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-11-02T15:29:29.380Z",
+                      "startTime": "2026-11-02T16:01:40.022Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -168,12 +168,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 3988,
+                      "duration": 3987,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-11-02T15:29:36.161Z",
+                      "startTime": "2026-11-02T16:01:47.705Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -202,12 +202,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 6766,
+                      "duration": 6339,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-11-02T15:29:40.167Z",
+                      "startTime": "2026-11-02T16:01:51.708Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -236,12 +236,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 5210,
+                      "duration": 4854,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-11-02T15:29:46.949Z",
+                      "startTime": "2026-11-02T16:01:58.063Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -253,6 +253,40 @@
               "file": "tabs/split-tabs.spec.js",
               "line": 297,
               "column": 3
+            },
+            {
+              "title": "should support vertical stacked order, switch sides in both horizontal and stacked modes, and use capitalized context menu labels",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5800,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-02T16:02:02.929Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "59e6a8f05420c249109c-6871dc3499c4628558ab",
+              "file": "tabs/split-tabs.spec.js",
+              "line": 475,
+              "column": 3
             }
           ]
         }
@@ -261,9 +295,9 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-11-02T15:29:28.788Z",
-    "duration": 23410.211,
-    "expected": 4,
+    "startTime": "2026-11-02T16:01:39.557Z",
+    "duration": 29221.54,
+    "expected": 5,
     "skipped": 0,
     "unexpected": 0,
     "flaky": 0

@@ -211,6 +211,7 @@ const TAB_STRIP_MENU = freeze({
   CLOSE_RIGHT: 'closeRight',
   ADD_TO_SPLIT: 'addToSplit',
   SPLIT_SWITCH_SIDES: 'splitSwitchSides',
+  SPLIT_TOGGLE_STACKED: 'splitToggleStacked',
   SPLIT_SEPARATE: 'splitSeparate',
 });
 
@@ -429,6 +430,7 @@ const IPC_SEND = freeze({
   SPLIT_TAB_SET_RATIO: 'split-tab:set-ratio',
   SPLIT_TAB_FOCUS_SIDE: 'split-tab:focus-side',
   SPLIT_TAB_SWAP_SIDES: 'split-tab:swap-sides',
+  SPLIT_TAB_TOGGLE_STACKED: 'split-tab:toggle-stacked',
   SPLIT_TAB_SELECT_TAB: 'split-tab:select-tab',
 });
 

@@ -1102,6 +1102,16 @@ function registerIpcHandlers() {
         splitTabManager.swapSplitSides(context, splitId);
     });
 
+    ipcMain.on(C.IPC_SEND.SPLIT_TAB_TOGGLE_STACKED, (e, payload = {}) => {
+        if (!isSenderTrusted(e)) return;
+        const context = getWindowContextByEventSender(e.sender);
+        if (!context) return;
+        const { splitId } = payload;
+        if (!splitId || typeof splitId !== 'string') return;
+        const splitTabManager = require('../windows/splitTabManager');
+        splitTabManager.toggleSplitStacked(context, splitId);
+    });
+
     ipcMain.on(C.IPC_SEND.SPLIT_TAB_SELECT_TAB, (e, payload = {}) => {
         if (!isSenderTrusted(e)) return;
         const context = getWindowContextByEventSender(e.sender);
@@ -1395,6 +1405,7 @@ function registerIpcHandlers() {
             });
         }
         if (template.length === 0) return { ok: false };
+        global.__lastTabStripContextMenuTemplate = template;
         try {
             const menu = Menu.buildFromTemplate(template);
             menu.popup({ window: win, x: Math.round(x), y: Math.round(y) });
