@@ -1052,6 +1052,66 @@ function registerIpcHandlers() {
         tabManager.closeTab(context, id, { closeWindowIfLast });
     });
 
+    ipcMain.on(C.IPC_SEND.SPLIT_TAB_ENTER, (e, payload = {}) => {
+        if (!isSenderTrusted(e)) return;
+        const context = getWindowContextByEventSender(e.sender);
+        if (!context) return;
+        const { leftTabId, rightTabId } = payload;
+        if (!leftTabId || typeof leftTabId !== 'string') return;
+        const splitTabManager = require('../windows/splitTabManager');
+        splitTabManager.enterSplitView(context, leftTabId, rightTabId);
+    });
+
+    ipcMain.on(C.IPC_SEND.SPLIT_TAB_EXIT, (e, payload = {}) => {
+        if (!isSenderTrusted(e)) return;
+        const context = getWindowContextByEventSender(e.sender);
+        if (!context) return;
+        const { splitId, keepTabId, closeOtherSide } = payload;
+        if (!splitId || typeof splitId !== 'string') return;
+        const splitTabManager = require('../windows/splitTabManager');
+        splitTabManager.exitSplitView(context, splitId, { keepTabId, closeOtherSide });
+    });
+
+    ipcMain.on(C.IPC_SEND.SPLIT_TAB_SET_RATIO, (e, payload = {}) => {
+        if (!isSenderTrusted(e)) return;
+        const context = getWindowContextByEventSender(e.sender);
+        if (!context) return;
+        const { splitId, ratio } = payload;
+        if (!splitId || typeof splitId !== 'string') return;
+        const splitTabManager = require('../windows/splitTabManager');
+        splitTabManager.setSplitRatio(context, splitId, ratio);
+    });
+
+    ipcMain.on(C.IPC_SEND.SPLIT_TAB_FOCUS_SIDE, (e, payload = {}) => {
+        if (!isSenderTrusted(e)) return;
+        const context = getWindowContextByEventSender(e.sender);
+        if (!context) return;
+        const { splitId, side } = payload;
+        if (!splitId || typeof splitId !== 'string') return;
+        const splitTabManager = require('../windows/splitTabManager');
+        splitTabManager.setFocusedSplitSide(context, splitId, side);
+    });
+
+    ipcMain.on(C.IPC_SEND.SPLIT_TAB_SWAP_SIDES, (e, payload = {}) => {
+        if (!isSenderTrusted(e)) return;
+        const context = getWindowContextByEventSender(e.sender);
+        if (!context) return;
+        const { splitId } = payload;
+        if (!splitId || typeof splitId !== 'string') return;
+        const splitTabManager = require('../windows/splitTabManager');
+        splitTabManager.swapSplitSides(context, splitId);
+    });
+
+    ipcMain.on(C.IPC_SEND.SPLIT_TAB_SELECT_TAB, (e, payload = {}) => {
+        if (!isSenderTrusted(e)) return;
+        const context = getWindowContextByEventSender(e.sender);
+        if (!context) return;
+        const { splitId, tabId } = payload;
+        if (!splitId || typeof splitId !== 'string' || !tabId) return;
+        const splitTabManager = require('../windows/splitTabManager');
+        splitTabManager.selectTabForSplit(context, splitId, tabId);
+    });
+
     ipcMain.on(C.IPC_SEND.GO_BACK, (e, { id }) => {
         if (!isSenderTrusted(e)) return;
         const context = getWindowContextByEventSender(e.sender);
@@ -1825,6 +1885,7 @@ function registerIpcHandlers() {
                 profileId: context.profileId,
                 tabs: Array.isArray(data?.tabs) ? data.tabs : [],
                 activeTabId: data?.activeTabId || null,
+                splitGroups: data?.splitGroups && typeof data.splitGroups === 'object' ? data.splitGroups : {},
             };
             doc.profiles = Array.from(State.profilesById.values()).map((p) => ({
                 profileId: p.profileId,

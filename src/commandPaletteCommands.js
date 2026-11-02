@@ -194,8 +194,19 @@ export function buildCommandPaletteCommands(ctx) {
     {
       category: 'Tab',
       label: 'New Tab to the Right',
-      keywords: 'split',
+      keywords: 'right',
       run: () => ctx.newTabToRight(),
+    },
+    {
+      category: 'Tab',
+      label: 'Toggle Split Screen',
+      keywords: 'split dual side screen',
+      run: () => {
+        const id = ctx.getCurrentTabId ? ctx.getCurrentTabId() : null;
+        if (id && window.electronAPI?.splitTabEnter) {
+          window.electronAPI.splitTabEnter(id, 'choose-tab');
+        }
+      },
     },
     {
       category: 'Tab',

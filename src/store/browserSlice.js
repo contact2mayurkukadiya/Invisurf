@@ -20,6 +20,7 @@ function tabChromeDefaults() {
     isAudioMuted: false,
     zoomFactor: 1.0,
     lastActiveAt: Date.now(),
+    splitPairId: null,
   };
 }
 
@@ -55,6 +56,7 @@ const browserSlice = createSlice({
     tabs: {},
     tabOrder: [],
     currentTabId: null,
+    splitGroups: {}, // { [splitId]: { id, leftTabId, rightTabId, ratio: 0.5, focusedSide: 'left' } }
     searchEngine: 'google',
     showBookmarkBar: true,
     sidePanel: {
@@ -117,6 +119,9 @@ const browserSlice = createSlice({
     addTab(state, action) {
       const { id, isStealth = false, initialUrl = null } = action.payload;
       const url = initialUrl || NTP_URL;
+      const existingSplitPair = Object.values(state.splitGroups || {}).find(
+        (p) => p.leftTabId === id || p.rightTabId === id
+      );
       state.tabs[id] = {
         url,
         title: 'New Tab',
@@ -126,9 +131,19 @@ const browserSlice = createSlice({
         isLoading: false,
         isSleeping: false,
         ...tabChromeDefaults(),
+        splitPairId: existingSplitPair ? existingSplitPair.id : null,
       };
-      state.tabOrder.push(id);
-      state.currentTabId = id;
+      if (!state.tabOrder.includes(id)) {
+        if (existingSplitPair && existingSplitPair.rightTabId === id && state.tabOrder.includes(existingSplitPair.leftTabId)) {
+          const leftIdx = state.tabOrder.indexOf(existingSplitPair.leftTabId);
+          state.tabOrder.splice(leftIdx + 1, 0, id);
+        } else {
+          state.tabOrder.push(id);
+        }
+      }
+      if (!existingSplitPair || existingSplitPair.focusedSide === (existingSplitPair.leftTabId === id ? 'left' : 'right')) {
+        state.currentTabId = id;
+      }
       applyPinnedLeadingOrder(state);
     },
 
@@ -191,8 +206,136 @@ const browserSlice = createSlice({
 
     removeTab(state, action) {
       const id = action.payload;
+      const tab = state.tabs[id];
+      if (tab?.splitPairId) {
+        const pair = state.splitGroups[tab.splitPairId];
+        if (pair) {
+          const otherId = pair.leftTabId === id ? pair.rightTabId : pair.leftTabId;
+          if (state.tabs[otherId]) state.tabs[otherId].splitPairId = null;
+          delete state.splitGroups[tab.splitPairId];
+        }
+      }
       delete state.tabs[id];
       state.tabOrder = state.tabOrder.filter(tid => tid !== id);
+    },
+
+    setSplitGroup(state, action) {
+      const { splitId, pair } = action.payload || {};
+      const targetSplitId = splitId || pair?.id;
+      if (!targetSplitId || !pair) {
+        if (targetSplitId && state.splitGroups[targetSplitId]) {
+          const old = state.splitGroups[targetSplitId];
+          if (old.leftTabId && state.tabs[old.leftTabId]) state.tabs[old.leftTabId].splitPairId = null;
+          if (old.rightTabId && state.tabs[old.rightTabId]) state.tabs[old.rightTabId].splitPairId = null;
+          delete state.splitGroups[targetSplitId];
+        }
+        return;
+      }
+      // Purge any stale split groups that previously held either leftTabId or rightTabId
+      for (const [gid, grp] of Object.entries(state.splitGroups)) {
+        if (gid !== pair.id && (grp.leftTabId === pair.leftTabId || grp.rightTabId === pair.leftTabId ||
+            (pair.rightTabId && (grp.leftTabId === pair.rightTabId || grp.rightTabId === pair.rightTabId)))) {
+          delete state.splitGroups[gid];
+        }
+      }
+      state.splitGroups[pair.id] = { ...pair };
+      if (pair.leftTabId && state.tabs[pair.leftTabId]) state.tabs[pair.leftTabId].splitPairId = pair.id;
+      if (pair.rightTabId) {
+        if (state.tabs[pair.rightTabId]) {
+          state.tabs[pair.rightTabId].splitPairId = pair.id;
+        }
+        const leftIdx = state.tabOrder.indexOf(pair.leftTabId);
+        const rightIdx = state.tabOrder.indexOf(pair.rightTabId);
+        if (leftIdx !== -1) {
+          if (rightIdx === -1) {
+            state.tabOrder.splice(leftIdx + 1, 0, pair.rightTabId);
+          } else if (rightIdx !== leftIdx + 1) {
+            state.tabOrder = state.tabOrder.filter(id => id !== pair.rightTabId);
+            const newLeftIdx = state.tabOrder.indexOf(pair.leftTabId);
+            state.tabOrder.splice(newLeftIdx + 1, 0, pair.rightTabId);
+          }
+        } else if (rightIdx === -1) {
+          state.tabOrder.push(pair.rightTabId);
+        }
+      }
+      if (pair.focusedSide) {
+        const targetId = pair.focusedSide === 'left' ? pair.leftTabId : (pair.rightTabId || pair.leftTabId);
+        if (targetId) state.currentTabId = targetId;
+      }
+    },
+
+    removeSplitGroup(state, action) {
+      const payload = action.payload;
+      const splitId = typeof payload === 'string' ? payload : (payload?.splitId || payload?.id);
+      let old = splitId ? state.splitGroups[splitId] : null;
+      if (!old && splitId) {
+        old = Object.values(state.splitGroups || {}).find(
+          (p) => p.id === splitId || p.leftTabId === splitId || p.rightTabId === splitId
+        ) || null;
+      }
+      if (old) {
+        if (old.leftTabId && state.tabs[old.leftTabId]) {
+          state.tabs[old.leftTabId].splitPairId = null;
+        }
+        if (old.rightTabId) {
+          if (state.tabs[old.rightTabId]) {
+            state.tabs[old.rightTabId].splitPairId = null;
+          }
+          // Crucial: ensure rightTabId is guaranteed in tabOrder immediately adjacent to leftTabId
+          const leftIdx = state.tabOrder.indexOf(old.leftTabId);
+          const rightIdx = state.tabOrder.indexOf(old.rightTabId);
+          if (leftIdx !== -1) {
+            if (rightIdx === -1) {
+              state.tabOrder.splice(leftIdx + 1, 0, old.rightTabId);
+            } else if (rightIdx !== leftIdx + 1) {
+              state.tabOrder = state.tabOrder.filter(id => id !== old.rightTabId);
+              const newLeftIdx = state.tabOrder.indexOf(old.leftTabId);
+              state.tabOrder.splice(newLeftIdx + 1, 0, old.rightTabId);
+            }
+          } else if (rightIdx === -1) {
+            state.tabOrder.push(old.rightTabId);
+          }
+        }
+        delete state.splitGroups[old.id];
+        // Clean up any stale duplicate groups that held leftTabId or rightTabId
+        for (const [gid, grp] of Object.entries(state.splitGroups)) {
+          if (grp.leftTabId === old.leftTabId || grp.rightTabId === old.leftTabId ||
+              (old.rightTabId && (grp.leftTabId === old.rightTabId || grp.rightTabId === old.rightTabId))) {
+            delete state.splitGroups[gid];
+          }
+        }
+      }
+    },
+
+    setSplitRatio(state, action) {
+      const { splitId, ratio } = action.payload || {};
+      if (state.splitGroups[splitId]) {
+        state.splitGroups[splitId].ratio = Math.max(0.2, Math.min(0.8, Number(ratio) || 0.5));
+      }
+    },
+
+    setSplitFocusedSide(state, action) {
+      const { splitId, side } = action.payload || {};
+      if (state.splitGroups[splitId] && (side === 'left' || side === 'right')) {
+        state.splitGroups[splitId].focusedSide = side;
+        const targetId = side === 'left' ? state.splitGroups[splitId].leftTabId : state.splitGroups[splitId].rightTabId;
+        if (targetId) {
+          state.currentTabId = targetId;
+        }
+      }
+    },
+
+    swapSplitSides(state, action) {
+      const splitId = action.payload;
+      if (state.splitGroups[splitId]) {
+        const pair = state.splitGroups[splitId];
+        pair.isSwapped = !pair.isSwapped;
+        pair.focusedSide = pair.focusedSide === 'left' ? 'right' : 'left';
+        const targetId = pair.focusedSide === 'left' ? pair.leftTabId : (pair.rightTabId || pair.leftTabId);
+        if (targetId) {
+          state.currentTabId = targetId;
+        }
+      }
     },
 
     setCurrentTab(state, action) {
@@ -277,7 +420,25 @@ const browserSlice = createSlice({
 
     reorderTabs(state, action) {
       // action.payload: new ordered array of tab IDs
-      state.tabOrder = action.payload;
+      let nextOrder = Array.isArray(action.payload) ? [...action.payload] : [];
+      // Preserve any companion tabs that were omitted from action.payload (e.g. from tab dragging)
+      Object.values(state.splitGroups || {}).forEach((pair) => {
+        if (pair.rightTabId && state.tabs[pair.rightTabId] && !nextOrder.includes(pair.rightTabId)) {
+          const lIdx = nextOrder.indexOf(pair.leftTabId);
+          if (lIdx !== -1) {
+            nextOrder.splice(lIdx + 1, 0, pair.rightTabId);
+          } else {
+            nextOrder.push(pair.rightTabId);
+          }
+        }
+      });
+      // Ensure any other existing tabs in state.tabs are not accidentally lost
+      Object.keys(state.tabs).forEach((tid) => {
+        if (!nextOrder.includes(tid)) {
+          nextOrder.push(tid);
+        }
+      });
+      state.tabOrder = nextOrder;
       applyPinnedLeadingOrder(state);
     },
   },
@@ -305,6 +466,11 @@ export const {
   setSidePanelCustomUrl,
   togglePinSidePanel,
   setPinnedPanels,
+  setSplitGroup,
+  removeSplitGroup,
+  setSplitRatio,
+  setSplitFocusedSide,
+  swapSplitSides,
 } = browserSlice.actions;
 
 export default browserSlice.reducer;

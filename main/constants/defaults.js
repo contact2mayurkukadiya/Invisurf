@@ -122,6 +122,9 @@ const TAB_STRIP_CONTEXT_MENU_ACTION_IDS = new Set([
     'close',
     'closeOthers',
     'closeRight',
+    'addToSplit',
+    'splitSwitchSides',
+    'splitSeparate',
 ]);
 
 module.exports = {

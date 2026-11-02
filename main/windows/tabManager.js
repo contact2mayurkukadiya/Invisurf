@@ -99,17 +99,25 @@ function generateTabId() {
 function hideActiveTabViewForShellOverlay(context) {
     if (!context) return;
     if (context.activeTabId && !State.detachedTabWindows.has(context.activeTabId)) {
-        const view = context.tabs[context.activeTabId];
-        if (view && !view.webContents.isDestroyed()) {
+        const splitTabManager = require('./splitTabManager');
+        const splitPair = splitTabManager.getSplitPairByTabId(context, context.activeTabId);
+        if (splitPair) {
             context.isActiveTabTemporarilyHidden = true;
-            try {
-                removeTabContentChildView(context, view);
-                context.activeTabViewRemovedForShellOverlay = true;
-            } catch (err) {
-                console.error('hideActiveTabViewForShellOverlay removeChildView:', err?.message || err);
+            context.activeTabViewRemovedForShellOverlay = true;
+            splitTabManager.hideSplitViewsForShellOverlay(context, splitPair.id);
+        } else {
+            const view = context.tabs[context.activeTabId];
+            if (view && !view.webContents.isDestroyed()) {
+                context.isActiveTabTemporarilyHidden = true;
                 try {
-                    view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
-                } catch (_) { /* ignore */ }
+                    removeTabContentChildView(context, view);
+                    context.activeTabViewRemovedForShellOverlay = true;
+                } catch (err) {
+                    console.error('hideActiveTabViewForShellOverlay removeChildView:', err?.message || err);
+                    try {
+                        view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+                    } catch (_) { /* ignore */ }
+                }
             }
         }
     }
@@ -134,21 +142,29 @@ function hideActiveTabViewForShellOverlay(context) {
 function restoreActiveTabViewFromShellOverlay(context) {
     if (!context) return;
     if (context.activeTabId && !State.detachedTabWindows.has(context.activeTabId)) {
-        const view = context.tabs[context.activeTabId];
-        if (view && !view.webContents.isDestroyed()) {
+        const splitTabManager = require('./splitTabManager');
+        const splitPair = splitTabManager.getSplitPairByTabId(context, context.activeTabId);
+        if (splitPair) {
             context.isActiveTabTemporarilyHidden = false;
-            if (context.activeTabViewRemovedForShellOverlay) {
-                try {
-                    addTabContentChildView(context, view);
-                    context.activeTabViewRemovedForShellOverlay = false;
-                } catch (err) {
-                    console.error('restoreActiveTabViewFromShellOverlay addChildView:', err?.message || err);
+            context.activeTabViewRemovedForShellOverlay = false;
+            splitTabManager.restoreSplitViewsFromShellOverlay(context, splitPair.id);
+        } else {
+            const view = context.tabs[context.activeTabId];
+            if (view && !view.webContents.isDestroyed()) {
+                context.isActiveTabTemporarilyHidden = false;
+                if (context.activeTabViewRemovedForShellOverlay) {
+                    try {
+                        addTabContentChildView(context, view);
+                        context.activeTabViewRemovedForShellOverlay = false;
+                    } catch (err) {
+                        console.error('restoreActiveTabViewFromShellOverlay addChildView:', err?.message || err);
+                    }
                 }
-            }
-            try {
-                layoutActiveTabView(context, context.activeTabId);
-            } catch (err) {
-                console.error('restoreActiveTabViewFromShellOverlay setBounds:', err?.message || err);
+                try {
+                    layoutActiveTabView(context, context.activeTabId);
+                } catch (err) {
+                    console.error('restoreActiveTabViewFromShellOverlay setBounds:', err?.message || err);
+                }
             }
         }
     }
@@ -224,6 +240,12 @@ function layoutTabContentContainer(context) {
 
 function layoutActiveTabView(context, tabId = context?.activeTabId) {
     if (!context || !tabId || State.detachedTabWindows.has(tabId)) return;
+    const splitTabManager = require('./splitTabManager');
+    const splitPair = splitTabManager.getSplitPairByTabId(context, tabId);
+    if (splitPair) {
+        splitTabManager.layoutSplitTabViews(context, splitPair);
+        return;
+    }
     const view = context.tabs[tabId];
     if (!view || view.webContents.isDestroyed()) return;
 
@@ -287,13 +309,13 @@ function sendOmniboxFocusToShell(context, tabId, selectAll, openOverlay = false)
     });
 }
 
-function activateTabInContext(context, id) {
+function activateTabInContext(context, id, options = {}) {
     if (!context || !context.tabs[id]) return false;
 
     const overlayManager = require('./overlayManager');
     const lensManager = require('./lensManager');
 
-    if (context.activeTabId !== id) {
+    if (context.activeTabId !== id || options.force) {
         lensManager.suspendLensSessionPresentation(context, context.activeTabId);
         overlayManager.dismissChromeShellMenuOverlay(context, 'browser-action');
         overlayManager.hideStatusBubble(context);
@@ -314,6 +336,7 @@ function activateTabInContext(context, id) {
         }
     }
     const skipSameTab =
+        !options.force &&
         context.activeTabId === id &&
         !State.detachedTabWindows.has(id) &&
         !context.isActiveTabTemporarilyHidden;
@@ -343,9 +366,26 @@ function activateTabInContext(context, id) {
         } catch (_) { }
     }
     lensManager.detachLensSidebarsExcept(context, id);
-    addTabContentChildView(context, context.tabs[id]);
-    context.activeTabId = id;
-    layoutActiveTabView(context, id);
+
+    const splitTabManager = require('./splitTabManager');
+    const splitPair = splitTabManager.getSplitPairByTabId(context, id);
+
+    if (splitPair) {
+        if (context.tabs[splitPair.leftTabId]) addTabContentChildView(context, context.tabs[splitPair.leftTabId]);
+        if (context.tabs[splitPair.rightTabId]) addTabContentChildView(context, context.tabs[splitPair.rightTabId]);
+        context.activeTabId = id;
+        splitPair.focusedSide = splitPair.leftTabId === id ? 'left' : 'right';
+        splitTabManager.layoutSplitTabViews(context, splitPair);
+        splitTabManager.broadcastSplitUpdate(context, splitPair);
+        const activeSplitView = context.tabs[id];
+        if (activeSplitView?.webContents && !activeSplitView.webContents.isDestroyed()) {
+            try { activeSplitView.webContents.focus(); } catch (_) { }
+        }
+    } else {
+        addTabContentChildView(context, context.tabs[id]);
+        context.activeTabId = id;
+        layoutActiveTabView(context, id);
+    }
     const targetLens = lensManager.getLensSession(context, id, false);
     if (targetLens && targetLens.selectionActive) {
         lensManager.restoreActiveLensTabPresentation(context, id);
@@ -416,12 +456,17 @@ function activateTabInContext(context, id) {
     return true;
 }
 
-function activateTab(contextOrId, maybeId) {
+function activateTab(contextOrId, maybeId, maybeOptions = {}) {
     let context = null;
     let id = null;
-    if (maybeId !== undefined) {
+    let options = maybeOptions;
+    if (typeof maybeId === 'string') {
         context = contextOrId;
         id = maybeId;
+    } else if (typeof maybeId === 'object' && maybeId !== null) {
+        id = contextOrId;
+        context = getWindowContextByTabId(id) || getWindowContextForShellFallback();
+        options = maybeId;
     } else {
         id = contextOrId;
         context = getWindowContextByTabId(id) || getWindowContextForShellFallback();
@@ -429,7 +474,7 @@ function activateTab(contextOrId, maybeId) {
     if (context && id && !context.tabs[id] && context.sleepingTabs?.[id]) {
         return activateOrWakeTab(id);
     }
-    return activateTabInContext(context, id);
+    return activateTabInContext(context, id, options);
 }
 
 function layoutDetachedTabView(tabId) {
@@ -1018,6 +1063,16 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
     });
 
     applyIdentityToWebContents(view.webContents);
+    view.webContents.on('focus', () => {
+        try {
+            const splitTabManager = require('./splitTabManager');
+            const pair = splitTabManager.getSplitPairByTabId(context, id);
+            if (pair && context.activeTabId !== id) {
+                const side = pair.leftTabId === id ? 'left' : 'right';
+                splitTabManager.setFocusedSplitSide(context, pair.id, side);
+            }
+        } catch (_) { }
+    });
     installSessionNetworkGuards(view.webContents.session, {
         profileId: context.profileId,
         isStealthSession: !!context.stealthWindow,
@@ -1606,6 +1661,10 @@ function closeTab(context, id, options = {}) {
         lensManager.destroyLensSession(context, id);
         if (context.activeTabId === id) context.activeTabId = null;
     }
+    try {
+        const splitTabManager = require('./splitTabManager');
+        splitTabManager.handleTabDestroyed(context, id);
+    } catch (_) { }
     State.pendingTransitionsByTab.delete(String(id));
     if (State.historyService) State.historyService.clearTab(id);
     compatDiagnostics.clear(id);

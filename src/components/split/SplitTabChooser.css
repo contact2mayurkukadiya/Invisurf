@@ -1,0 +1,172 @@
+.split-tab-chooser {
+  position: absolute;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  overflow: hidden;
+  border-radius: 14px;
+}
+
+/* Top-right Cancel ✕ button */
+.split-chooser-cancel-btn {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10;
+  transition: background-color 0.15s ease;
+  color: var(--chrome-toolbar-text, #3c4043);
+}
+
+.split-chooser-cancel-btn:hover {
+  background-color: var(--chrome-close-hover, rgba(0, 0, 0, 0.08));
+}
+
+[data-theme="dark"] .split-chooser-cancel-btn:hover,
+html[data-forced-appearance="dark"] .split-chooser-cancel-btn:hover {
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
+/* Floating interactive chooser card matching Chrome design */
+.split-chooser-card {
+  width: 90%;
+  max-width: 400px;
+  max-height: calc(100% - 64px);
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12),
+              0 1px 4px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+[data-theme="dark"] .split-chooser-card,
+html[data-forced-appearance="dark"] .split-chooser-card {
+  background: #242629;
+  box-shadow: 0 6px 30px rgba(0, 0, 0, 0.5),
+              0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.split-chooser-list {
+  padding: 10px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 480px;
+}
+
+/* Scrollbar refinement */
+.split-chooser-list::-webkit-scrollbar {
+  width: 6px;
+}
+.split-chooser-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.split-chooser-list::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 3px;
+}
+[data-theme="dark"] .split-chooser-list::-webkit-scrollbar-thumb,
+html[data-forced-appearance="dark"] .split-chooser-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* List Item Row */
+.split-chooser-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.15s ease;
+}
+
+.split-chooser-row:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="dark"] .split-chooser-row:hover,
+html[data-forced-appearance="dark"] .split-chooser-row:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Squircle favicon container matching the user reference screenshot */
+.split-chooser-icon-container {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.04);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+[data-theme="dark"] .split-chooser-icon-container,
+html[data-forced-appearance="dark"] .split-chooser-icon-container {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.split-chooser-icon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+
+.split-chooser-icon-container--new {
+  color: var(--chrome-accent, #1a73e8);
+}
+
+[data-theme="dark"] .split-chooser-icon-container--new,
+html[data-forced-appearance="dark"] .split-chooser-icon-container--new {
+  color: var(--chrome-accent, #8ab4f8);
+}
+
+.split-chooser-text-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.split-chooser-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--chrome-toolbar-text, #202124);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+[data-theme="dark"] .split-chooser-title,
+html[data-forced-appearance="dark"] .split-chooser-title {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.split-chooser-domain {
+  font-size: 11px;
+  color: var(--chrome-toolbar-text-muted, #5f6368);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+[data-theme="dark"] .split-chooser-domain,
+html[data-forced-appearance="dark"] .split-chooser-domain {
+  color: rgba(255, 255, 255, 0.6);
+}

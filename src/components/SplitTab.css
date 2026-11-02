@@ -1,0 +1,277 @@
+/* Compound Split Tab styling: shares space evenly and shrinks identically with normal tabs */
+.tab.split-compound-tab {
+  display: flex !important;
+  align-items: center;
+  padding: 0 4px !important;
+  width: var(--tab-width, 240px);
+  flex: 0 0 var(--tab-width, 240px);
+  min-width: 28px;
+  max-width: 240px;
+  box-sizing: border-box;
+}
+
+.tab-container.tab-container--stuck .tab.split-compound-tab:not(.tab--pinned) {
+  flex: 1 1 0px;
+  width: 0;
+  min-width: 28px;
+  max-width: 240px;
+}
+
+/* Inline mini-tab representations: no background on hover, same shrinking as normal tabs */
+.split-mini-tab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+  padding: 0 2px 0 4px;
+  gap: 5px;
+  user-select: none;
+  overflow: hidden;
+  box-sizing: border-box;
+  cursor: pointer;
+  background: transparent !important;
+}
+
+.split-mini-tab .icon-container {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.split-mini-tab .tab-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+}
+
+.split-mini-tab .tab-title {
+  font-size: 12px;
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: inherit;
+  margin-right: 0 !important;
+  -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 6px), transparent 100%);
+  mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 6px), transparent 100%);
+  transition: margin-right 0.18s ease, -webkit-mask-image 0.18s ease, mask-image 0.18s ease;
+  pointer-events: none;
+}
+
+/* Sub-tab when NOT hovered: title has 0 margin */
+.tab.split-compound-tab .split-mini-tab:not(:hover) .tab-title {
+  margin-right: 0 !important;
+}
+
+/* Title shrinks smoothly ONLY when THAT specific sub-tab is hovered to make room for close button */
+.tab.split-compound-tab .split-mini-tab:hover .tab-title {
+  margin-right: 22px !important;
+  -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 6px), transparent 100%);
+  mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 6px), transparent 100%);
+}
+
+/* Subtle separator between the two mini-tabs */
+.split-mini-divider {
+  width: 1px;
+  height: 16px;
+  background-color: var(--chrome-tab-separator, rgba(0, 0, 0, 0.14));
+  margin: 0 1px;
+  flex-shrink: 0;
+}
+
+[data-theme="dark"] .split-mini-divider,
+html[data-forced-appearance="dark"] .split-mini-divider {
+  background-color: rgba(255, 255, 255, 0.16);
+}
+
+/* Close button identical in size to normal tab close button (20px with 14px icon) */
+.mini-tab-close-btn {
+  position: absolute;
+  right: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  padding: 3px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  opacity: 0;
+  pointer-events: none;
+  cursor: pointer;
+  transition: opacity 0.18s ease, background-color 0.15s ease;
+  z-index: 3;
+}
+
+/* Strict isolation: close button remains completely hidden when sub-tab is not hovered */
+.tab.split-compound-tab .split-mini-tab:not(:hover) .mini-tab-close-btn {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Close button reveals ONLY on hover of that individual sub-tab */
+.tab.split-compound-tab .split-mini-tab:hover .mini-tab-close-btn {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+.mini-tab-close-btn:hover {
+  background-color: var(--chrome-close-hover, rgba(0, 0, 0, 0.08));
+}
+
+[data-theme="dark"] .mini-tab-close-btn:hover,
+html[data-forced-appearance="dark"] .mini-tab-close-btn:hover {
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
+.mini-tab-close-btn .tab-close-icon {
+  display: block;
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+}
+
+/* ── Progressive Shrinking: Icon-Only Mode (Compound Tab < 120px / Sub-tab < 60px) ── */
+.tab.split-compound-tab.tab--mode-icon-only {
+  padding: 0 2px !important;
+}
+
+.tab.split-compound-tab.tab--mode-icon-only .split-mini-tab {
+  justify-content: center;
+  gap: 0;
+  padding: 0 !important;
+}
+
+.tab.split-compound-tab.tab--mode-icon-only .tab-title {
+  display: none !important;
+}
+
+.tab.split-compound-tab.tab--mode-icon-only .split-mini-tab .icon-container {
+  display: flex !important;
+  width: 16px;
+  height: 16px;
+  margin: 0 auto;
+}
+
+.tab.split-compound-tab.tab--mode-icon-only .split-mini-tab:hover .icon-container {
+  display: none !important;
+}
+
+.tab.split-compound-tab.tab--mode-icon-only .split-mini-tab .mini-tab-close-btn {
+  right: auto !important;
+  left: 50% !important;
+  top: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  width: 18px;
+  height: 18px;
+  padding: 2px;
+}
+
+.tab.split-compound-tab.tab--mode-icon-only .split-mini-tab .mini-tab-close-btn .tab-close-icon {
+  width: 12px;
+  height: 12px;
+}
+
+.tab.split-compound-tab.tab--mode-icon-only .split-mini-tab:not(:hover) .mini-tab-close-btn {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.tab.split-compound-tab.tab--mode-icon-only .split-mini-tab:hover .mini-tab-close-btn {
+  display: flex !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+/* ── Progressive Shrinking: Extreme-Overflow Mode (Compound Tab <= 56px / Sub-tab <= 28px) ── */
+.tab.split-compound-tab.tab--mode-extreme-overflow {
+  padding: 0 !important;
+}
+
+.tab.split-compound-tab.tab--mode-extreme-overflow .split-mini-tab {
+  justify-content: center;
+  gap: 0;
+  padding: 0 !important;
+}
+
+.tab.split-compound-tab.tab--mode-extreme-overflow .tab-title {
+  display: none !important;
+}
+
+.tab.split-compound-tab.tab--mode-extreme-overflow .split-mini-divider {
+  margin: 0 !important;
+  height: 12px;
+}
+
+.tab.split-compound-tab.tab--mode-extreme-overflow .split-mini-tab .icon-container {
+  display: flex;
+  width: 10px;
+  height: 16px;
+  margin: 0 auto;
+}
+
+.tab.split-compound-tab.tab--mode-extreme-overflow .split-mini-tab .icon-container .tab-icon {
+  width: 10px;
+  height: 10px;
+}
+
+.tab.split-compound-tab.tab--mode-extreme-overflow .split-mini-tab .mini-tab-close-btn {
+  right: auto !important;
+  left: 50% !important;
+  top: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  width: 14px;
+  height: 14px;
+  padding: 1px;
+}
+
+.tab.split-compound-tab.tab--mode-extreme-overflow .split-mini-tab .mini-tab-close-btn .tab-close-icon {
+  width: 10px;
+  height: 10px;
+}
+
+/* Inactive, non-hovered mini-tab close button is hidden */
+.tab.split-compound-tab.tab--mode-extreme-overflow .split-mini-tab:not(.active):not(:hover) .mini-tab-close-btn {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Hovering any mini-tab hides its icon and displays close button centered */
+.tab.split-compound-tab.tab--mode-extreme-overflow .split-mini-tab:hover .icon-container {
+  display: none !important;
+  opacity: 0 !important;
+}
+
+.tab.split-compound-tab.tab--mode-extreme-overflow .split-mini-tab:hover .mini-tab-close-btn {
+  display: flex !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+/* When split tab is active, the active mini-tab hides its favicon and shows ONLY close button (matching normal tab active in extreme overflow) */
+.tab.split-compound-tab.tab--mode-extreme-overflow.active .split-mini-tab.active .icon-container {
+  display: none !important;
+  opacity: 0 !important;
+  width: 0 !important;
+}
+
+.tab.split-compound-tab.tab--mode-extreme-overflow.active .split-mini-tab.active .mini-tab-close-btn {
+  display: flex !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+

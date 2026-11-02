@@ -1,0 +1,89 @@
+/* Split Overlay Container spanning beneath header (UI_HEIGHT = 122px) */
+.split-overlay-container {
+  position: fixed;
+  top: 122px;
+  left: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 5;
+  user-select: none;
+}
+
+.split-overlay-container--dragging {
+  cursor: col-resize;
+  pointer-events: auto;
+}
+
+/* Card frames around the two subviews matching the sidebar card border */
+.split-subview-frame {
+  position: absolute;
+  box-sizing: border-box;
+  pointer-events: none;
+  border-radius: 14px;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  /* Default gray card border matching sidebar */
+  border: 1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.16));
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.04),
+              0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="dark"] .split-subview-frame,
+html[data-forced-appearance="dark"] .split-subview-frame {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06),
+              0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Active pane outline border with user's chosen theme color; inactive pane retains gray border */
+.split-subview-frame--focused {
+  border: 2px solid var(--chrome-accent, var(--chrome-focus-ring, #1a73e8));
+  box-shadow: 0 0 0 1px var(--chrome-accent, var(--chrome-focus-ring, #1a73e8)),
+              0 2px 10px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="dark"] .split-subview-frame--focused,
+html[data-forced-appearance="dark"] .split-subview-frame--focused {
+  border: 2px solid var(--chrome-accent, var(--chrome-focus-ring, #8ab4f8));
+  box-shadow: 0 0 0 1px var(--chrome-accent, var(--chrome-focus-ring, #8ab4f8)),
+              0 4px 14px rgba(0, 0, 0, 0.4);
+}
+
+/* Divider Handle in the 8px gap between panes */
+.split-divider-handle {
+  position: absolute;
+  cursor: col-resize;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+/* Center grip pill in the gap */
+.split-divider-pill {
+  width: 4px;
+  height: 36px;
+  border-radius: 2px;
+  background-color: var(--chrome-tab-separator, rgba(0, 0, 0, 0.18));
+  opacity: 0.65;
+  transition: opacity 0.15s ease, height 0.15s ease, background-color 0.15s ease;
+}
+
+[data-theme="dark"] .split-divider-pill,
+html[data-forced-appearance="dark"] .split-divider-pill {
+  background-color: var(--chrome-tab-separator, rgba(255, 255, 255, 0.22));
+}
+
+.split-divider-handle:hover .split-divider-pill,
+.split-divider-handle--dragging .split-divider-pill {
+  opacity: 1;
+  height: 50px;
+  background-color: var(--chrome-accent, var(--chrome-focus-ring, #1a73e8));
+}
+
+[data-theme="dark"] .split-divider-handle:hover .split-divider-pill,
+[data-theme="dark"] .split-divider-handle--dragging .split-divider-pill,
+html[data-forced-appearance="dark"] .split-divider-handle:hover .split-divider-pill,
+html[data-forced-appearance="dark"] .split-divider-handle--dragging .split-divider-pill {
+  background-color: var(--chrome-accent, var(--chrome-focus-ring, #8ab4f8));
+}

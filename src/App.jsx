@@ -13,6 +13,9 @@ import {
   setSidePanelActiveView,
   setSidePanelWidth,
   setSidePanelCustomUrl,
+  setSplitGroup,
+  removeSplitGroup,
+  swapSplitSides,
 } from './store/browserSlice';
 import { setBookmarks } from './store/bookmarksSlice';
 import { useElectronIPC } from './hooks/useElectronIPC';
@@ -23,6 +26,7 @@ import BookmarkBar from './components/BookmarkBar';
 import SearchTabsModal from './components/SearchTabsModal';
 import CommandPaletteModal from './components/CommandPaletteModal';
 import SidePanel from './components/sidepanel/SidePanel';
+import SplitDivider from './components/split/SplitDivider';
 import { buildCommandPaletteCommands } from './commandPaletteCommands';
 import { TabOverlayProvider } from './context/TabOverlayContext';
 import { ChromeOverlayProvider } from './context/ChromeOverlayContext';
@@ -49,6 +53,7 @@ function AppShell() {
   const tabs = useSelector(s => s.browser.tabs);
   const tabOrder = useSelector(s => s.browser.tabOrder);
   const currentTabId = useSelector(s => s.browser.currentTabId);
+  const splitGroups = useSelector(s => s.browser.splitGroups || {});
   const showBookmarkBar = useSelector(s => s.browser.showBookmarkBar !== false);
   /** True for dedicated stealth (incognito) windows — all tabs are private; chrome is fixed dark InvSurf. */
   const stealthWindowRef = useRef(!!(typeof window !== 'undefined' && window.__INVISURF_STEALTH_WINDOW__));
@@ -91,7 +96,7 @@ function AppShell() {
 
   // Always-fresh ref so event-handler closures never capture stale state
   const stateRef = useRef({});
-  stateRef.current = { tabs, tabOrder, currentTabId };
+  stateRef.current = { tabs, tabOrder, currentTabId, splitGroups };
   // Startup waits on IPC before deciding whether to create its default tab.
   // Track tab creation synchronously so Cmd+T can win that race safely.
   const hasRegisteredTabRef = useRef(false);
@@ -103,7 +108,7 @@ function AppShell() {
   const requestSessionSave = useCallback(() => {
     clearTimeout(sessionTimer.current);
     sessionTimer.current = setTimeout(() => {
-      const { tabs, tabOrder, currentTabId } = stateRef.current;
+      const { tabs, tabOrder, currentTabId, splitGroups } = stateRef.current;
       const tabsToSave = tabOrder
         .filter(id => tabs[id] && !tabs[id].isStealth)
         .map(id => ({
@@ -113,6 +118,7 @@ function AppShell() {
           // title and favicon immediately on the next session restore.
           title: tabs[id].title || URL_C.NEW_TAB_LABEL,
           favicon: tabs[id].favicon || null,
+          splitPairId: tabs[id].splitPairId || null,
         }));
 
       if (tabsToSave.length > 0 && window.electronAPI.sessionSave) {
@@ -120,14 +126,18 @@ function AppShell() {
         if (tabs[activeTab]?.isStealth) {
           activeTab = tabsToSave[tabsToSave.length - 1]?.id || null;
         }
-        window.electronAPI.sessionSave({ tabs: tabsToSave, activeTabId: activeTab });
+        window.electronAPI.sessionSave({
+          tabs: tabsToSave,
+          activeTabId: activeTab,
+          splitGroups: splitGroups || {}
+        });
       }
     }, 700);
   }, []);
 
   useEffect(() => {
     if (tabOrder.length > 0) requestSessionSave();
-  }, [tabOrder, requestSessionSave]);
+  }, [tabOrder, splitGroups, requestSessionSave]);
 
   // Native Tab menu: Mute/Unmute Site + Pin/Unpin labels for the active tab
   useEffect(() => {
@@ -402,10 +412,19 @@ function AppShell() {
     const pinLabel = t.isPinned ? 'Unpin' : 'Pin';
     const stealthShell = stealthWindowRef.current;
 
+    const splitItems = t.splitPairId ? [
+      { type: CONTEXT_MENU.TYPE_ITEM, id: TAB_STRIP_MENU.SPLIT_SWITCH_SIDES, label: 'Switch sides', enabled: true },
+      { type: CONTEXT_MENU.TYPE_ITEM, id: TAB_STRIP_MENU.SPLIT_SEPARATE, label: 'Separate tabs', enabled: true },
+      { type: CONTEXT_MENU.TYPE_SEPARATOR },
+    ] : [
+      { type: CONTEXT_MENU.TYPE_ITEM, id: TAB_STRIP_MENU.ADD_TO_SPLIT, label: 'Add tab to new split view', enabled: true },
+      { type: CONTEXT_MENU.TYPE_SEPARATOR },
+    ];
+
     return [
       { type: CONTEXT_MENU.TYPE_ITEM, id: TAB_STRIP_MENU.NEW_TAB_RIGHT, label: 'New Tab to the Right', enabled: true },
       { type: CONTEXT_MENU.TYPE_ITEM, id: TAB_STRIP_MENU.MOVE_NEW_WINDOW, label: 'Move Tab to New Window', enabled: !stealthShell },
-      { type: CONTEXT_MENU.TYPE_SEPARATOR },
+      ...splitItems,
       { type: CONTEXT_MENU.TYPE_ITEM, id: TAB_STRIP_MENU.RELOAD, label: 'Reload', enabled: !t.isSleeping },
       { type: CONTEXT_MENU.TYPE_ITEM, id: TAB_STRIP_MENU.DUPLICATE, label: 'Duplicate', enabled: true },
       { type: CONTEXT_MENU.TYPE_ITEM, id: TAB_STRIP_MENU.TOGGLE_PIN, label: pinLabel, enabled: true },
@@ -497,6 +516,7 @@ function AppShell() {
       buildCommandPaletteCommands({
         platform: window.electronAPI?.platform || 'darwin',
         createTab,
+        getCurrentTabId: () => stateRef.current.currentTabId,
         closeCurrentTab: () => {
           const id = stateRef.current.currentTabId;
           if (id) closeTab(id);
@@ -720,21 +740,36 @@ function AppShell() {
       if (hasRegisteredTabRef.current) return;
 
       if (session?.tabs?.length > 0) {
-        // Determine which tab should be active on restore.
+        const splitGroupsToRestore = session.splitGroups || {};
         const activeId = session.activeTabId && session.tabs.some(t => t.id === session.activeTabId)
           ? session.activeTabId
           : session.tabs[session.tabs.length - 1].id;
 
+        let activeSplitPair = null;
+        for (const group of Object.values(splitGroupsToRestore)) {
+          if (group.leftTabId === activeId || group.rightTabId === activeId) {
+            activeSplitPair = group;
+            break;
+          }
+        }
+
         for (const t of session.tabs) {
-          if (t.id === activeId) {
-            // Active tab: create the WebContentsView and load its URL eagerly.
-            dispatch(addTab({ id: t.id, isStealth: false, initialUrl: t.url }));
+          const isEager = t.id === activeId || (activeSplitPair && (t.id === activeSplitPair.leftTabId || t.id === activeSplitPair.rightTabId));
+          if (isEager) {
+            // Active tab or companion split view: create the WebContentsView and load its URL eagerly.
+            dispatch(addTab({ id: t.id, isStealth: false, initialUrl: t.url, splitPairId: t.splitPairId || null }));
             window.electronAPI.newTab(t.id, false, t.url);
           } else {
             // Inactive tabs: add to the tab strip using cached metadata only.
             // No WebContentsView is created; it will be created on first activation.
-            dispatch(addSleepingTab({ id: t.id, url: t.url, title: t.title, favicon: t.favicon }));
+            dispatch(addSleepingTab({ id: t.id, url: t.url, title: t.title, favicon: t.favicon, splitPairId: t.splitPairId || null }));
             window.electronAPI.tabSleepRegister(t.id, t.url);
+          }
+        }
+
+        for (const [pairId, group] of Object.entries(splitGroupsToRestore)) {
+          if (session.tabs.some(t => t.id === group.leftTabId) && session.tabs.some(t => t.id === group.rightTabId)) {
+            dispatch(setSplitGroup({ pairId, ...group }));
           }
         }
 
@@ -742,6 +777,9 @@ function AppShell() {
         setTimeout(() => {
           dispatch(setCurrentTab(activeId));
           window.electronAPI.switchTab(activeId);
+          if (activeSplitPair && window.electronAPI.splitTabEnter) {
+            window.electronAPI.splitTabEnter(activeSplitPair.leftTabId, activeSplitPair.rightTabId);
+          }
         }, 0);
       } else {
         createTab();
@@ -777,6 +815,23 @@ function AppShell() {
     [TAB_STRIP_MENU.CLOSE]: closeTab,
     [TAB_STRIP_MENU.CLOSE_OTHERS]: closeOtherTabsThan,
     [TAB_STRIP_MENU.CLOSE_RIGHT]: closeTabsToTheRightOf,
+    [TAB_STRIP_MENU.ADD_TO_SPLIT]: (tid) => {
+      window.electronAPI?.splitTabEnter?.(tid, 'choose-tab');
+    },
+    [TAB_STRIP_MENU.SPLIT_SWITCH_SIDES]: (tid) => {
+      const pid = stateRef.current.tabs[tid]?.splitPairId
+        || Object.values(stateRef.current.splitGroups || {}).find(p => p.leftTabId === tid || p.rightTabId === tid)?.id;
+      if (pid) {
+        dispatch(swapSplitSides(pid));
+        window.electronAPI?.splitTabSwapSides?.(pid);
+      }
+    },
+    [TAB_STRIP_MENU.SPLIT_SEPARATE]: (tid) => {
+      const pid = stateRef.current.tabs[tid]?.splitPairId
+        || Object.values(stateRef.current.splitGroups || {}).find(p => p.leftTabId === tid || p.rightTabId === tid)?.id;
+      if (pid) window.electronAPI?.splitTabExit?.(pid);
+      else if (tid) window.electronAPI?.splitTabExit?.(tid);
+    },
   };
 
   useEffect(() => {
@@ -804,6 +859,18 @@ function AppShell() {
     };
   }, [dispatch]);
 
+  useEffect(() => {
+    if (!window.electronAPI?.onSplitTabUpdated) return;
+    const unsub = window.electronAPI.onSplitTabUpdated(({ splitId, pair, removed }) => {
+      if (removed && splitId) {
+        dispatch(removeSplitGroup(splitId));
+      } else if (pair && pair.id) {
+        dispatch(setSplitGroup({ splitId: pair.id, pair }));
+      }
+    });
+    return typeof unsub === 'function' ? unsub : undefined;
+  }, [dispatch]);
+
   return (
     <>
       <div className={`header${isStealthShell ? ' header--stealth-window' : ''}${isGhostShell ? ' header--ghost-window' : ''}`}>
@@ -829,6 +896,7 @@ function AppShell() {
         <BookmarkBar currentTabId={currentTabId} />
       </div>
       <SidePanel />
+      <SplitDivider />
       <CommandPaletteModal
         open={commandPaletteOpen}
         onClose={() => setCommandPaletteOpen(false)}

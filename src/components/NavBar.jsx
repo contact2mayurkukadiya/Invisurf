@@ -19,6 +19,7 @@ import ProfileEditorModal from './ProfileEditorModal';
 import WindowOpacityControl from './WindowOpacityControl';
 import DownloadToolbarButton from './DownloadToolbarButton';
 import ExtensionToolbar from './ExtensionToolbar';
+import SplitTabPickerDropdown from './split/SplitTabPickerDropdown';
 import { BOOKMARK, OVERLAY, PROFILE, URL as URL_C } from '../constants/conditionStrings.js';
 import {
   bookmarkStarFilledSvg,
@@ -227,6 +228,10 @@ export default function NavBar({
   const [profileEditorOpen, setProfileEditorOpen] = useState(false);
   const [profileEditorMode, setProfileEditorMode] = useState('create');
   const [appMenuOpen, setAppMenuOpen] = useState(false);
+  const [splitMenuOpen, setSplitMenuOpen] = useState(false);
+  const splitBtnRef = useRef(null);
+  const splitGroups = useSelector((s) => s.browser.splitGroups);
+  const isCurrentInSplit = !!(currentTabId && tabs[currentTabId]?.splitPairId && splitGroups?.[tabs[currentTabId].splitPairId]);
   const appMenuOpenRef = useRef(false);
   const appMenuSkipRefreshRef = useRef(false);
   const pendingOwnAppMenuResetRef = useRef(false);
@@ -867,6 +872,28 @@ export default function NavBar({
       <WindowOpacityControl />
 
       <DownloadToolbarButton onOpenDownloads={onOpenDownloads} />
+
+      {/* Split Screen Button */}
+      <div className="split-toolbar-wrapper" style={{ position: 'relative' }}>
+        <button
+          ref={splitBtnRef}
+          id="split-tab-btn"
+          className={`btn split-tab-btn${isCurrentInSplit ? ' active' : ''}`}
+          title={isCurrentInSplit ? "Split Screen Controls" : "Split Screen"}
+          aria-expanded={splitMenuOpen}
+          aria-label="Split Screen"
+          onClick={() => setSplitMenuOpen((prev) => !prev)}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M2 3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3zm1 0v10h4V3H3zm5 0v10h5V3H8z" />
+          </svg>
+        </button>
+        <SplitTabPickerDropdown
+          isOpen={splitMenuOpen}
+          onClose={() => setSplitMenuOpen(false)}
+          anchorRef={splitBtnRef}
+        />
+      </div>
 
       {/* Pinned Side Panel Toolbar Buttons */}
       {pinnedPanelIds.map((panelId) => {

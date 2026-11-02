@@ -92,7 +92,16 @@ const test = base.extend({
 
     // Teardown
     try {
-      await electronApp.close();
+      await Promise.race([
+        electronApp.close(),
+        new Promise((r) => setTimeout(r, 2000)),
+      ]);
+    } catch (_) {}
+
+    try {
+      if (typeof electronApp.process === 'function' && electronApp.process()) {
+        electronApp.process().kill('SIGKILL');
+      }
     } catch (_) {}
 
     try {

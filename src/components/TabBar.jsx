@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useCallback, useMemo, useState, useLayoutEffect } from 'react';
 import { useSelector } from 'react-redux';
 import Tab from './Tab';
+import SplitTab from './SplitTab';
 import { tabAddSvg } from '../constants/appAssetUrls';
 import { PLATFORM } from '../constants/conditionStrings.js';
 
@@ -18,7 +19,14 @@ const TAB_WIDTH_THRESHOLDS = {
 
 function getTabDisplayMode(tabWidth) {
   if (tabWidth >= TAB_WIDTH_THRESHOLDS.full) return TAB_DISPLAY_MODE.FULL;
-  if (tabWidth >= TAB_WIDTH_THRESHOLDS.iconOnly) return TAB_DISPLAY_MODE.ICON_ONLY;
+  if (tabWidth > TAB_WIDTH_THRESHOLDS.iconOnly) return TAB_DISPLAY_MODE.ICON_ONLY;
+  return TAB_DISPLAY_MODE.EXTREME_OVERFLOW;
+}
+
+function getSplitTabDisplayMode(tabWidth) {
+  const subTabWidth = tabWidth / 2;
+  if (subTabWidth >= TAB_WIDTH_THRESHOLDS.full) return TAB_DISPLAY_MODE.FULL;
+  if (subTabWidth > TAB_WIDTH_THRESHOLDS.iconOnly) return TAB_DISPLAY_MODE.ICON_ONLY;
   return TAB_DISPLAY_MODE.EXTREME_OVERFLOW;
 }
 
@@ -33,6 +41,7 @@ export default function TabBar({
   const tabOrder = useSelector(s => s.browser.tabOrder);
   const tabs = useSelector(s => s.browser.tabs);
   const currentTabId = useSelector(s => s.browser.currentTabId);
+  const splitGroups = useSelector(s => s.browser.splitGroups);
 
   const [isStuckToRight, setIsStuckToRight] = useState(false);
   const [tabWidth, setTabWidth] = useState(240);
@@ -150,9 +159,29 @@ export default function TabBar({
   const platform = window.electronAPI?.platform;
   const isMac = platform === PLATFORM.DARWIN;
   const isWin = platform === PLATFORM.WIN32;
+  const rightSplitTabIds = useMemo(() => {
+    const set = new Set();
+    Object.values(splitGroups || {}).forEach((p) => {
+      if (
+        p.rightTabId &&
+        tabs[p.rightTabId]?.splitPairId === p.id &&
+        p.leftTabId &&
+        tabs[p.leftTabId]?.splitPairId === p.id
+      ) {
+        set.add(p.rightTabId);
+      }
+    });
+    return set;
+  }, [splitGroups, tabs]);
+
+  const visibleTabOrder = useMemo(
+    () => tabOrder.filter((tid) => !rightSplitTabIds.has(tid)),
+    [tabOrder, rightSplitTabIds]
+  );
+
   const pinnedTabCount = useMemo(
-    () => tabOrder.filter((tid) => tabs[tid]?.isPinned).length,
-    [tabOrder, tabs],
+    () => visibleTabOrder.filter((tid) => tabs[tid]?.isPinned).length,
+    [visibleTabOrder, tabs],
   );
 
   const updateTabWidth = useCallback(() => {
@@ -168,7 +197,7 @@ export default function TabBar({
     const addTabSpace = 62;
     const maxAvailable = Math.max(100, totalBarWidth - addTabSpace);
 
-    const unpinnedCount = tabOrder.length - pinnedTabCount;
+    const unpinnedCount = visibleTabOrder.length - pinnedTabCount;
     if (unpinnedCount <= 0) {
       setIsStuckToRight(false);
       setTabWidth(240);
@@ -196,7 +225,7 @@ export default function TabBar({
     if (container && (!shouldStick || container.scrollWidth <= container.clientWidth)) {
       container.scrollLeft = 0;
     }
-  }, [tabOrder.length, pinnedTabCount]);
+  }, [visibleTabOrder.length, pinnedTabCount]);
 
   useLayoutEffect(() => {
     updateTabWidth();
@@ -230,8 +259,11 @@ export default function TabBar({
   }, [currentTabId]);
 
   const displayMode = useMemo(() => {
-    if (tabWidth >= 60) return TAB_DISPLAY_MODE.FULL;
-    return TAB_DISPLAY_MODE.ICON_ONLY;
+    return getTabDisplayMode(tabWidth);
+  }, [tabWidth]);
+
+  const splitDisplayMode = useMemo(() => {
+    return getSplitTabDisplayMode(tabWidth);
   }, [tabWidth]);
 
   return (
@@ -258,23 +290,50 @@ export default function TabBar({
         onWheel={handleWheel}
       >
         <div ref={tabTrackRef} className="tab-track" style={{ '--tab-width': `${tabWidth}px` }}>
-          {tabOrder.map(id => (
-            <Tab
-              key={id}
-              id={id}
-              tab={tabs[id]}
-              isActive={id === currentTabId}
-              displayMode={displayMode}
-              pinnedTabCount={pinnedTabCount}
-              onClose={() => onCloseTab(id)}
-              onSwitch={onSwitchTab}
-              onDragEnd={onDragEnd}
-              onHoverEnter={handleTabHoverEnter}
-              onHoverLeave={hideTooltip}
-              onHideTooltip={hideTooltip}
-              onContextMenu={onTabStripContextMenu ? (e) => onTabStripContextMenu(e, id) : undefined}
-            />
-          ))}
+          {tabOrder.map(id => {
+            if (rightSplitTabIds.has(id)) return null;
+            const splitPair = Object.values(splitGroups || {}).find(
+              (p) => p.leftTabId === id && tabs[id]?.splitPairId === p.id
+            );
+
+            if (splitPair) {
+              return (
+                <SplitTab
+                  key={`split-${splitPair.id}`}
+                  splitPair={splitPair}
+                  leftTab={tabs[splitPair.leftTabId]}
+                  rightTab={tabs[splitPair.rightTabId]}
+                  isActive={currentTabId === splitPair.leftTabId || currentTabId === splitPair.rightTabId}
+                  displayMode={splitDisplayMode}
+                  pinnedTabCount={pinnedTabCount}
+                  onCloseLeft={() => onCloseTab(splitPair.leftTabId)}
+                  onCloseRight={() => onCloseTab(splitPair.rightTabId)}
+                  onClose={() => onCloseTab(id)}
+                  onSwitch={onSwitchTab}
+                  onDragEnd={onDragEnd}
+                  onContextMenu={onTabStripContextMenu}
+                />
+              );
+            }
+
+            return (
+              <Tab
+                key={id}
+                id={id}
+                tab={tabs[id]}
+                isActive={id === currentTabId}
+                displayMode={displayMode}
+                pinnedTabCount={pinnedTabCount}
+                onClose={() => onCloseTab(id)}
+                onSwitch={onSwitchTab}
+                onDragEnd={onDragEnd}
+                onHoverEnter={handleTabHoverEnter}
+                onHoverLeave={hideTooltip}
+                onHideTooltip={hideTooltip}
+                onContextMenu={onTabStripContextMenu ? (e) => onTabStripContextMenu(e, id) : undefined}
+              />
+            );
+          })}
         </div>
       </div>
       <button id="add-tab" className="btn" onClick={() => onNewTab()}>

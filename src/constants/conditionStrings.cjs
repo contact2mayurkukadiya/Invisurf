@@ -209,6 +209,9 @@ const TAB_STRIP_MENU = freeze({
   CLOSE: 'close',
   CLOSE_OTHERS: 'closeOthers',
   CLOSE_RIGHT: 'closeRight',
+  ADD_TO_SPLIT: 'addToSplit',
+  SPLIT_SWITCH_SIDES: 'splitSwitchSides',
+  SPLIT_SEPARATE: 'splitSeparate',
 });
 
 /** Context menu row types */
@@ -421,6 +424,12 @@ const IPC_SEND = freeze({
   OVERSCROLL_REQUEST_SYNC: 'overscroll:request-sync',
   SIDE_PANEL_STATE_SYNC: 'side-panel:state-sync',
   SIDE_PANEL_RESIZE: 'side-panel:resize',
+  SPLIT_TAB_ENTER: 'split-tab:enter',
+  SPLIT_TAB_EXIT: 'split-tab:exit',
+  SPLIT_TAB_SET_RATIO: 'split-tab:set-ratio',
+  SPLIT_TAB_FOCUS_SIDE: 'split-tab:focus-side',
+  SPLIT_TAB_SWAP_SIDES: 'split-tab:swap-sides',
+  SPLIT_TAB_SELECT_TAB: 'split-tab:select-tab',
 });
 
 /** IPC event channels (main → renderer) */
@@ -429,6 +438,7 @@ const IPC_EVENT = freeze({
   TAB_UPDATE: 'tab-update',
   TAB_CREATED: 'tab-created',
   TAB_SWITCHED: 'tab-switched',
+  SPLIT_TAB_UPDATED: 'split-tab:updated',
   OMNIBOX_FOCUS: 'omnibox:focus',
   SHORTCUT_NEW_TAB: 'shortcut-new-tab',
   SHORTCUT_HISTORY: 'shortcut-history',

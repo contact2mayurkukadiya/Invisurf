@@ -4,7 +4,7 @@
       "/opt/homebrew/Cellar/node/25.6.1_1/bin/node",
       "/Users/mayurkukadiya/Code/Electron/invisurf/node_modules/.bin/playwright",
       "test",
-      "tests/e2e/sidepanel/side-panel.spec.js"
+      "tests/e2e/tabs/split-tabs.spec.js"
     ],
     "configFile": "/Users/mayurkukadiya/Code/Electron/invisurf/playwright.config.js",
     "rootDir": "/Users/mayurkukadiya/Code/Electron/invisurf/tests/e2e",
@@ -99,21 +99,21 @@
   },
   "suites": [
     {
-      "title": "sidepanel/side-panel.spec.js",
-      "file": "sidepanel/side-panel.spec.js",
+      "title": "tabs/split-tabs.spec.js",
+      "file": "tabs/split-tabs.spec.js",
       "column": 0,
       "line": 0,
       "specs": [],
       "suites": [
         {
-          "title": "Chrome Side Panel End-to-End",
-          "file": "sidepanel/side-panel.spec.js",
+          "title": "Split Tabs E2E Verification",
+          "file": "tabs/split-tabs.spec.js",
           "line": 6,
           "column": 6,
           "specs": [
             {
-              "title": "side-panel-toggle-and-switch: should toggle side panel, switch views, and close",
-              "ok": false,
+              "title": "should enter split view, verify chooser in second pane, isolate close buttons on hover, swap sides, and exit cleanly",
+              "ok": true,
               "tags": [],
               "tests": [
                 {
@@ -126,58 +126,132 @@
                     {
                       "workerIndex": 0,
                       "parallelIndex": 0,
-                      "status": "failed",
-                      "duration": 8373,
-                      "error": {
-                        "message": "Error: locator.waitFor: Target page, context or browser has been closed\nCall log:\n\u001b[2m  - waiting for locator('#url-input') to be visible\u001b[22m\n",
-                        "stack": "Error: locator.waitFor: Target page, context or browser has been closed\nCall log:\n\u001b[2m  - waiting for locator('#url-input') to be visible\u001b[22m\n\n    at Object.invisurfApp (/Users/mayurkukadiya/Code/Electron/invisurf/tests/e2e/fixtures/electronApp.js:80:45)",
-                        "location": {
-                          "file": "/Users/mayurkukadiya/Code/Electron/invisurf/tests/e2e/fixtures/electronApp.js",
-                          "column": 45,
-                          "line": 80
-                        },
-                        "snippet": "   at fixtures/electronApp.js:80\n\n  78 |     await shellWindow.waitForLoadState('domcontentloaded');\n  79 |     // Ensure React UI elements have mounted\n> 80 |     await shellWindow.locator('#url-input').waitFor({ state: 'visible', timeout: 10000 });\n     |                                             ^\n  81 |\n  82 |     await use({\n  83 |       app: electronApp,"
-                      },
-                      "errors": [
+                      "status": "passed",
+                      "duration": 6737,
+                      "errors": [],
+                      "stdout": [
                         {
-                          "location": {
-                            "file": "/Users/mayurkukadiya/Code/Electron/invisurf/tests/e2e/fixtures/electronApp.js",
-                            "column": 45,
-                            "line": 80
-                          },
-                          "message": "Error: locator.waitFor: Target page, context or browser has been closed\nCall log:\n\u001b[2m  - waiting for locator('#url-input') to be visible\u001b[22m\n\n\n   at fixtures/electronApp.js:80\n\n  78 |     await shellWindow.waitForLoadState('domcontentloaded');\n  79 |     // Ensure React UI elements have mounted\n> 80 |     await shellWindow.locator('#url-input').waitFor({ state: 'visible', timeout: 10000 });\n     |                                             ^\n  81 |\n  82 |     await use({\n  83 |       app: electronApp,\n    at Object.invisurfApp (/Users/mayurkukadiya/Code/Electron/invisurf/tests/e2e/fixtures/electronApp.js:80:45)"
+                          "text": "BROWSER CONSOLE: log handleTabCreated tab-split-1793633372075-2 app://newtab false\n"
+                        },
+                        {
+                          "text": "BROWSER CONSOLE: log handleTabCreated tab-1793633373460 app://localhost/dist/newtab.html false\n"
                         }
                       ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-02T15:29:29.380Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "59e6a8f05420c249109c-37dc9506258ad5227625",
+              "file": "tabs/split-tabs.spec.js",
+              "line": 7,
+              "column": 3
+            },
+            {
+              "title": "should enter split view via tab context menu action and absorb existing opened tab from second pane list",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 3988,
+                      "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-10-25T12:13:26.787Z",
+                      "startTime": "2026-11-02T15:29:36.161Z",
                       "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "/Users/mayurkukadiya/Code/Electron/invisurf/test-results/sidepanel-side-panel-Chrom-839a0-anel-switch-views-and-close/error-context.md"
-                        },
-                        {
-                          "name": "trace",
-                          "contentType": "application/zip",
-                          "path": "/Users/mayurkukadiya/Code/Electron/invisurf/test-results/sidepanel-side-panel-Chrom-839a0-anel-switch-views-and-close/trace.zip"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "/Users/mayurkukadiya/Code/Electron/invisurf/tests/e2e/fixtures/electronApp.js",
-                        "column": 45,
-                        "line": 80
-                      }
+                      "attachments": []
                     }
                   ],
-                  "status": "unexpected"
+                  "status": "expected"
                 }
               ],
-              "id": "4bfbdddcc6cf4045d318-dbbb8b103e86824386b8",
-              "file": "sidepanel/side-panel.spec.js",
-              "line": 7,
+              "id": "59e6a8f05420c249109c-70f6aaee592d7da9a080",
+              "file": "tabs/split-tabs.spec.js",
+              "line": 169,
+              "column": 3
+            },
+            {
+              "title": "should split and separate tabs multiple times consecutively without losing the second tab upon un-merge",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 6766,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-02T15:29:40.167Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "59e6a8f05420c249109c-0ecb061fe3a8d41cb41d",
+              "file": "tabs/split-tabs.spec.js",
+              "line": 227,
+              "column": 3
+            },
+            {
+              "title": "should progressively shrink split tabs through full, icon-only, and extreme-overflow thresholds",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5210,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-02T15:29:46.949Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "59e6a8f05420c249109c-59790e420d5cd7d0ecb3",
+              "file": "tabs/split-tabs.spec.js",
+              "line": 297,
               "column": 3
             }
           ]
@@ -187,11 +261,11 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-10-25T12:13:26.281Z",
-    "duration": 8986.329,
-    "expected": 0,
+    "startTime": "2026-11-02T15:29:28.788Z",
+    "duration": 23410.211,
+    "expected": 4,
     "skipped": 0,
-    "unexpected": 1,
+    "unexpected": 0,
     "flaky": 0
   }
 }
