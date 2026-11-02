@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { setSplitRatio } from '../../store/browserSlice';
 import SplitTabChooser from './SplitTabChooser';
+import { useOptionalTabOverlay } from '../../context/TabOverlayContext';
 import './SplitDivider.css';
 
 export default function SplitDivider() {
@@ -18,7 +19,8 @@ export default function SplitDivider() {
 
   const [isDragging, setIsDragging] = useState(false);
   const [dragRatio, setDragRatio] = useState(null);
-  const lastIpcTimeRef = useRef(0);
+  const overlayContext = useOptionalTabOverlay();
+  const splitSnapshot = overlayContext?.splitSnapshot;
 
   if (!splitPair) return null;
 
@@ -185,7 +187,16 @@ export default function SplitDivider() {
           width: leftWidth,
           bottom: bottomMargin,
         }}
-      />
+      >
+        {splitSnapshot?.firstDataUrl && (
+          <img
+            src={splitSnapshot.firstDataUrl}
+            alt=""
+            className="split-subview-snapshot-img"
+            draggable={false}
+          />
+        )}
+      </div>
 
       {/* Second subview card frame (Right in horizontal, Bottom in stacked) */}
       <div
@@ -201,7 +212,16 @@ export default function SplitDivider() {
           width: rightWidth,
           bottom: bottomMargin,
         }}
-      />
+      >
+        {splitSnapshot?.secondDataUrl && (
+          <img
+            src={splitSnapshot.secondDataUrl}
+            alt=""
+            className="split-subview-snapshot-img"
+            draggable={false}
+          />
+        )}
+      </div>
 
       {/* Second pane Tab Chooser list when splitPair is in choosing state */}
       {splitPair.isChoosing && (

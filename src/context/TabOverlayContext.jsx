@@ -18,6 +18,7 @@ const TabOverlayContext = createContext(null);
 export function TabOverlayProvider({ children }) {
   const [tabSnapshotDataUrl, setTabSnapshotDataUrl] = useState(null);
   const [sidebarSnapshotDataUrl, setSidebarSnapshotDataUrl] = useState(null);
+  const [splitSnapshot, setSplitSnapshot] = useState(null);
   const [isLensSnapshot, setIsLensSnapshot] = useState(false);
   const overlayCountRef = useRef(0);
 
@@ -27,6 +28,7 @@ export function TabOverlayProvider({ children }) {
     if (overlayCountRef.current === 0) {
       setTabSnapshotDataUrl(null);
       setSidebarSnapshotDataUrl(null);
+      setSplitSnapshot(null);
       setIsLensSnapshot(false);
       window.electronAPI.tabRestoreActive?.();
     }
@@ -49,14 +51,16 @@ export function TabOverlayProvider({ children }) {
         result = await prep;
       } else {
         await window.electronAPI.tabHideActive?.();
-        result = { dataUrl: null, sidebarDataUrl: null, isLensMode: false };
+        result = { dataUrl: null, sidebarDataUrl: null, isLensMode: false, splitSnapshot: null };
       }
       if (overlayCountRef.current === 0) return;
       const dataUrl = result?.dataUrl ?? null;
       const sidebarDataUrl = result?.sidebarDataUrl ?? null;
+      const splitSnap = result?.splitSnapshot ?? null;
       setIsLensSnapshot(!!result?.isLensMode);
       if (dataUrl) setTabSnapshotDataUrl(dataUrl);
       if (sidebarDataUrl) setSidebarSnapshotDataUrl(sidebarDataUrl);
+      if (splitSnap) setSplitSnapshot(splitSnap);
     } catch (err) {
       console.error('beginOverlay', err);
       endOverlay();
@@ -67,6 +71,7 @@ export function TabOverlayProvider({ children }) {
     overlayCountRef.current = 0;
     setTabSnapshotDataUrl(null);
     setSidebarSnapshotDataUrl(null);
+    setSplitSnapshot(null);
     setIsLensSnapshot(false);
     window.electronAPI.tabRestoreActive?.();
   }, []);
@@ -89,8 +94,9 @@ export function TabOverlayProvider({ children }) {
       beginOverlay,
       endOverlay,
       forceResetOverlay,
+      splitSnapshot,
     }),
-    [beginOverlay, endOverlay, forceResetOverlay],
+    [beginOverlay, endOverlay, forceResetOverlay, splitSnapshot],
   );
 
   return (

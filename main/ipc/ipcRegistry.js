@@ -1282,8 +1282,56 @@ function registerIpcHandlers() {
         let dataUrl = null;
         let sidebarDataUrl = null;
 
-        // 1. Capture active tab view (left viewer)
-        if (id && !State.detachedTabWindows.has(id)) {
+        // 1. Capture active view: if tab is in split view, capture both panes separately
+        const splitTabManager = require('../windows/splitTabManager');
+        const splitPair = id ? splitTabManager.getSplitPairByTabId(context, id) : null;
+        let splitSnapshot = null;
+
+        if (splitPair) {
+            const leftView = context.tabs[splitPair.leftTabId];
+            const rightView = splitPair.rightTabId ? context.tabs[splitPair.rightTabId] : null;
+            const viewOnFirst = splitPair.isSwapped ? rightView : leftView;
+            const viewOnSecond = splitPair.isSwapped ? leftView : rightView;
+
+            let firstDataUrl = null;
+            let secondDataUrl = null;
+
+            if (viewOnFirst && !viewOnFirst.webContents?.isDestroyed()) {
+                try {
+                    let img1 = await viewOnFirst.webContents.capturePage();
+                    if ((!img1 || img1.isEmpty()) && viewOnFirst.webContents.isLoading()) {
+                        await new Promise(r => setTimeout(r, 120));
+                        if (!viewOnFirst.webContents?.isDestroyed()) {
+                            img1 = await viewOnFirst.webContents.capturePage();
+                        }
+                    }
+                    if (img1 && !img1.isEmpty()) {
+                        firstDataUrl = `data:image/jpeg;base64,${img1.toJPEG(85).toString('base64')}`;
+                    }
+                } catch (err) { console.error('tab:prepare-shell-overlay split first capture', err); }
+            }
+
+            if (viewOnSecond && !viewOnSecond.webContents?.isDestroyed()) {
+                try {
+                    let img2 = await viewOnSecond.webContents.capturePage();
+                    if ((!img2 || img2.isEmpty()) && viewOnSecond.webContents.isLoading()) {
+                        await new Promise(r => setTimeout(r, 120));
+                        if (!viewOnSecond.webContents?.isDestroyed()) {
+                            img2 = await viewOnSecond.webContents.capturePage();
+                        }
+                    }
+                    if (img2 && !img2.isEmpty()) {
+                        secondDataUrl = `data:image/jpeg;base64,${img2.toJPEG(85).toString('base64')}`;
+                    }
+                } catch (err) { console.error('tab:prepare-shell-overlay split second capture', err); }
+            }
+
+            splitSnapshot = {
+                firstDataUrl,
+                secondDataUrl,
+                isStacked: !!splitPair.isStacked,
+            };
+        } else if (id && !State.detachedTabWindows.has(id)) {
             const view = context.tabs[id];
             if (view && !view.webContents.isDestroyed()) {
                 try {
@@ -1355,7 +1403,7 @@ function registerIpcHandlers() {
         } catch (err) { console.error('tab:prepare-shell-overlay sidebar capture', err); }
 
         try { tabManager.hideActiveTabViewForShellOverlay(context); } catch (err) { console.error('tab:prepare-shell-overlay hide', err); }
-        return { dataUrl, sidebarDataUrl, isLensMode };
+        return { dataUrl, sidebarDataUrl, isLensMode, splitSnapshot };
     });
 
     ipcMain.handle(C.IPC_INVOKE.TAB_MOVE_NEW_WINDOW, async (e, { id, fallbackTabId }) => {

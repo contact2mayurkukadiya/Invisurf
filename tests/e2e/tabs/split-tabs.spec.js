@@ -9,27 +9,19 @@ test.describe('Split Tabs E2E Verification', () => {
     shellWindow.on('console', msg => console.log('BROWSER CONSOLE:', msg.type(), msg.text()));
     shellWindow.on('pageerror', err => console.log('BROWSER ERROR:', err));
 
-    // 1. Ensure initial browser window loaded
-    await expect(shellWindow.locator('#split-tab-btn')).toBeVisible({ timeout: 10000 });
+    // 1. Ensure initial browser window loaded and split icon is removed from toolbar
+    await expect(shellWindow.locator('#add-tab')).toBeVisible({ timeout: 10000 });
+    await expect(shellWindow.locator('#split-tab-btn')).not.toBeAttached();
     const initialTabs = shellWindow.locator('.tab');
     const initialCount = await initialTabs.count();
     expect(initialCount).toBeGreaterThanOrEqual(1);
 
-    // 2. Open Split Screen Dropdown
-    const splitBtn = shellWindow.locator('#split-tab-btn');
-    await splitBtn.click();
-
-    const dropdown = shellWindow.locator('.split-picker-dropdown');
-    await expect(dropdown).toBeVisible();
-
-    // Verify New Tab option is present
-    const newTabOption = dropdown.locator('.split-picker-item--primary');
-    await expect(newTabOption).toBeVisible();
-    await expect(newTabOption).toContainText('New Tab');
-
-    // 3. Click "New Tab" to enter split mode in choosing state
-    await newTabOption.click({ force: true });
-    await expect(dropdown).not.toBeVisible();
+    // 2. Enter split view in choosing state
+    const initialTabId = await initialTabs.first().getAttribute('id');
+    await shellWindow.evaluate((tid) => {
+      window.electronAPI?.splitTabEnter?.(tid, 'choose-tab');
+    }, initialTabId);
+    await shellWindow.waitForTimeout(400);
 
     // 4. Verify Chrome-style compound split tab is active in UI and matches normal tab size
     const splitTab = shellWindow.locator('.split-compound-tab');
@@ -296,7 +288,8 @@ test.describe('Split Tabs E2E Verification', () => {
 
   test('should progressively shrink split tabs through full, icon-only, and extreme-overflow thresholds', async ({ invisurfApp }) => {
     const { shellWindow } = invisurfApp;
-    await expect(shellWindow.locator('#split-tab-btn')).toBeVisible({ timeout: 10000 });
+    await expect(shellWindow.locator('#add-tab')).toBeVisible({ timeout: 10000 });
+    await expect(shellWindow.locator('#split-tab-btn')).not.toBeAttached();
 
     // 1. Create a second tab so we can form a split pair
     const addTabBtn = shellWindow.locator('#add-tab');
@@ -474,7 +467,8 @@ test.describe('Split Tabs E2E Verification', () => {
 
   test('should support vertical stacked order, switch sides in both horizontal and stacked modes, and use capitalized context menu labels', async ({ invisurfApp }) => {
     const { shellWindow } = invisurfApp;
-    await expect(shellWindow.locator('#split-tab-btn')).toBeVisible({ timeout: 10000 });
+    await expect(shellWindow.locator('#add-tab')).toBeVisible({ timeout: 10000 });
+    await expect(shellWindow.locator('#split-tab-btn')).not.toBeAttached();
 
     // 1. Hook into Electron's main process Menu.buildFromTemplate to avoid popup blocking
     await invisurfApp.app.evaluate(({ Menu }) => {
@@ -529,22 +523,16 @@ test.describe('Split Tabs E2E Verification', () => {
     expect(splitLabels).toContain('Show Stacked');
     expect(splitLabels).toContain('Separate Tabs');
 
-    // 5. Check Toolbar Split Dropdown menu items are also capitalized
-    const splitBtn = shellWindow.locator('#split-tab-btn');
-    await splitBtn.click();
-    const dropdown = shellWindow.locator('.split-picker-dropdown');
-    await expect(dropdown).toBeVisible();
+    // 5. Verify Toolbar split button is removed as requested
+    await expect(shellWindow.locator('#split-tab-btn')).not.toBeAttached();
 
-    const dropdownLabels = await dropdown.locator('.split-picker-item-label').allTextContents();
-    expect(dropdownLabels).toContain('Switch Sides');
-    expect(dropdownLabels).toContain('Show Stacked');
-    expect(dropdownLabels).toContain('Separate Tabs');
-    expect(dropdownLabels).toContain('Close Active Split Tab');
-
-    // 6. Click "Show Stacked" button in the dropdown to switch to vertical stacked layout
-    const showStackedBtn = dropdown.locator('.split-picker-item', { hasText: 'Show Stacked' });
-    await showStackedBtn.click();
-    await expect(dropdown).not.toBeVisible();
+    // 6. Switch to vertical stacked layout via splitTabToggleStacked
+    await shellWindow.evaluate(() => {
+      const splitId = document.querySelector('.split-compound-tab')?.getAttribute('data-split-id');
+      if (splitId && window.electronAPI?.splitTabToggleStacked) {
+        window.electronAPI.splitTabToggleStacked(splitId);
+      }
+    });
     await shellWindow.waitForTimeout(400);
 
     // 7. Verify vertical stacked layout in content area:
@@ -619,6 +607,77 @@ test.describe('Split Tabs E2E Verification', () => {
     await expect(sideBySideLeftFrame).toBeVisible();
     await expect(sideBySideRightFrame).toBeVisible();
     await expect(horizontalDivider).not.toBeVisible();
+  });
+
+  test('should keep split sub-tabs in background without stretching active sub-tab when modal opens', async ({ invisurfApp }) => {
+    const { shellWindow } = invisurfApp;
+
+    // 1. Enter split view with choosing state
+    const initialTabs = shellWindow.locator('.tab');
+    await expect(initialTabs.first()).toBeVisible({ timeout: 10000 });
+    const initialTabId = await initialTabs.first().getAttribute('id');
+
+    await shellWindow.evaluate((tid) => {
+      window.electronAPI?.splitTabEnter?.(tid, 'choose-tab');
+    }, initialTabId);
+    await shellWindow.waitForTimeout(400);
+
+    // 2. Select New tab from chooser to complete pairing
+    const chooser = shellWindow.locator('.split-tab-chooser');
+    await expect(chooser).toBeVisible({ timeout: 5000 });
+    const newTabRow = chooser.locator('.split-chooser-row--new-tab');
+    await expect(newTabRow).toBeVisible();
+    await newTabRow.evaluate((el) => el.click());
+    await expect(chooser).not.toBeVisible();
+    await shellWindow.waitForTimeout(600);
+
+    // Verify split frames are visible
+    const leftFrame = shellWindow.locator('.split-subview-frame--left');
+    const rightFrame = shellWindow.locator('.split-subview-frame--right');
+    await expect(leftFrame).toBeVisible();
+    await expect(rightFrame).toBeVisible();
+
+    // 3. Open Profile Editor Modal (the modal reported by user)
+    await shellWindow.evaluate(() => {
+      window.dispatchEvent(new CustomEvent('invisurf:open-profile-editor', { detail: { mode: 'edit' } }));
+    });
+
+    const profileModal = shellWindow.locator('.profile-editor-dialog');
+    await expect(profileModal).toBeVisible({ timeout: 5000 });
+
+    // 4. Verify that .tab-content-snapshot is NOT present (no full-window stretching)
+    const stretchedSnapshot = shellWindow.locator('.tab-content-snapshot');
+    await expect(stretchedSnapshot).toHaveCount(0);
+
+    // 5. Verify that both sub-tabs remain in background inside their frames
+    const leftSnapshotImg = leftFrame.locator('.split-subview-snapshot-img');
+    const rightSnapshotImg = rightFrame.locator('.split-subview-snapshot-img');
+    await expect(leftSnapshotImg).toBeVisible({ timeout: 5000 });
+    await expect(rightSnapshotImg).toBeVisible({ timeout: 5000 });
+
+    // Verify bounds: left snapshot width must be around half window (< 60% of window), NOT 100vw
+    const windowWidth = await shellWindow.evaluate(() => window.innerWidth);
+    const leftBox = await leftSnapshotImg.boundingBox();
+    const rightBox = await rightSnapshotImg.boundingBox();
+
+    expect(leftBox).toBeTruthy();
+    expect(rightBox).toBeTruthy();
+    expect(leftBox.width).toBeLessThan(windowWidth * 0.6);
+    expect(rightBox.width).toBeLessThan(windowWidth * 0.6);
+    expect(leftBox.x).toBeLessThan(rightBox.x);
+
+    // Capture visual proof of modal over split tabs
+    const modalArtifactPath = '/Users/mayurkukadiya/.gemini/antigravity-ide/brain/5ae8d87b-41bf-48ce-83cc-54ba82f59a5f/split-tabs-modal-overlay.png';
+    await shellWindow.screenshot({ path: modalArtifactPath });
+
+    // 6. Close modal by clicking Cancel
+    const cancelBtn = profileModal.locator('.profile-editor-btn--secondary');
+    await cancelBtn.click();
+    await expect(profileModal).not.toBeVisible();
+
+    // 7. Verify snapshot images are cleanly removed and split view remains functional
+    await expect(leftSnapshotImg).toHaveCount(0);
+    await expect(rightSnapshotImg).toHaveCount(0);
   });
 });
 

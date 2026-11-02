@@ -127,19 +127,19 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 7648,
+                      "duration": 7809,
                       "errors": [],
                       "stdout": [
                         {
-                          "text": "BROWSER CONSOLE: log handleTabCreated tab-split-1793635303387-2 app://newtab false\n"
+                          "text": "BROWSER CONSOLE: log handleTabCreated tab-split-1793638022129-2 app://newtab false\n"
                         },
                         {
-                          "text": "BROWSER CONSOLE: log handleTabCreated tab-1793635304732 app://localhost/dist/newtab.html false\n"
+                          "text": "BROWSER CONSOLE: log handleTabCreated tab-1793638023489 app://localhost/dist/newtab.html false\n"
                         }
                       ],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-11-02T16:01:40.022Z",
+                      "startTime": "2026-11-02T16:46:58.407Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -168,12 +168,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 3987,
+                      "duration": 4030,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-11-02T16:01:47.705Z",
+                      "startTime": "2026-11-02T16:47:06.249Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -183,7 +183,7 @@
               ],
               "id": "59e6a8f05420c249109c-70f6aaee592d7da9a080",
               "file": "tabs/split-tabs.spec.js",
-              "line": 169,
+              "line": 161,
               "column": 3
             },
             {
@@ -202,12 +202,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 6339,
+                      "duration": 6265,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-11-02T16:01:51.708Z",
+                      "startTime": "2026-11-02T16:47:10.295Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -217,7 +217,7 @@
               ],
               "id": "59e6a8f05420c249109c-0ecb061fe3a8d41cb41d",
               "file": "tabs/split-tabs.spec.js",
-              "line": 227,
+              "line": 219,
               "column": 3
             },
             {
@@ -236,12 +236,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 4854,
+                      "duration": 4616,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-11-02T16:01:58.063Z",
+                      "startTime": "2026-11-02T16:47:16.575Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -251,7 +251,7 @@
               ],
               "id": "59e6a8f05420c249109c-59790e420d5cd7d0ecb3",
               "file": "tabs/split-tabs.spec.js",
-              "line": 297,
+              "line": 289,
               "column": 3
             },
             {
@@ -270,12 +270,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 5800,
+                      "duration": 5535,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-11-02T16:02:02.929Z",
+                      "startTime": "2026-11-02T16:47:21.204Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -285,7 +285,41 @@
               ],
               "id": "59e6a8f05420c249109c-6871dc3499c4628558ab",
               "file": "tabs/split-tabs.spec.js",
-              "line": 475,
+              "line": 468,
+              "column": 3
+            },
+            {
+              "title": "should keep split sub-tabs in background without stretching active sub-tab when modal opens",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 3782,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-02T16:47:26.753Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "59e6a8f05420c249109c-f0f6a73730c61dfe69fe",
+              "file": "tabs/split-tabs.spec.js",
+              "line": 612,
               "column": 3
             }
           ]
@@ -295,9 +329,9 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-11-02T16:01:39.557Z",
-    "duration": 29221.54,
-    "expected": 5,
+    "startTime": "2026-11-02T16:46:57.929Z",
+    "duration": 32674.149999999998,
+    "expected": 6,
     "skipped": 0,
     "unexpected": 0,
     "flaky": 0
