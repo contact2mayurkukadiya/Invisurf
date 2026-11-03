@@ -924,6 +924,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     profileOpenWindow: (profileId, options = {}) => ipcRenderer.invoke(C.IPC_INVOKE.PROFILE_OPEN_WINDOW, { profileId, closeProfilePicker: options.closeProfilePicker === true }),
     profilePickerOpen: () => ipcRenderer.invoke(C.IPC_INVOKE.PROFILE_PICKER_OPEN),
     profileCloseCurrent: () => ipcRenderer.invoke(C.IPC_INVOKE.PROFILE_CLOSE_CURRENT),
+    profileGetToolbarConfig: (payload) => ipcRenderer.invoke(C.IPC_INVOKE.PROFILE_GET_TOOLBAR_CONFIG, payload),
+    profileSetToolbarConfig: (payload) => ipcRenderer.invoke(C.IPC_INVOKE.PROFILE_SET_TOOLBAR_CONFIG, payload),
+    showToolbarContextMenu: (payload) => ipcRenderer.invoke(C.IPC_INVOKE.TOOLBAR_SHOW_CONTEXT_MENU, payload),
+    onProfileToolbarConfigUpdated: (callback) => {
+        const handler = (_event, data) => callback(data);
+        ipcRenderer.on(C.IPC_EVENT.PROFILE_TOOLBAR_CONFIG_UPDATED, handler);
+        return () => ipcRenderer.removeListener(C.IPC_EVENT.PROFILE_TOOLBAR_CONFIG_UPDATED, handler);
+    },
     recentlyClosedList: () => ipcRenderer.invoke(C.IPC_INVOKE.RECENTLY_CLOSED_LIST),
     recentlyClosedRestore: (closedAt) => ipcRenderer.invoke(C.IPC_INVOKE.RECENTLY_CLOSED_RESTORE, { closedAt }),
 

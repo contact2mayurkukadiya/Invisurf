@@ -50,6 +50,34 @@ const getInitialPinnedPanels = () => {
   return [];
 };
 
+export const DEFAULT_TOOLBAR_CONFIG = Object.freeze({
+  home: false,
+  forward: true,
+  splitView: false,
+  newIncognito: false,
+  newGhost: false,
+  bookmarks: false,
+  readingList: false,
+  history: false,
+  downloads: true,
+  deleteBrowsingData: false,
+  print: false,
+  lens: false,
+  devTools: false,
+  arrangeWindow: false,
+  transparency: false,
+});
+
+const getInitialToolbarConfig = () => {
+  const initialPinned = getInitialPinnedPanels();
+  return {
+    ...DEFAULT_TOOLBAR_CONFIG,
+    bookmarks: initialPinned.includes('bookmarks'),
+    readingList: initialPinned.includes('reading-list'),
+    history: initialPinned.includes('history'),
+  };
+};
+
 const browserSlice = createSlice({
   name: 'browser',
   initialState: {
@@ -59,6 +87,7 @@ const browserSlice = createSlice({
     splitGroups: {}, // { [splitId]: { id, leftTabId, rightTabId, ratio: 0.5, focusedSide: 'left' } }
     searchEngine: 'google',
     showBookmarkBar: true,
+    toolbarConfig: getInitialToolbarConfig(),
     sidePanel: {
       isOpen: false,
       width: 360,
@@ -96,6 +125,16 @@ const browserSlice = createSlice({
         state.sidePanel.pinnedPanelIds.push(panelId);
       }
       state.sidePanel.pinnedPanelIds = state.sidePanel.pinnedPanelIds.filter(id => id !== 'lens');
+      if (!state.toolbarConfig) {
+        state.toolbarConfig = { ...DEFAULT_TOOLBAR_CONFIG };
+      }
+      if (panelId === 'bookmarks') {
+        state.toolbarConfig.bookmarks = state.sidePanel.pinnedPanelIds.includes('bookmarks');
+      } else if (panelId === 'reading-list') {
+        state.toolbarConfig.readingList = state.sidePanel.pinnedPanelIds.includes('reading-list');
+      } else if (panelId === 'history') {
+        state.toolbarConfig.history = state.sidePanel.pinnedPanelIds.includes('history');
+      }
       try {
         if (typeof window !== 'undefined' && window.localStorage) {
           window.localStorage.setItem('invisurf:pinned-sidepanels', JSON.stringify(state.sidePanel.pinnedPanelIds));
@@ -104,6 +143,63 @@ const browserSlice = createSlice({
     },
     setPinnedPanels(state, action) {
       state.sidePanel.pinnedPanelIds = (Array.isArray(action.payload) ? action.payload : []).filter(id => id !== 'lens');
+      if (!state.toolbarConfig) {
+        state.toolbarConfig = { ...DEFAULT_TOOLBAR_CONFIG };
+      }
+      state.toolbarConfig.bookmarks = state.sidePanel.pinnedPanelIds.includes('bookmarks');
+      state.toolbarConfig.readingList = state.sidePanel.pinnedPanelIds.includes('reading-list');
+      state.toolbarConfig.history = state.sidePanel.pinnedPanelIds.includes('history');
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.setItem('invisurf:pinned-sidepanels', JSON.stringify(state.sidePanel.pinnedPanelIds));
+        }
+      } catch (_) {}
+    },
+    setToolbarConfig(state, action) {
+      const incoming = action.payload && typeof action.payload === 'object' ? action.payload : {};
+      state.toolbarConfig = {
+        ...DEFAULT_TOOLBAR_CONFIG,
+        ...(state.toolbarConfig || {}),
+        ...incoming,
+      };
+      const pinned = new Set(Array.isArray(state.sidePanel.pinnedPanelIds) ? state.sidePanel.pinnedPanelIds : []);
+      if (state.toolbarConfig.bookmarks) pinned.add('bookmarks'); else pinned.delete('bookmarks');
+      if (state.toolbarConfig.readingList) pinned.add('reading-list'); else pinned.delete('reading-list');
+      if (state.toolbarConfig.history) pinned.add('history'); else pinned.delete('history');
+      pinned.delete('lens');
+      state.sidePanel.pinnedPanelIds = Array.from(pinned);
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.setItem('invisurf:pinned-sidepanels', JSON.stringify(state.sidePanel.pinnedPanelIds));
+        }
+      } catch (_) {}
+    },
+    setToolbarConfigItem(state, action) {
+      const { key, value } = action.payload || {};
+      if (!key) return;
+      if (!state.toolbarConfig) {
+        state.toolbarConfig = { ...DEFAULT_TOOLBAR_CONFIG };
+      }
+      state.toolbarConfig[key] = !!value;
+      const pinned = new Set(Array.isArray(state.sidePanel.pinnedPanelIds) ? state.sidePanel.pinnedPanelIds : []);
+      if (key === 'bookmarks') {
+        if (value) pinned.add('bookmarks'); else pinned.delete('bookmarks');
+      } else if (key === 'readingList') {
+        if (value) pinned.add('reading-list'); else pinned.delete('reading-list');
+      } else if (key === 'history') {
+        if (value) pinned.add('history'); else pinned.delete('history');
+      }
+      pinned.delete('lens');
+      state.sidePanel.pinnedPanelIds = Array.from(pinned);
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.setItem('invisurf:pinned-sidepanels', JSON.stringify(state.sidePanel.pinnedPanelIds));
+        }
+      } catch (_) {}
+    },
+    resetToolbarConfig(state) {
+      state.toolbarConfig = { ...DEFAULT_TOOLBAR_CONFIG };
+      state.sidePanel.pinnedPanelIds = [];
       try {
         if (typeof window !== 'undefined' && window.localStorage) {
           window.localStorage.setItem('invisurf:pinned-sidepanels', JSON.stringify(state.sidePanel.pinnedPanelIds));
@@ -552,6 +648,9 @@ export const {
   setSidePanelCustomUrl,
   togglePinSidePanel,
   setPinnedPanels,
+  setToolbarConfig,
+  setToolbarConfigItem,
+  resetToolbarConfig,
   setSplitGroup,
   removeSplitGroup,
   detachSplitTab,

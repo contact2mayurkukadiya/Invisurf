@@ -13,6 +13,7 @@ import ReadingListPanel from './ReadingListPanel';
 import BookmarksPanel from './BookmarksPanel';
 import HistoryPanel from './HistoryPanel';
 import LensPanel from './LensPanel';
+import CustomizeToolbarPanel from './CustomizeToolbarPanel';
 import './SidePanel.css';
 
 const PANELS = [
@@ -59,6 +60,17 @@ const PANELS = [
       </svg>
     ),
   },
+  {
+    id: 'customize-toolbar',
+    title: 'Customize Toolbar',
+    pageUrl: null,
+    icon: (
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 20h9"></path>
+        <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+      </svg>
+    ),
+  },
 ];
 
 export default function SidePanel() {
@@ -77,8 +89,15 @@ export default function SidePanel() {
   const [isDragging, setIsDragging] = useState(false);
   const [isMounted, setIsMounted] = useState(isOpen);
   const [animState, setAnimState] = useState(isOpen ? 'open' : 'closed');
+  const [currentProfile, setCurrentProfile] = useState(null);
   const isDraggingRef = useRef(false);
   const closeTimerRef = useRef(null);
+
+  useEffect(() => {
+    window.electronAPI?.profileGetCurrent?.().then((p) => {
+      if (p) setCurrentProfile(p);
+    });
+  }, []);
 
   // Animated mounting lifecycle for smooth expand/shrink animations
   useEffect(() => {
@@ -240,8 +259,8 @@ export default function SidePanel() {
           </div>
 
           <div className="side-panel-header-actions">
-            {/* Pinnable toggle button (hidden for Lens, available for other panels) */}
-            {activePanelId !== 'lens' && (
+            {/* Pinnable toggle button (hidden for Lens and Customize Toolbar, available for other panels) */}
+            {activePanelId !== 'lens' && activePanelId !== 'customize-toolbar' && (
               <button
                 type="button"
                 className={`side-panel-header-btn side-panel-pin-btn${isPinned ? ' pinned' : ''}`}
@@ -265,7 +284,7 @@ export default function SidePanel() {
             )}
 
             {/* Open in new tab icon button (shown when dedicated pageUrl exists or for lens) */}
-            {(targetUrl || activePanelId === 'lens') && (
+            {activePanelId !== 'customize-toolbar' && (targetUrl || activePanelId === 'lens') && (
               <button
                 type="button"
                 className="side-panel-header-btn side-panel-open-tab-btn"
@@ -348,6 +367,7 @@ export default function SidePanel() {
             {activePanelId === 'bookmarks' && <BookmarksPanel />}
             {activePanelId === 'history' && <HistoryPanel />}
             {activePanelId === 'lens' && <LensPanel />}
+            {activePanelId === 'customize-toolbar' && <CustomizeToolbarPanel currentProfile={currentProfile} />}
           </div>
         </div>
       </div>

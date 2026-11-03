@@ -64,6 +64,7 @@ const SHELL_MENU_OVERLAY_KINDS = new Set([
     'extensionMenu',
     'zoomReset',
     'windowArrangeMenu',
+    'toolbarContextMenu',
 ]);
 
 const COOKIE_CONFIG_DEFAULTS = {

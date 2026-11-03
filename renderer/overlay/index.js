@@ -20,6 +20,7 @@ import { renderWindowArrangeMenu } from './components/windowArrangeMenu.js';
 import { renderClickThroughOSD } from './components/clickThroughOSD.js';
 import { renderZoomReset } from './components/zoomReset.js';
 import { renderLensSelection } from './components/lensSelection.js';
+import { renderToolbarContextMenu } from './components/toolbarContextMenu.js';
 
 DOM.backdrop.addEventListener('mousedown', function () {
     notifyHost({ type: 'dismiss' });
@@ -69,6 +70,7 @@ if (window.electronAPI && window.electronAPI.onChromeOverlayV1Patch) {
                 case 'clickThroughOSD': return renderClickThroughOSD(patch);
                 case 'zoomReset': return renderZoomReset(patch);
                 case 'lensSelection': return renderLensSelection(patch);
+                case 'toolbarContextMenu': return renderToolbarContextMenu(patch);
             }
         } catch (err) {
             // If any menu crashes, log it and safely reset the overlay to prevent freezing

@@ -432,6 +432,89 @@ function registerIpcHandlers() {
         return { dataUrl: dataUrl || null };
     });
 
+    ipcMain.handle(C.IPC_INVOKE.PROFILE_GET_TOOLBAR_CONFIG, (event, payload = {}) => {
+        if (!isSenderTrusted(event)) return null;
+        const senderContext = getWindowContextByWebContents(event.sender);
+        const pid = typeof payload?.profileId === 'string' && payload.profileId.trim()
+            ? payload.profileId.trim()
+            : senderContext?.profileId;
+        if (!pid) return null;
+        const sid = String(pid).trim().replace(/[^a-zA-Z0-9-_]/g, '_');
+        const p = State.profilesById.get(sid);
+        return p?.toolbarConfig || null;
+    });
+
+    ipcMain.handle(C.IPC_INVOKE.PROFILE_SET_TOOLBAR_CONFIG, (event, payload = {}) => {
+        if (!isSenderTrusted(event)) return { ok: false };
+        const senderContext = getWindowContextByWebContents(event.sender);
+        const pid = typeof payload?.profileId === 'string' && payload.profileId.trim()
+            ? payload.profileId.trim()
+            : senderContext?.profileId;
+        if (!pid) return { ok: false, error: 'No profile' };
+        const sid = String(pid).trim().replace(/[^a-zA-Z0-9-_]/g, '_');
+        const p = State.profilesById.get(sid);
+        if (!p) return { ok: false, error: 'Profile not found' };
+
+        const incoming = payload.toolbarConfig && typeof payload.toolbarConfig === 'object' ? payload.toolbarConfig : {};
+        p.toolbarConfig = { ...(p.toolbarConfig || {}), ...incoming };
+        p.updatedAt = Date.now();
+        profileService.saveProfiles();
+
+        for (const winContext of State.windowContextsById.values()) {
+            if (winContext?.profileId === sid && winContext.window?.webContents && !winContext.window.webContents.isDestroyed()) {
+                try {
+                    winContext.window.webContents.send(C.IPC_EVENT.PROFILE_TOOLBAR_CONFIG_UPDATED, {
+                        profileId: sid,
+                        toolbarConfig: p.toolbarConfig,
+                    });
+                } catch (_) {}
+            }
+        }
+
+        return { ok: true, toolbarConfig: p.toolbarConfig };
+    });
+
+    ipcMain.handle(C.IPC_INVOKE.TOOLBAR_SHOW_CONTEXT_MENU, async (event, payload = {}) => {
+        if (!isSenderTrusted(event)) return null;
+        const sender = event.sender;
+        if (!sender || sender.isDestroyed()) return null;
+        const win = BrowserWindow.fromWebContents(sender);
+        if (!win || win.isDestroyed()) return null;
+        const x = Number(payload.x);
+        const y = Number(payload.y);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+
+        return new Promise((resolve) => {
+            let selectedAction = null;
+            const menu = Menu.buildFromTemplate([
+                {
+                    label: 'Unpin',
+                    click: () => {
+                        selectedAction = 'unpin';
+                        resolve('unpin');
+                    },
+                },
+                {
+                    label: 'Customize Toolbar',
+                    click: () => {
+                        selectedAction = 'customize';
+                        resolve('customize');
+                    },
+                },
+            ]);
+            menu.popup({
+                window: win,
+                x: Math.round(x),
+                y: Math.round(y),
+                callback: () => {
+                    setTimeout(() => {
+                        if (!selectedAction) resolve(null);
+                    }, 50);
+                },
+            });
+        });
+    });
+
     ipcMain.handle(C.IPC_INVOKE.PROFILE_DELETE, async (event, payload = {}) => {
         if (!isSenderTrusted(event)) return { ok: false, error: 'Unauthorized' };
         if (!payload || typeof payload.profileId !== 'string') return { ok: false, error: 'Invalid request' };

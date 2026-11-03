@@ -525,6 +525,14 @@ function computeMenuOverlayBounds(context, patch) {
         return menuOverlayBoundsFromPanel(context, { left, top, width: menuWidth, height: fixedHeight });
     }
 
+    if (kind === 'toolbarContextMenu') {
+        const menuWidth = 190;
+        const fixedHeight = 85;
+        const left = clampNumber(Math.round(Number(patch.clientX) || 0), pad, windowW - menuWidth - pad);
+        const top = clampNumber(Math.round(Number(patch.clientY) || 0), pad, windowH - fixedHeight - pad);
+        return menuOverlayBoundsFromPanel(context, { left, top, width: menuWidth, height: fixedHeight });
+    }
+
     if (kind === 'bookmarkFolderMenu') {
         const ar = patch.anchorRect || {};
         const minW = 240;

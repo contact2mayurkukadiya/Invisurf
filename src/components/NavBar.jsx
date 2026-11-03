@@ -7,6 +7,10 @@ import {
   toggleSidePanel,
   setSidePanelOpen,
   setSidePanelActiveView,
+  togglePinSidePanel,
+  setToolbarConfig,
+  setToolbarConfigItem,
+  DEFAULT_TOOLBAR_CONFIG,
 } from '../store/browserSlice';
 import { collectFolderOptions } from '../utils/bookmarkFolderList';
 import {
@@ -22,6 +26,7 @@ import DownloadToolbarButton from './DownloadToolbarButton';
 import ExtensionToolbar from './ExtensionToolbar';
 import { BOOKMARK, OVERLAY, PROFILE, URL as URL_C } from '../constants/conditionStrings.js';
 import {
+  adjustSvg,
   bookmarkStarFilledSvg,
   bookmarkStarSvg,
   menuBookmarksSvg,
@@ -196,6 +201,7 @@ export default function NavBar({
   const isSidePanelOpen = !!sidePanelState.isOpen;
   const activePanelId = sidePanelState.activePanelId || 'reading-list';
   const pinnedPanelIds = (Array.isArray(sidePanelState.pinnedPanelIds) ? sidePanelState.pinnedPanelIds : []).filter(id => id !== 'lens');
+  const toolbarConfig = useSelector(s => s.browser.toolbarConfig || DEFAULT_TOOLBAR_CONFIG);
   const bookmarksData = useSelector(s => s.bookmarks.data);
   const bookmarksBarRef = useRef(bookmarksData.bar);
   bookmarksBarRef.current = bookmarksData.bar;
@@ -210,6 +216,19 @@ export default function NavBar({
   const tab = tabs[currentTabId];
   const currentUrl = tab && !tab.isNewTab ? (tab.url || '') : '';
   const canSearchWithGoogleLens = canSearchTabWithGoogleLens(tab);
+  const isLensActiveOnCurrentTab = isSidePanelOpen && activePanelId === 'lens';
+  const isCurrentTabNtp = !tab || tab.isNewTab || isInternalOrBlankTab(tab);
+  const [isLensActiveInOtherTab, setIsLensActiveInOtherTab] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    window.electronAPI?.isGoogleLensActiveForProfile?.().then((active) => {
+      if (!cancelled) setIsLensActiveInOtherTab(!!active);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [currentTabId, isSidePanelOpen]);
+
+  const googleLensMenuDisabled = !canSearchWithGoogleLens || (isLensActiveInOtherTab && !isLensActiveOnCurrentTab);
 
   const existingBookmark = findBookmarkByUrl(currentUrl, bookmarksData.bar);
   const isBookmarked = !!existingBookmark;
@@ -254,6 +273,129 @@ export default function NavBar({
     loadProfiles();
   }, [loadProfiles]);
   appMenuOpenRef.current = appMenuOpen;
+
+  useEffect(() => {
+    if (currentProfile?.profileId && window.electronAPI?.profileGetToolbarConfig) {
+      window.electronAPI.profileGetToolbarConfig({ profileId: currentProfile.profileId }).then((cfg) => {
+        if (cfg) {
+          dispatch(setToolbarConfig(cfg));
+        }
+      });
+    }
+  }, [currentProfile?.profileId, dispatch]);
+
+  useEffect(() => {
+    const unsub = window.electronAPI?.onProfileToolbarConfigUpdated?.((data) => {
+      if (data?.toolbarConfig) {
+        dispatch(setToolbarConfig(data.toolbarConfig));
+      }
+    });
+    return typeof unsub === 'function' ? unsub : undefined;
+  }, [dispatch]);
+
+  const [toolbarContextMenu, setToolbarContextMenu] = useState(null);
+  const toolbarContextMenuRef = useRef(null);
+  toolbarContextMenuRef.current = toolbarContextMenu;
+  const toolbarMenuActiveRef = useRef(false);
+  const pendingOwnToolbarMenuResetRef = useRef(false);
+
+  const closeToolbarContextMenu = useCallback(() => {
+    setToolbarContextMenu(null);
+    toolbarMenuActiveRef.current = false;
+    if (release && post) {
+      void (async () => {
+        try {
+          await release();
+          await post({ kind: 'hide' });
+        } catch (_) {}
+      })();
+    }
+  }, [post, release]);
+
+  const handleToolbarContextMenuAction = useCallback(
+    (action, buttonIdOverride, isPinnedOverride) => {
+      const ctx = toolbarContextMenuRef.current;
+      const buttonId = buttonIdOverride ?? ctx?.buttonId;
+      const isPinnedSidepanel = isPinnedOverride ?? ctx?.isPinnedSidepanel;
+      if (!buttonId) {
+        closeToolbarContextMenu();
+        return;
+      }
+
+      if (action === 'unpin') {
+        if (isPinnedSidepanel) {
+          dispatch(togglePinSidePanel(buttonId));
+        } else {
+          dispatch(setToolbarConfigItem({ key: buttonId, value: false }));
+          if (window.electronAPI?.profileSetToolbarConfig) {
+            window.electronAPI.profileSetToolbarConfig({
+              profileId: currentProfile?.profileId,
+              toolbarConfig: { [buttonId]: false },
+            });
+          }
+        }
+      } else if (action === 'customize') {
+        if (activePanelId === 'lens' && window.electronAPI?.closeGoogleLens) {
+          window.electronAPI.closeGoogleLens({ closeSidebar: false });
+        }
+        dispatch(setSidePanelActiveView('customize-toolbar'));
+        dispatch(setSidePanelOpen(true));
+      }
+
+      closeToolbarContextMenu();
+    },
+    [activePanelId, closeToolbarContextMenu, currentProfile?.profileId, dispatch]
+  );
+
+  const handleToolbarContextMenu = useCallback(
+    async (e, key, isPinnedSidepanel = false) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const clientX = e.clientX;
+      const clientY = e.clientY;
+      const x = Math.min(clientX, (window.innerWidth || 1200) - 200);
+      const y = Math.min(clientY, (window.innerHeight || 800) - 100);
+
+      setToolbarContextMenu({
+        x,
+        y,
+        buttonId: key,
+        isPinnedSidepanel,
+      });
+
+      if (window.electronAPI?.showToolbarContextMenu) {
+        void window.electronAPI.showToolbarContextMenu({
+          buttonId: key,
+          x: clientX,
+          y: clientY,
+        });
+      }
+
+      pendingOwnToolbarMenuResetRef.current = true;
+      try {
+        if (reset && acquire && post) {
+          await reset();
+          await acquire();
+          toolbarMenuActiveRef.current = true;
+          await post({
+            kind: 'toolbarContextMenu',
+            buttonId: key,
+            isPinnedSidepanel,
+            clientX,
+            clientY,
+          });
+        }
+      } catch (err) {
+        console.error('Toolbar context menu overlay error:', err);
+        toolbarMenuActiveRef.current = false;
+        try { await release?.(); } catch (_) {}
+      } finally {
+        pendingOwnToolbarMenuResetRef.current = false;
+      }
+    },
+    [acquire, post, release, reset]
+  );
 
   const isMac = window.electronAPI?.platform === 'darwin';
   const shortcut = useCallback((mac, other) => (isMac ? mac : other), [isMac]);
@@ -578,6 +720,7 @@ export default function NavBar({
         },
         { iconSrc: menuFindSvg, label: 'Find and Edit', submenuKey: 'find' },
         { type: 'separator' },
+        { iconSrc: adjustSvg, label: 'Customize Toolbar', commandId: 'customizeToolbar' },
         { iconSrc: menuSettingsSvg, label: 'Settings', shortcut: shortcut('⌘,', 'Ctrl+,'), commandId: 'openSettings' },
       ],
       submenus: {
@@ -641,6 +784,18 @@ export default function NavBar({
   useEffect(() => {
     const unsub = window.electronAPI?.onChromeOverlayV1HostEvent?.((data) => {
       const t = data?.type;
+      if (t === OVERLAY.DISMISS) {
+        if (toolbarMenuActiveRef.current || toolbarContextMenuRef.current) {
+          closeToolbarContextMenu();
+        }
+      }
+      if (t === 'toolbarContextMenu') {
+        const action = data?.action;
+        const buttonId = data?.buttonId;
+        const isPinnedSidepanel = !!data?.isPinnedSidepanel;
+        handleToolbarContextMenuAction(action, buttonId, isPinnedSidepanel);
+        return;
+      }
       if (appMenuOpenRef.current) {
         if (t === OVERLAY.DISMISS) {
           void closeAppMenu();
@@ -667,6 +822,13 @@ export default function NavBar({
               window.electronAPI.closeGoogleLens({ closeSidebar: false });
             }
             dispatch(setSidePanelActiveView('bookmarks'));
+            dispatch(setSidePanelOpen(true));
+          }
+          else if (commandId === 'customizeToolbar') {
+            if (activePanelId === 'lens' && window.electronAPI?.closeGoogleLens) {
+              window.electronAPI.closeGoogleLens({ closeSidebar: false });
+            }
+            dispatch(setSidePanelActiveView('customize-toolbar'));
             dispatch(setSidePanelOpen(true));
           }
           else if (commandId === 'openSettings') onOpenSettings?.();
@@ -797,11 +959,13 @@ export default function NavBar({
   }, [
     closeAppMenu,
     closeStarBookmarkEditor,
+    closeToolbarContextMenu,
     currentProfile?.profileId,
     dispatch,
     handleAddProfile,
     handleEditCurrentProfile,
     handleProfileMenuCommand,
+    handleToolbarContextMenuAction,
     onDeleteBrowsingData,
     onNewTab,
     onOpenHistory,
@@ -814,7 +978,7 @@ export default function NavBar({
 
   useEffect(() => {
     const unsub = window.electronAPI?.onChromeShellMenuOverlaySuperseded?.(() => {
-      if (pendingOwnStarResetRef.current || pendingOwnAppMenuResetRef.current) return;
+      if (pendingOwnStarResetRef.current || pendingOwnAppMenuResetRef.current || pendingOwnToolbarMenuResetRef.current) return;
       if (appMenuOpenRef.current) {
         appMenuOpenRef.current = false;
         setAppMenuOpen(false);
@@ -822,9 +986,24 @@ export default function NavBar({
       if (starEditorActiveRef.current) {
         starEditorActiveRef.current = false;
       }
+      if (toolbarMenuActiveRef.current) {
+        toolbarMenuActiveRef.current = false;
+        setToolbarContextMenu(null);
+      }
     });
     return typeof unsub === 'function' ? unsub : undefined;
   }, []);
+
+  useEffect(() => {
+    if (!toolbarContextMenu) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        closeToolbarContextMenu();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [closeToolbarContextMenu, toolbarContextMenu]);
 
   useEffect(() => {
     if (!appMenuOpen) return;
@@ -837,9 +1016,60 @@ export default function NavBar({
 
   return (
     <div className="nav-bar">
-      <button id="back-btn" className="btn" onClick={handleBack}>{BACK_ICON}</button>
-      <button id="forward-btn" className="btn" onClick={handleForward}>{FORWARD_ICON}</button>
-      <button id="reload-btn" className="btn" onClick={handleReload}>{RELOAD_ICON}</button>
+      <button id="back-btn" className="btn" onClick={handleBack} title="Click to go back">{BACK_ICON}</button>
+
+      {toolbarConfig.forward && (
+        <button
+          id="forward-btn"
+          className="btn"
+          onClick={handleForward}
+          onContextMenu={(e) => handleToolbarContextMenu(e, 'forward')}
+          title="Click to go forward"
+        >
+          {FORWARD_ICON}
+        </button>
+      )}
+
+      <button id="reload-btn" className="btn" onClick={handleReload} title="Reload this page">{RELOAD_ICON}</button>
+
+      {toolbarConfig.home && (
+        <button
+          id="home-btn"
+          className="btn home-btn"
+          onClick={() => {
+            if (currentTabId && window.electronAPI?.navigate) {
+              window.electronAPI.navigate(currentTabId, URL_C.NTP_DISPLAY);
+            }
+          }}
+          onContextMenu={(e) => handleToolbarContextMenu(e, 'home')}
+          title="Open the New Tab page"
+          aria-label="Home"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+          </svg>
+        </button>
+      )}
+
+      {toolbarConfig.splitView && (
+        <button
+          id="split-view-btn"
+          className="btn split-view-btn"
+          onClick={() => {
+            if (currentTabId && window.electronAPI?.splitTabEnter) {
+              window.electronAPI.splitTabEnter(currentTabId, 'choose-tab');
+            }
+          }}
+          onContextMenu={(e) => handleToolbarContextMenu(e, 'splitView')}
+          title="Open in split view"
+          aria-label="Open in split view"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zM9 19H5V5h4v14zm10 0h-4V5h4v14z" />
+          </svg>
+        </button>
+      )}
 
       <OmniboxInput currentTabId={currentTabId} tabsData={tabs} searchEngine={searchEngine} />
 
@@ -854,6 +1084,119 @@ export default function NavBar({
         {isBookmarked ? STAR_FILLED : STAR_EMPTY}
       </button>
 
+      {toolbarConfig.lens && (
+        <button
+          id="lens-toolbar-btn"
+          className={`btn lens-toolbar-btn${isLensActiveOnCurrentTab ? ' active' : ''}`}
+          disabled={googleLensMenuDisabled}
+          onClick={async () => {
+            if (isLensActiveOnCurrentTab) {
+              if (window.electronAPI?.closeGoogleLens) {
+                await window.electronAPI.closeGoogleLens();
+              }
+            } else {
+              if (window.electronAPI?.runMenuCommand) {
+                window.electronAPI.runMenuCommand('search-with-google-lens');
+              }
+            }
+          }}
+          onContextMenu={(e) => handleToolbarContextMenu(e, 'lens')}
+          title={googleLensMenuDisabled ? "Google Lens unavailable for this page" : "Search this tab with Google Lens"}
+          aria-label="Search this tab with Google Lens"
+        >
+          <AssetMaskIcon icon={menuLensSvg} size={16} />
+        </button>
+      )}
+
+      {toolbarConfig.devTools && (
+        <button
+          id="devtools-toolbar-btn"
+          className="btn devtools-toolbar-btn"
+          disabled={isCurrentTabNtp}
+          onClick={() => {
+            if (!isCurrentTabNtp && window.electronAPI?.runMenuCommand) {
+              window.electronAPI.runMenuCommand('devtools-elements');
+            }
+          }}
+          onContextMenu={(e) => handleToolbarContextMenu(e, 'devTools')}
+          title={isCurrentTabNtp ? "Developer Tools unavailable on New Tab page" : "Developer Tools"}
+          aria-label="Developer Tools"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="16 18 22 12 16 6"></polyline>
+            <polyline points="8 6 2 12 8 18"></polyline>
+          </svg>
+        </button>
+      )}
+
+      {toolbarConfig.print && (
+        <button
+          id="print-toolbar-btn"
+          className="btn print-toolbar-btn"
+          onClick={() => {
+            if (window.electronAPI?.runMenuCommand) {
+              window.electronAPI.runMenuCommand('print-active-tab');
+            }
+          }}
+          onContextMenu={(e) => handleToolbarContextMenu(e, 'print')}
+          title={`Print (${shortcut('⌘P', 'Ctrl+P')})`}
+          aria-label="Print"
+        >
+          <AssetMaskIcon icon={menuPrintSvg} size={16} />
+        </button>
+      )}
+
+      {toolbarConfig.deleteBrowsingData && (
+        <button
+          id="delete-data-toolbar-btn"
+          className="btn delete-data-toolbar-btn"
+          onClick={() => {
+            onDeleteBrowsingData?.();
+          }}
+          onContextMenu={(e) => handleToolbarContextMenu(e, 'deleteBrowsingData')}
+          title={`Delete browsing data (${shortcut('⇧⌘⌫', 'Ctrl+Shift+Del')})`}
+          aria-label="Delete browsing data"
+        >
+          <AssetMaskIcon icon={menuDeleteDataSvg} size={16} />
+        </button>
+      )}
+
+      {toolbarConfig.newIncognito && (
+        <button
+          id="incognito-toolbar-btn"
+          className="btn incognito-toolbar-btn"
+          onClick={() => {
+            window.electronAPI?.createStealthWindow?.();
+          }}
+          onContextMenu={(e) => handleToolbarContextMenu(e, 'newIncognito')}
+          title={`New Incognito window (${shortcut('⇧⌘N', 'Ctrl+Shift+N')})`}
+          aria-label="New Incognito window"
+        >
+          <AssetMaskIcon icon={menuStealthWindowSvg} size={16} />
+        </button>
+      )}
+
+      {toolbarConfig.newGhost && (
+        <button
+          id="ghost-toolbar-btn"
+          className="btn ghost-toolbar-btn"
+          onClick={() => {
+            window.electronAPI?.createGhostWindow?.(currentProfile?.profileId ? { profileId: currentProfile.profileId } : {});
+          }}
+          onContextMenu={(e) => handleToolbarContextMenu(e, 'newGhost')}
+          title={`New Ghost window (${shortcut('⌥⌘G', 'Ctrl+Alt+G')})`}
+          aria-label="New Ghost window"
+        >
+          <AssetMaskIcon icon={menuGhostWindowSvg} size={16} />
+        </button>
+      )}
+
+      {toolbarConfig.downloads && (
+        <div onContextMenu={(e) => handleToolbarContextMenu(e, 'downloads')}>
+          <DownloadToolbarButton onOpenDownloads={onOpenDownloads} />
+        </div>
+      )}
+
       <ExtensionToolbar
         currentTabUrl={currentUrl}
         onNavigate={(url) => {
@@ -865,12 +1208,17 @@ export default function NavBar({
         }}
       />
 
-      <WindowOpacityControl />
+      {toolbarConfig.transparency && (
+        <div onContextMenu={(e) => handleToolbarContextMenu(e, 'transparency')}>
+          <WindowOpacityControl />
+        </div>
+      )}
 
-      <WindowArrangeControl />
-
-      <DownloadToolbarButton onOpenDownloads={onOpenDownloads} />
-
+      {toolbarConfig.arrangeWindow && (
+        <div onContextMenu={(e) => handleToolbarContextMenu(e, 'arrangeWindow')}>
+          <WindowArrangeControl />
+        </div>
+      )}
 
       {/* Pinned Side Panel Toolbar Buttons */}
       {pinnedPanelIds.map((panelId) => {
@@ -897,6 +1245,7 @@ export default function NavBar({
                 dispatch(setSidePanelOpen(true));
               }
             }}
+            onContextMenu={(e) => handleToolbarContextMenu(e, panelId, true)}
           >
             {icon}
           </button>
@@ -950,6 +1299,38 @@ export default function NavBar({
         onClose={() => setProfileEditorOpen(false)}
         onSaved={handleProfileEditorSaved}
       />
+
+      {toolbarContextMenu && (
+        <>
+          <div
+            className="toolbar-context-menu-backdrop"
+            onClick={closeToolbarContextMenu}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              closeToolbarContextMenu();
+            }}
+          />
+          <div
+            className="toolbar-context-menu"
+            style={{ top: toolbarContextMenu.y, left: toolbarContextMenu.x }}
+          >
+            <button
+              type="button"
+              className="toolbar-context-menu-item"
+              onClick={() => handleToolbarContextMenuAction('unpin')}
+            >
+              Unpin
+            </button>
+            <button
+              type="button"
+              className="toolbar-context-menu-item"
+              onClick={() => handleToolbarContextMenuAction('customize')}
+            >
+              Customize Toolbar
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

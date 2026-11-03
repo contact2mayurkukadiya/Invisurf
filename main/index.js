@@ -99,6 +99,9 @@ app.whenReady().then(async () => {
                 p.hasCustomAvatar = !!profile.hasCustomAvatar;
                 p.avatarExt = profile.avatarExt || null;
                 p.avatarSource = profile.avatarSource === 'preset' || profile.avatarSource === 'upload' ? profile.avatarSource : null;
+                if (profile.toolbarConfig && typeof profile.toolbarConfig === 'object') {
+                    p.toolbarConfig = profile.toolbarConfig;
+                }
             }
         }
         profileService.saveProfiles();
