@@ -1,0 +1,19 @@
+/* WindowArrangeControl — trigger button styles only.
+   The popup is rendered inside chromeShellMenuOverlayView above all web content. */
+
+.window-arrange-control {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.window-arrange-trigger {
+  position: relative;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.window-arrange-trigger--active {
+  background: var(--bg-hover, rgba(255, 255, 255, 0.12)) !important;
+  color: var(--accent-primary, #a78bfa) !important;
+}
+

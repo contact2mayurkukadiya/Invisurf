@@ -64,6 +64,25 @@ export const SHORTCUT_DEFINITIONS = [
             { id: 'zoomReset', label: 'Reset Zoom', defaultShortcut: 'CmdOrCtrl+0', description: 'Resets active tab zoom to 100%' },
         ],
     },
+    {
+        category: 'Window Arrangement',
+        items: [
+            { id: 'windowArrangeLeftHalf', label: 'Left Half', defaultShortcut: 'CmdOrCtrl+Left', description: 'Snap window to left half of screen' },
+            { id: 'windowArrangeRightHalf', label: 'Right Half', defaultShortcut: 'CmdOrCtrl+Right', description: 'Snap window to right half of screen' },
+            { id: 'windowArrangeCenterHalf', label: 'Center Half', defaultShortcut: 'CmdOrCtrl+Alt+C', description: 'Snap window to center half of screen' },
+            { id: 'windowArrangeTopHalf', label: 'Top Half', defaultShortcut: 'CmdOrCtrl+Shift+Up', description: 'Snap window to top half of screen' },
+            { id: 'windowArrangeBottomHalf', label: 'Bottom Half', defaultShortcut: 'CmdOrCtrl+Down', description: 'Snap window to bottom half of screen' },
+            { id: 'windowArrangeTopLeft', label: 'Top Left Quarter', defaultShortcut: 'CmdOrCtrl+Shift+Left', description: 'Snap window to top-left quarter of screen' },
+            { id: 'windowArrangeTopRight', label: 'Top Right Quarter', defaultShortcut: 'CmdOrCtrl+Alt+Right', description: 'Snap window to top-right quarter of screen' },
+            { id: 'windowArrangeBottomLeft', label: 'Bottom Left Quarter', defaultShortcut: 'CmdOrCtrl+Alt+Left', description: 'Snap window to bottom-left quarter of screen' },
+            { id: 'windowArrangeBottomRight', label: 'Bottom Right Quarter', defaultShortcut: 'CmdOrCtrl+Alt+Down', description: 'Snap window to bottom-right quarter of screen' },
+            { id: 'windowArrangeFirstThird', label: 'First Third', defaultShortcut: 'CmdOrCtrl+Alt+D', description: 'Snap window to first third of screen' },
+            { id: 'windowArrangeCenterThird', label: 'Center Third', defaultShortcut: 'CmdOrCtrl+Alt+F', description: 'Snap window to center third of screen' },
+            { id: 'windowArrangeLastThird', label: 'Last Third', defaultShortcut: 'CmdOrCtrl+Alt+G', description: 'Snap window to last third of screen' },
+            { id: 'windowArrangeFirstTwoThirds', label: 'First Two Thirds', defaultShortcut: 'CmdOrCtrl+Alt+E', description: 'Snap window to first two thirds of screen' },
+            { id: 'windowArrangeLastTwoThirds', label: 'Last Two Thirds', defaultShortcut: 'CmdOrCtrl+Alt+T', description: 'Snap window to last two thirds of screen' },
+        ],
+    },
 ];
 
 export const DEFAULT_SHORTCUTS = Object.fromEntries(

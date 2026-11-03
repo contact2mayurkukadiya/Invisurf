@@ -49,6 +49,16 @@ function setupTestEnvironment() {
     Menu: {
       buildFromTemplate: () => ({ popup: () => { } }),
     },
+    screen: {
+      getPrimaryDisplay: () => ({
+        workArea: { x: 0, y: 25, width: 1440, height: 875 },
+        bounds: { x: 0, y: 0, width: 1440, height: 900 },
+      }),
+      getDisplayMatching: () => ({
+        workArea: { x: 0, y: 25, width: 1440, height: 875 },
+        bounds: { x: 0, y: 0, width: 1440, height: 900 },
+      }),
+    },
     WebContentsView: class MockWebContentsView {
       constructor() {
         this.webContents = new EventEmitter();

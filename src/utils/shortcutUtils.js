@@ -14,7 +14,7 @@ export function isMacPlatform() {
 
 export function formatShortcutForDisplay(shortcutStr, options = {}) {
   if (!shortcutStr || typeof shortcutStr !== 'string') return '';
-  const { compact = false } = options;
+  const { compact = false, triangles = false } = options;
   const isMac = isMacPlatform();
   const parts = shortcutStr.split('+').map((p) => p.trim());
   const formatted = [];
@@ -32,13 +32,13 @@ export function formatShortcutForDisplay(shortcutStr, options = {}) {
     } else if (pLower === 'alt' || pLower === 'option') {
       formatted.push(compact ? (isMac ? '⌥' : 'Alt') : 'Alt');
     } else if (pLower === 'up' || pLower === 'arrowup') {
-      formatted.push(compact ? '↑' : 'Up');
+      formatted.push(compact ? (triangles ? '▲' : '↑') : 'Up');
     } else if (pLower === 'down' || pLower === 'arrowdown') {
-      formatted.push(compact ? '↓' : 'Down');
+      formatted.push(compact ? (triangles ? '▼' : '↓') : 'Down');
     } else if (pLower === 'left' || pLower === 'arrowleft') {
-      formatted.push(compact ? '←' : 'Left');
+      formatted.push(compact ? (triangles ? '◀' : '←') : 'Left');
     } else if (pLower === 'right' || pLower === 'arrowright') {
-      formatted.push(compact ? '→' : 'Right');
+      formatted.push(compact ? (triangles ? '▶' : '→') : 'Right');
     } else if (pLower === 'plus' || pLower === '=') {
       formatted.push(compact ? '+' : 'Plus');
     } else if (pLower === 'minus' || pLower === '-') {
@@ -56,7 +56,7 @@ export function formatShortcutForDisplay(shortcutStr, options = {}) {
     }
   }
 
-  return compact && isMac ? formatted.join('') : formatted.join(' + ');
+  return compact && isMac ? formatted.join('') : formatted.join(compact ? '+' : ' + ');
 }
 
 export function parseShortcut(str) {

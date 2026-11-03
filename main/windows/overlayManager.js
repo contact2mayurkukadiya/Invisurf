@@ -724,6 +724,24 @@ function computeMenuOverlayBounds(context, patch) {
         });
     }
 
+    if (kind === 'windowArrangeMenu') {
+        const ar = patch.anchorRect || {};
+        const panelWidth = Math.round(Number(patch.width) || 260);
+        const panelHeight = Math.min(windowH - pad * 2, 540);
+        const anchorL = Math.round(Number(ar.left) || 0);
+        const anchorW = Math.max(1, Math.round(Number(ar.width) || 32));
+        const anchorT = Math.round(Number(ar.top) || 0);
+        const anchorH = Math.max(1, Math.round(Number(ar.height) || 32));
+        const left = clampNumber(anchorL + anchorW - panelWidth, pad, windowW - panelWidth - pad);
+        const top = clampNumber(anchorT + anchorH + 6, pad, windowH - panelHeight - pad);
+        return menuOverlayBoundsFromPanel(context, { left, top, width: panelWidth, height: panelHeight }, {
+            shadowMarginTop: 6,
+            shadowMarginBottom: 28,
+            shadowMarginLeft: 24,
+            shadowMarginRight: 24,
+        });
+    }
+
     if (kind === 'zoomReset') {
         const ar = patch.anchorRect || {};
         const panelWidth = 248;

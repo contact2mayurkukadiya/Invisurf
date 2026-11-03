@@ -17,6 +17,7 @@ import OmniboxInput from './omnibox/OmniboxInput';
 import ProfileMenuButton from './ProfileMenuButton';
 import ProfileEditorModal from './ProfileEditorModal';
 import WindowOpacityControl from './WindowOpacityControl';
+import WindowArrangeControl from './WindowArrangeControl';
 import DownloadToolbarButton from './DownloadToolbarButton';
 import ExtensionToolbar from './ExtensionToolbar';
 import { BOOKMARK, OVERLAY, PROFILE, URL as URL_C } from '../constants/conditionStrings.js';
@@ -865,6 +866,8 @@ export default function NavBar({
       />
 
       <WindowOpacityControl />
+
+      <WindowArrangeControl />
 
       <DownloadToolbarButton onOpenDownloads={onOpenDownloads} />
 

@@ -285,6 +285,16 @@ function registerIpcHandlers() {
         }
     });
 
+    ipcMain.handle(C.IPC_INVOKE.WINDOW_ARRANGE, (event, { layout } = {}) => {
+        if (!isSenderTrusted(event)) return { ok: false };
+        const context = getWindowContextByEventSender(event.sender);
+        const win = context?.window || (BrowserWindow && BrowserWindow.fromWebContents(event.sender)) || State.mainWindow;
+        if (!win || win.isDestroyed()) return { ok: false };
+        const { arrangeWindow } = require('../windows/windowManager');
+        const ok = arrangeWindow(win, layout);
+        return { ok };
+    });
+
     ipcMain.handle(C.IPC_INVOKE.WINDOW_TOGGLE_BOSS_KEY, (event) => {
         if (!isSenderTrusted(event)) return { ok: false };
         const context = getWindowContextByEventSender(event.sender);
@@ -973,6 +983,13 @@ function registerIpcHandlers() {
                 overlayManager.hideExtensionPopup(context);
             }
             overlayManager.dismissChromeShellMenuOverlay(context, data.reason || 'overlay-request');
+            return;
+        }
+
+        if (data?.type === 'windowArrange' && data.layout) {
+            const { arrangeWindow } = require('../windows/windowManager');
+            arrangeWindow(context.window, data.layout);
+            overlayManager.dismissChromeShellMenuOverlay(context, 'window-arranged');
             return;
         }
 

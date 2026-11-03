@@ -16,6 +16,7 @@ import { renderDesktopMediaPicker } from './components/desktopMediaPicker.js';
 import { renderExtensionMenu } from './components/extensionMenu.js';
 import { renderExtensionPopupShadow } from './components/extensionPopupShadow.js';
 import { renderTransparencyMenu } from './components/transparencyMenu.js';
+import { renderWindowArrangeMenu } from './components/windowArrangeMenu.js';
 import { renderClickThroughOSD } from './components/clickThroughOSD.js';
 import { renderZoomReset } from './components/zoomReset.js';
 import { renderLensSelection } from './components/lensSelection.js';
@@ -64,6 +65,7 @@ if (window.electronAPI && window.electronAPI.onChromeOverlayV1Patch) {
                 case 'extensionMenu': return renderExtensionMenu(patch);
                 case 'extensionPopupShadow': return renderExtensionPopupShadow(patch);
                 case 'transparencyMenu': return renderTransparencyMenu(patch);
+                case 'windowArrangeMenu': return renderWindowArrangeMenu(patch);
                 case 'clickThroughOSD': return renderClickThroughOSD(patch);
                 case 'zoomReset': return renderZoomReset(patch);
                 case 'lensSelection': return renderLensSelection(patch);

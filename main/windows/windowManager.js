@@ -583,11 +583,96 @@ function toggleWindowClickThrough(context, source = 'manual') {
     return setWindowClickThrough(context, !context.isClickThrough, source);
 }
 
+function calculateWindowArrangeBounds(workArea, layoutId) {
+    if (!workArea || typeof workArea !== 'object') return null;
+    const waX = Number(workArea.x) || 0;
+    const waY = Number(workArea.y) || 0;
+    const waW = Math.max(100, Math.round(Number(workArea.width) || 0));
+    const waH = Math.max(100, Math.round(Number(workArea.height) || 0));
+
+    const halfW = Math.round(waW / 2);
+    const halfH = Math.round(waH / 2);
+    const remW = waW - halfW;
+    const remH = waH - halfH;
+
+    const thirdW = Math.round(waW / 3);
+    const twoThirdsW = Math.round((waW * 2) / 3);
+
+    switch (layoutId) {
+        case 'leftHalf':
+            return { x: waX, y: waY, width: halfW, height: waH };
+        case 'rightHalf':
+            return { x: waX + halfW, y: waY, width: remW, height: waH };
+        case 'centerHalf':
+            return { x: waX + Math.round((waW - halfW) / 2), y: waY, width: halfW, height: waH };
+        case 'topHalf':
+            return { x: waX, y: waY, width: waW, height: halfH };
+        case 'bottomHalf':
+            return { x: waX, y: waY + halfH, width: waW, height: remH };
+        case 'topLeft':
+            return { x: waX, y: waY, width: halfW, height: halfH };
+        case 'topRight':
+            return { x: waX + halfW, y: waY, width: remW, height: halfH };
+        case 'bottomLeft':
+            return { x: waX, y: waY + halfH, width: halfW, height: remH };
+        case 'bottomRight':
+            return { x: waX + halfW, y: waY + halfH, width: remW, height: remH };
+        case 'firstThird':
+            return { x: waX, y: waY, width: thirdW, height: waH };
+        case 'centerThird':
+            return { x: waX + Math.round((waW - thirdW) / 2), y: waY, width: thirdW, height: waH };
+        case 'lastThird':
+            return { x: waX + waW - thirdW, y: waY, width: thirdW, height: waH };
+        case 'firstTwoThirds':
+            return { x: waX, y: waY, width: twoThirdsW, height: waH };
+        case 'lastTwoThirds':
+            return { x: waX + waW - twoThirdsW, y: waY, width: twoThirdsW, height: waH };
+        default:
+            return null;
+    }
+}
+
+function arrangeWindow(winOrContext, layoutId) {
+    const win = (winOrContext && winOrContext.window) ? winOrContext.window : winOrContext;
+    if (!win || win.isDestroyed()) return false;
+
+    try {
+        if (typeof win.isFullScreen === 'function' && win.isFullScreen()) {
+            win.setFullScreen(false);
+        }
+        if (typeof win.isMaximized === 'function' && win.isMaximized()) {
+            win.unmaximize();
+        }
+        if (typeof win.isMinimized === 'function' && win.isMinimized()) {
+            win.restore();
+        }
+
+        const currentBounds = win.getBounds();
+        const display = (screen && typeof screen.getDisplayMatching === 'function')
+            ? screen.getDisplayMatching(currentBounds)
+            : (screen && typeof screen.getPrimaryDisplay === 'function' ? screen.getPrimaryDisplay() : null);
+
+        const workArea = display?.workArea || getPrimaryWorkAreaBounds();
+        if (!workArea) return false;
+
+        const targetBounds = calculateWindowArrangeBounds(workArea, layoutId);
+        if (!targetBounds) return false;
+
+        win.setBounds(targetBounds);
+        return true;
+    } catch (err) {
+        console.error('[windowManager] arrangeWindow error:', err);
+        return false;
+    }
+}
+
 module.exports = {
     getPrimaryWorkAreaBounds,
     createWindow,
     createProfilePickerWindow,
     setWindowClickThrough,
     toggleWindowClickThrough,
+    calculateWindowArrangeBounds,
+    arrangeWindow,
 };
 

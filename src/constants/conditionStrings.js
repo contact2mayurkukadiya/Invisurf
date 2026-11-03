@@ -383,6 +383,7 @@ export const IPC_INVOKE = freeze({
   WINDOW_SET_OPACITY: 'window:set-opacity',
   WINDOW_GET_OPACITY: 'window:get-opacity',
   WINDOW_TOGGLE_BOSS_KEY: 'window:toggle-boss-key',
+  WINDOW_ARRANGE: 'window:arrange',
   TAB_ZOOM_IN: 'tab:zoom-in',
   TAB_ZOOM_OUT: 'tab:zoom-out',
   TAB_ZOOM_RESET: 'tab:zoom-reset',

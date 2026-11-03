@@ -4,7 +4,7 @@
       "/opt/homebrew/Cellar/node/25.6.1_1/bin/node",
       "/Users/mayurkukadiya/Code/Electron/invisurf/node_modules/.bin/playwright",
       "test",
-      "tests/e2e/tabs/tab-drag-detach.spec.js"
+      "tests/e2e/window-controls/window-arrange.spec.js"
     ],
     "configFile": "/Users/mayurkukadiya/Code/Electron/invisurf/playwright.config.js",
     "rootDir": "/Users/mayurkukadiya/Code/Electron/invisurf/tests/e2e",
@@ -99,20 +99,20 @@
   },
   "suites": [
     {
-      "title": "tabs/tab-drag-detach.spec.js",
-      "file": "tabs/tab-drag-detach.spec.js",
+      "title": "window-controls/window-arrange.spec.js",
+      "file": "window-controls/window-arrange.spec.js",
       "column": 0,
       "line": 0,
       "specs": [],
       "suites": [
         {
-          "title": "Tab Vertical Drag, Detach, and Reattach E2E",
-          "file": "tabs/tab-drag-detach.spec.js",
+          "title": "Window Arrangement Feature",
+          "file": "window-controls/window-arrange.spec.js",
           "line": 5,
           "column": 6,
           "specs": [
             {
-              "title": "dragging a tab vertically down detaches it into a new window",
+              "title": "window-arrange-toggle: verifies toolbar button, opens and closes arrangement overlay",
               "ok": true,
               "tags": [],
               "tests": [
@@ -127,91 +127,12 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 4329,
-                      "errors": [],
-                      "stdout": [
-                        {
-                          "text": "INITIAL WINDOWS: [\n  \u001b[32m'app://dist/index.html'\u001b[39m,\n  \u001b[32m'app://localhost/chrome-overlay.html'\u001b[39m,\n  \u001b[32m'app://localhost/download-attention.html'\u001b[39m,\n  \u001b[32m'app://localhost/tooltip.html'\u001b[39m,\n  \u001b[32m'app://localhost/chrome-overlay.html?omnibox=1'\u001b[39m,\n  \u001b[32m'app://localhost/chrome-overlay.html?shellMenu=1'\u001b[39m,\n  \u001b[32m'app://localhost/status-bubble.html'\u001b[39m,\n  \u001b[32m'app://localhost/dist/newtab.html'\u001b[39m\n]\n"
-                        },
-                        {
-                          "text": "SHELL CONSOLE: handleTabCreated tab-1793727886013 app://localhost/dist/newtab.html false\n"
-                        }
-                      ],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-11-03T17:44:44.372Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "09b788e061aa25e97041-099b41eab7afbb4eeb8e",
-              "file": "tabs/tab-drag-detach.spec.js",
-              "line": 6,
-              "column": 3
-            },
-            {
-              "title": "dragging tab over another window tab bar reattaches it",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 45000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "",
-                  "projectName": "",
-                  "results": [
-                    {
-                      "workerIndex": 0,
-                      "parallelIndex": 0,
-                      "status": "passed",
-                      "duration": 6285,
-                      "errors": [],
-                      "stdout": [
-                        {
-                          "text": "TARGET SCREEN COORDS FOR REATTACH: {\n  targetScreenX: \u001b[33m350\u001b[39m,\n  targetScreenY: \u001b[33m55\u001b[39m,\n  shellBounds: { x: \u001b[33m0\u001b[39m, y: \u001b[33m30\u001b[39m, width: \u001b[33m1440\u001b[39m, height: \u001b[33m786\u001b[39m }\n}\n"
-                        }
-                      ],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-11-03T17:44:48.735Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "09b788e061aa25e97041-9117f1108913f8fe1cd7",
-              "file": "tabs/tab-drag-detach.spec.js",
-              "line": 67,
-              "column": 3
-            },
-            {
-              "title": "tab favicon is preserved and loading spinner does not get stuck when detached and re-attached",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 45000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "",
-                  "projectName": "",
-                  "results": [
-                    {
-                      "workerIndex": 0,
-                      "parallelIndex": 0,
-                      "status": "passed",
-                      "duration": 4860,
+                      "duration": 3017,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-11-03T17:44:55.031Z",
+                      "startTime": "2026-11-03T18:16:49.015Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -219,9 +140,9 @@
                   "status": "expected"
                 }
               ],
-              "id": "09b788e061aa25e97041-5f64e2c457218f2d690d",
-              "file": "tabs/tab-drag-detach.spec.js",
-              "line": 184,
+              "id": "ac224fb092e531e19055-12be906fd33d4b095503",
+              "file": "window-controls/window-arrange.spec.js",
+              "line": 6,
               "column": 3
             }
           ]
@@ -231,9 +152,9 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-11-03T17:44:43.911Z",
-    "duration": 16062.938,
-    "expected": 3,
+    "startTime": "2026-11-03T18:16:48.529Z",
+    "duration": 3558.0229999999997,
+    "expected": 1,
     "skipped": 0,
     "unexpected": 0,
     "flaky": 0

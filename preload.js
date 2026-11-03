@@ -1051,6 +1051,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     windowSetOpacity: (opacity) => ipcRenderer.invoke(C.IPC_INVOKE.WINDOW_SET_OPACITY, opacity),
     windowGetOpacity: () => ipcRenderer.invoke(C.IPC_INVOKE.WINDOW_GET_OPACITY),
     windowToggleBossKey: () => ipcRenderer.invoke(C.IPC_INVOKE.WINDOW_TOGGLE_BOSS_KEY),
+    windowArrange: (layout) => ipcRenderer.invoke(C.IPC_INVOKE.WINDOW_ARRANGE, { layout }),
     onWindowOpacityChanged: (callback) => {
         const handler = (_event, data) => callback(data);
         ipcRenderer.on(C.IPC_EVENT.WINDOW_OPACITY_CHANGED, handler);

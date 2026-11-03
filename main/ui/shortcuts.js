@@ -110,6 +110,35 @@ function handleShortcuts(event, input) {
         return;
     }
 
+    // 6c. Window Arrangement Layouts
+    const ARRANGE_SHORTCUTS = [
+        { key: 'windowArrangeLeftHalf', layout: 'leftHalf' },
+        { key: 'windowArrangeRightHalf', layout: 'rightHalf' },
+        { key: 'windowArrangeCenterHalf', layout: 'centerHalf' },
+        { key: 'windowArrangeTopHalf', layout: 'topHalf' },
+        { key: 'windowArrangeBottomHalf', layout: 'bottomHalf' },
+        { key: 'windowArrangeTopLeft', layout: 'topLeft' },
+        { key: 'windowArrangeTopRight', layout: 'topRight' },
+        { key: 'windowArrangeBottomLeft', layout: 'bottomLeft' },
+        { key: 'windowArrangeBottomRight', layout: 'bottomRight' },
+        { key: 'windowArrangeFirstThird', layout: 'firstThird' },
+        { key: 'windowArrangeCenterThird', layout: 'centerThird' },
+        { key: 'windowArrangeLastThird', layout: 'lastThird' },
+        { key: 'windowArrangeFirstTwoThirds', layout: 'firstTwoThirds' },
+        { key: 'windowArrangeLastTwoThirds', layout: 'lastTwoThirds' },
+    ];
+
+    for (const item of ARRANGE_SHORTCUTS) {
+        if (shortcuts[item.key] && matchesShortcut(input, shortcuts[item.key])) {
+            event.preventDefault();
+            if (win) {
+                const { arrangeWindow } = require('../windows/windowManager');
+                arrangeWindow(win, item.layout);
+            }
+            return;
+        }
+    }
+
     // 7. Tab Zoom
     if (matchesShortcut(input, shortcuts.zoomIn)) {
         event.preventDefault();

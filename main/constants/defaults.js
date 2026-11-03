@@ -63,6 +63,7 @@ const SHELL_MENU_OVERLAY_KINDS = new Set([
     'extensionInstallPrompt',
     'extensionMenu',
     'zoomReset',
+    'windowArrangeMenu',
 ]);
 
 const COOKIE_CONFIG_DEFAULTS = {
@@ -85,6 +86,20 @@ const DEFAULT_SHORTCUTS = {
     zoomIn: 'CmdOrCtrl+Plus',
     zoomOut: 'CmdOrCtrl+-',
     zoomReset: 'CmdOrCtrl+0',
+    windowArrangeLeftHalf: 'CmdOrCtrl+Left',
+    windowArrangeRightHalf: 'CmdOrCtrl+Right',
+    windowArrangeCenterHalf: 'CmdOrCtrl+Alt+C',
+    windowArrangeTopHalf: 'CmdOrCtrl+Shift+Up',
+    windowArrangeBottomHalf: 'CmdOrCtrl+Down',
+    windowArrangeTopLeft: 'CmdOrCtrl+Shift+Left',
+    windowArrangeTopRight: 'CmdOrCtrl+Alt+Right',
+    windowArrangeBottomLeft: 'CmdOrCtrl+Alt+Left',
+    windowArrangeBottomRight: 'CmdOrCtrl+Alt+Down',
+    windowArrangeFirstThird: 'CmdOrCtrl+Alt+D',
+    windowArrangeCenterThird: 'CmdOrCtrl+Alt+F',
+    windowArrangeLastThird: 'CmdOrCtrl+Alt+G',
+    windowArrangeFirstTwoThirds: 'CmdOrCtrl+Alt+E',
+    windowArrangeLastTwoThirds: 'CmdOrCtrl+Alt+T',
 };
 
 const SETTINGS_DEFAULTS = {
