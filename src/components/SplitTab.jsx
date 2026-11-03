@@ -22,6 +22,8 @@ export default function SplitTab({
   onContextMenu,
   displayMode = 'full',
   pinnedTabCount = 0,
+  tabCount = 1,
+  onDetachTab,
 }) {
   const dispatch = useDispatch();
   const currentTabId = useSelector(s => s.browser.currentTabId);
@@ -54,12 +56,15 @@ export default function SplitTab({
   // Tab drag hook keyed to the compound tab
   const tabRef = useTabDrag({
     id: leftTabId,
+    tab: leftTab,
     onSwitchTab: handleSwitchTab,
     onDragEnd: handleDragEnd,
     onHideTooltip: () => {},
     isPinned: false,
     pinnedTabCount,
     isActive,
+    tabCount,
+    onDetachTab,
   });
 
   const getFavicon = (tab) => {

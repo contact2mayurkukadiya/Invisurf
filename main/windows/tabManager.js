@@ -1035,8 +1035,9 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
         // A detached prewarmed NTP is not a tab yet.  Its lifecycle events
         // must not reach Redux, which creates UI entries for unknown IDs.
         if (options.prewarm && !view._invisurfPromoted) return;
-        if (!context.window || context.window.isDestroyed() || context.window.webContents.isDestroyed()) return;
-        context.window.webContents.send(channel, payload);
+        const currentCtx = getWindowContextByTabId(id) || context;
+        if (!currentCtx.window || currentCtx.window.isDestroyed() || currentCtx.window.webContents.isDestroyed()) return;
+        currentCtx.window.webContents.send(channel, payload);
     };
 
     view.webContents.on('destroyed', () => {
@@ -1301,19 +1302,21 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
     });
 
     view.webContents.on('update-target-url', (event, targetUrl) => {
-        if (context.activeTabId !== id && context.activeTabId !== view._invisurfCurrentId) return;
+        const currentCtx = getWindowContextByTabId(id) || context;
+        if (currentCtx.activeTabId !== id && currentCtx.activeTabId !== view._invisurfCurrentId) return;
         const { updateStatusBubble } = require('./overlayManager');
-        updateStatusBubble(context, targetUrl);
+        updateStatusBubble(currentCtx, targetUrl);
     });
 
     view.webContents.on('page-title-updated', (e, title) => {
-        if (!context.window || context.window.isDestroyed() || context.window.webContents.isDestroyed()) return;
+        const currentCtx = getWindowContextByTabId(id) || context;
+        if (!currentCtx.window || currentCtx.window.isDestroyed() || currentCtx.window.webContents.isDestroyed()) return;
         const { toDisplayUrl, isInternalPageUrl } = require('../utils/navigation');
         const currentDisplayUrl = toDisplayUrl(view.webContents.getURL());
         sendTabEvent(C.IPC_EVENT.TAB_UPDATE, { id, title, url: currentDisplayUrl });
         if (!effectiveStealth && currentDisplayUrl && !currentDisplayUrl.startsWith('data:') && !isInternalPageUrl(currentDisplayUrl)) {
             if (State.historyService) {
-                State.historyService.updateTitle(context.profileId, currentDisplayUrl, title).catch((err) => {
+                State.historyService.updateTitle(currentCtx.profileId, currentDisplayUrl, title).catch((err) => {
                     console.error('Failed to update history title:', err);
                 });
             }
@@ -1322,16 +1325,18 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
 
     view.webContents.on('page-favicon-updated', (e, favicons) => {
         view._favicon = favicons[0] || null;
-        if (!context.window || context.window.isDestroyed() || context.window.webContents.isDestroyed()) return;
+        const currentCtx = getWindowContextByTabId(id) || context;
+        if (!currentCtx.window || currentCtx.window.isDestroyed() || currentCtx.window.webContents.isDestroyed()) return;
         const { toDisplayUrl } = require('../utils/navigation');
         sendTabEvent(C.IPC_EVENT.TAB_UPDATE, { id, favicon: favicons[0] || null, url: toDisplayUrl(view.webContents.getURL()) });
     });
 
     view.webContents.on('did-start-loading', () => {
-        if (!context.window || context.window.isDestroyed() || context.window.webContents.isDestroyed()) return;
-        if (context.activeTabId === id) {
+        const currentCtx = getWindowContextByTabId(id) || context;
+        if (!currentCtx.window || currentCtx.window.isDestroyed() || currentCtx.window.webContents.isDestroyed()) return;
+        if (currentCtx.activeTabId === id) {
             const { hideStatusBubble } = require('./overlayManager');
-            hideStatusBubble(context);
+            hideStatusBubble(currentCtx);
         }
         resetTabWebContentsScale(view);
         const { toDisplayUrl } = require('../utils/navigation');
@@ -1339,7 +1344,8 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
     });
 
     view.webContents.on('did-stop-loading', () => {
-        if (!context.window || context.window.isDestroyed() || context.window.webContents.isDestroyed()) return;
+        const currentCtx = getWindowContextByTabId(id) || context;
+        if (!currentCtx.window || currentCtx.window.isDestroyed() || currentCtx.window.webContents.isDestroyed()) return;
         const { toDisplayUrl } = require('../utils/navigation');
         const zoomFactor = typeof view.webContents.getZoomFactor === 'function' ? view.webContents.getZoomFactor() : 1.0;
         sendTabEvent(C.IPC_EVENT.TAB_UPDATE, { id, isLoading: false, url: toDisplayUrl(view.webContents.getURL()), zoomFactor });
@@ -1534,7 +1540,8 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
         if (errorCode === -3) {
             // net::ERR_ABORTED: Navigation was cancelled/aborted (e.g. user pressed Cmd+R or stopped navigation).
             // Re-assert current URL and stop loading state so the omnibox and UI synchronize.
-            if (!context.window || context.window.isDestroyed() || context.window.webContents.isDestroyed()) return;
+            const currentCtx = getWindowContextByTabId(id) || context;
+            if (!currentCtx.window || currentCtx.window.isDestroyed() || currentCtx.window.webContents.isDestroyed()) return;
             const { toDisplayUrl } = require('../utils/navigation');
             const currentUrl = toDisplayUrl(view.webContents.getURL());
             sendTabEvent(C.IPC_EVENT.URL_CHANGED, { id, url: currentUrl });

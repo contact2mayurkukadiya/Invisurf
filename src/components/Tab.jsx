@@ -13,6 +13,8 @@ export default function Tab({
   onContextMenu,
   displayMode = 'full',
   pinnedTabCount = 0,
+  tabCount = 1,
+  onDetachTab,
 }) {
   const { url, title, favicon, isNewTab, isStealth, isLoading, isPinned } = tab || {};
   const invsurfLogoFavicon = useInvsurfLogoFaviconUrl();
@@ -22,12 +24,15 @@ export default function Tab({
 
   const tabRef = useTabDrag({
     id,
+    tab,
     onSwitchTab: handleSwitchTab,
     onDragEnd: handleDragEnd,
     onHideTooltip,
     isPinned: !!isPinned,
     pinnedTabCount,
     isActive,
+    tabCount,
+    onDetachTab,
   });
 
   // Resolve favicon to display

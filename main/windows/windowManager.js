@@ -49,6 +49,9 @@ function createWindow({
     ghostWindow = false,
     bounds = null,
     bootstrapPayload = null,
+    show = undefined,
+    alwaysOnTop = undefined,
+    focusable = undefined,
 } = {}) {
     const resolvedProfileId = profileId || State.defaultProfileId || `profile-${crypto.randomUUID()}`;
     ensureProfile(resolvedProfileId);
@@ -117,6 +120,8 @@ function createWindow({
                 titleBarOverlay: stealthWindow ? stealthTitleBarOverlay : getTitleBarOverlayOptionsForNativeTheme(),
             }
         ),
+        ...(typeof show === 'boolean' ? { show } : {}),
+        ...(typeof focusable === 'boolean' ? { focusable } : {}),
         ...(isGhost
             ? {
                 type: isMac ? 'panel' : undefined,
@@ -125,7 +130,13 @@ function createWindow({
                 fullscreenable: false,
                 show: false,
             }
-            : {}
+            : (alwaysOnTop
+                ? {
+                    alwaysOnTop: true,
+                    acceptFirstMouse: true,
+                }
+                : {}
+            )
         ),
         webPreferences: buildSecureWebPreferences({ partition }),
     });

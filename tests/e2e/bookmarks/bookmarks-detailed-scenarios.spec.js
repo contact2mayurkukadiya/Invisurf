@@ -28,6 +28,7 @@ test.describe('InviSurf Bookmarks Detailed Scenarios', () => {
     // 3. Obtain current tab ID and simulate web navigation to https://example.com
     const activeTab = shellWindow.locator('.tab.active');
     await expect(activeTab).toBeVisible();
+    await shellWindow.waitForTimeout(500);
 
     await shellWindow.evaluate((url) => {
       const state = window.__store?.getState?.();

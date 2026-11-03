@@ -67,3 +67,7 @@ const State = {
 };
 
 module.exports = State;
+
+if (process.env.NODE_ENV === 'test' || process.env.INVISURF_TEST_MODE === 'true') {
+    global.__invisurfState = State;
+}

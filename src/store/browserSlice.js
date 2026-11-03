@@ -174,6 +174,32 @@ const browserSlice = createSlice({
     },
 
     /**
+     * Inserts a tab at a specific index in tabOrder and activates it.
+     */
+    insertTabAt(state, action) {
+      const { index, id, url, title, favicon, isStealth = false, isLoading = false } = action.payload;
+      const resolvedUrl = url || NTP_URL;
+      const existingFavicon = state.tabs[id]?.favicon || null;
+      state.tabs[id] = {
+        url: resolvedUrl,
+        title: title || 'New Tab',
+        favicon: favicon || existingFavicon,
+        isNewTab: isNtpUrl(resolvedUrl),
+        isStealth: !!isStealth,
+        isLoading: !!isLoading,
+        isSleeping: false,
+        ...tabChromeDefaults(),
+      };
+      if (state.tabOrder.includes(id)) {
+        state.tabOrder = state.tabOrder.filter((tid) => tid !== id);
+      }
+      const safeIdx = Math.max(0, Math.min(state.tabOrder.length, Number(index) ?? state.tabOrder.length));
+      state.tabOrder.splice(safeIdx, 0, id);
+      state.currentTabId = id;
+      applyPinnedLeadingOrder(state);
+    },
+
+    /**
      * Registers a session-restored tab as sleeping: the tab strip shows the
      * saved title/favicon immediately, but no WebContentsView is created until
      * the user first activates the tab.
@@ -391,7 +417,10 @@ const browserSlice = createSlice({
         if (!state.tabOrder.includes(id)) state.tabOrder.push(id);
       }
       const tab = state.tabs[id];
-      if (url != null) tab.url = url;
+      if (url != null) {
+        tab.url = url;
+        tab.isNewTab = isNtpUrl(url);
+      }
       if (favicon != null) tab.favicon = favicon;
       if (isLoading != null) tab.isLoading = isLoading;
       if (zoomFactor != null) tab.zoomFactor = Number(zoomFactor) || 1.0;
@@ -454,6 +483,7 @@ const browserSlice = createSlice({
 export const {
   addTab,
   insertTabAfter,
+  insertTabAt,
   addSleepingTab,
   wakeTab,
   removeTab,

@@ -21,6 +21,7 @@ const tabManager = require('../windows/tabManager');
 const overlayManager = require('../windows/overlayManager');
 const sidePanelManager = require('../windows/sidePanelManager');
 const lensManager = require('../windows/lensManager');
+const tabDragManager = require('../windows/tabDragManager');
 const { getWindowContextByEventSender, getWindowContextForShellFallback, getWindowContextByChromeOverlaySender, isViewWebContentsAlive } = require('../windows/windowContextUtils');
 const { truncateMenuLabel } = require('../services/sessionService');
 
@@ -1410,6 +1411,37 @@ function registerIpcHandlers() {
         if (!isSenderTrusted(e) || !id || typeof id !== 'string') return { ok: false };
         try { return tabManager.moveTabToDetachedWindow(id, fallbackTabId); } catch (err) {
             console.error(C.IPC_INVOKE.TAB_MOVE_NEW_WINDOW, err);
+            return { ok: false };
+        }
+    });
+
+    ipcMain.handle(C.IPC_INVOKE.TAB_DRAG_DETACH, async (e, payload = {}) => {
+        if (!isSenderTrusted(e)) return { ok: false };
+        const context = getWindowContextByEventSender(e.sender);
+        if (!context) return { ok: false };
+        try {
+            return tabDragManager.startDetach(context, payload);
+        } catch (err) {
+            console.error(C.IPC_INVOKE.TAB_DRAG_DETACH, err);
+            return { ok: false };
+        }
+    });
+
+    ipcMain.on(C.IPC_SEND.TAB_DRAG_MOVE, (e, payload = {}) => {
+        if (!isSenderTrusted(e)) return;
+        try {
+            tabDragManager.handleDragMove(payload);
+        } catch (err) {
+            console.error(C.IPC_SEND.TAB_DRAG_MOVE, err);
+        }
+    });
+
+    ipcMain.handle(C.IPC_INVOKE.TAB_DRAG_END, async (e, payload = {}) => {
+        if (!isSenderTrusted(e)) return { ok: false };
+        try {
+            return tabDragManager.handleDragEnd(payload);
+        } catch (err) {
+            console.error(C.IPC_INVOKE.TAB_DRAG_END, err);
             return { ok: false };
         }
     });

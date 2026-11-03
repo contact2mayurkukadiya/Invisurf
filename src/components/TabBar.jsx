@@ -36,6 +36,7 @@ export default function TabBar({
   onCloseTab,
   onSwitchTab,
   onDragEnd,
+  onDetachTab,
   onTabStripContextMenu,
 }) {
   const tabOrder = useSelector(s => s.browser.tabOrder);
@@ -306,11 +307,13 @@ export default function TabBar({
                   isActive={currentTabId === splitPair.leftTabId || currentTabId === splitPair.rightTabId}
                   displayMode={splitDisplayMode}
                   pinnedTabCount={pinnedTabCount}
+                  tabCount={tabOrder.length}
                   onCloseLeft={() => onCloseTab(splitPair.leftTabId)}
                   onCloseRight={() => onCloseTab(splitPair.rightTabId)}
                   onClose={() => onCloseTab(id)}
                   onSwitch={onSwitchTab}
                   onDragEnd={onDragEnd}
+                  onDetachTab={onDetachTab}
                   onContextMenu={onTabStripContextMenu}
                 />
               );
@@ -324,9 +327,11 @@ export default function TabBar({
                 isActive={id === currentTabId}
                 displayMode={displayMode}
                 pinnedTabCount={pinnedTabCount}
+                tabCount={tabOrder.length}
                 onClose={() => onCloseTab(id)}
                 onSwitch={onSwitchTab}
                 onDragEnd={onDragEnd}
+                onDetachTab={onDetachTab}
                 onHoverEnter={handleTabHoverEnter}
                 onHoverLeave={hideTooltip}
                 onHideTooltip={hideTooltip}

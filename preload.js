@@ -630,6 +630,8 @@ const C = Object.freeze({
         "TAB_CAPTURE_SNAPSHOT": "tab:capture-active-snapshot",
         "TAB_PREPARE_SHELL_OVERLAY": "tab:prepare-shell-overlay",
         "TAB_MOVE_NEW_WINDOW": "tab:move-to-new-window",
+        "TAB_DRAG_DETACH": "tab:drag-detach",
+        "TAB_DRAG_END": "tab:drag-end",
         "TAB_STRIP_CONTEXT_MENU": "tab:strip-context-menu",
         "TAB_GET_INFO": "tab:get-info",
         "DEVTOOLS_UNDOCKED": "devtools:open-undocked",
@@ -688,9 +690,11 @@ const C = Object.freeze({
         "SPLIT_TAB_FOCUS_SIDE": "split-tab:focus-side",
         "SPLIT_TAB_SWAP_SIDES": "split-tab:swap-sides",
         "SPLIT_TAB_TOGGLE_STACKED": "split-tab:toggle-stacked",
-        "SPLIT_TAB_SELECT_TAB": "split-tab:select-tab"
+        "SPLIT_TAB_SELECT_TAB": "split-tab:select-tab",
+        "TAB_DRAG_MOVE": "tab:drag-move"
     },
     "IPC_EVENT": {
+        "TAB_REATTACHED": "tab:reattached",
         "URL_CHANGED": "url-changed",
         "TAB_UPDATE": "tab-update",
         "TAB_CREATED": "tab-created",
@@ -855,6 +859,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     tabSetAudioMuted: (id, muted) => ipcRenderer.send(C.IPC_SEND.TAB_SET_AUDIO_MUTED, { id, muted }),
     tabMenuSyncLabels: (payload) => ipcRenderer.send(C.IPC_SEND.TAB_MENU_SYNC, payload),
     tabMoveToNewWindow: (id, fallbackTabId) => ipcRenderer.invoke(C.IPC_INVOKE.TAB_MOVE_NEW_WINDOW, { id, fallbackTabId }),
+    tabDragDetach: (payload) => ipcRenderer.invoke(C.IPC_INVOKE.TAB_DRAG_DETACH, payload),
+    tabDragMove: (payload) => ipcRenderer.send(C.IPC_SEND.TAB_DRAG_MOVE, payload),
+    tabDragEnd: (payload) => ipcRenderer.invoke(C.IPC_INVOKE.TAB_DRAG_END, payload),
+    onTabReattached: (callback) => {
+        const handler = (_, data) => callback(data);
+        ipcRenderer.on(C.IPC_EVENT.TAB_REATTACHED, handler);
+        return () => ipcRenderer.removeListener(C.IPC_EVENT.TAB_REATTACHED, handler);
+    },
 
     // Side Panel
     sidePanelSyncState: (payload) => ipcRenderer.send(C.IPC_SEND.SIDE_PANEL_STATE_SYNC, payload),

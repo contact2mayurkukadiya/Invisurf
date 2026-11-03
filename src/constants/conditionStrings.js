@@ -368,6 +368,8 @@ export const IPC_INVOKE = freeze({
   TAB_CAPTURE_SNAPSHOT: 'tab:capture-active-snapshot',
   TAB_PREPARE_SHELL_OVERLAY: 'tab:prepare-shell-overlay',
   TAB_MOVE_NEW_WINDOW: 'tab:move-to-new-window',
+  TAB_DRAG_DETACH: 'tab:drag-detach',
+  TAB_DRAG_END: 'tab:drag-end',
   TAB_STRIP_CONTEXT_MENU: 'tab:strip-context-menu',
   TAB_GET_INFO: 'tab:get-info',
   DEVTOOLS_UNDOCKED: 'devtools:open-undocked',
@@ -429,10 +431,12 @@ export const IPC_SEND = freeze({
   SPLIT_TAB_SWAP_SIDES: 'split-tab:swap-sides',
   SPLIT_TAB_TOGGLE_STACKED: 'split-tab:toggle-stacked',
   SPLIT_TAB_SELECT_TAB: 'split-tab:select-tab',
+  TAB_DRAG_MOVE: 'tab:drag-move',
 });
 
 /** IPC event channels (main → renderer) */
 export const IPC_EVENT = freeze({
+  TAB_REATTACHED: 'tab:reattached',
   URL_CHANGED: 'url-changed',
   TAB_UPDATE: 'tab-update',
   TAB_CREATED: 'tab-created',

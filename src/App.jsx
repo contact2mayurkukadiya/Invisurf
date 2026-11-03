@@ -5,6 +5,7 @@ import {
   removeTab, setCurrentTab,
   reorderTabs,
   insertTabAfter,
+  insertTabAt,
   setTabPinned,
   setTabAudioMuted,
   setShowBookmarkBar,
@@ -247,6 +248,23 @@ function AppShell() {
     dispatch(reorderTabs(newTabOrder));
     requestSessionSave();
   }, [dispatch, requestSessionSave]);
+
+  const handleDetachTab = useCallback((id) => {
+    const { tabOrder, currentTabId } = stateRef.current;
+    const isActive = currentTabId === id;
+    const remaining = tabOrder.filter((tid) => tid !== id);
+
+    dispatch(removeTab(id));
+
+    if (isActive && remaining.length > 0) {
+      const idx = tabOrder.indexOf(id);
+      const nextId = remaining[idx] ?? remaining[idx - 1];
+      if (nextId) {
+        dispatch(setCurrentTab(nextId));
+        window.electronAPI?.switchTab?.(nextId);
+      }
+    }
+  }, [dispatch]);
 
   const handleSwitchTabDir = useCallback((direction) => {
     const { tabOrder, currentTabId } = stateRef.current;
@@ -660,6 +678,22 @@ function AppShell() {
       dispatch(setBookmarks(bkData));
       if (settingsData?.searchEngine) setSearchEngine(settingsData.searchEngine);
 
+      // 1.4 Bootstrap payload for detached tabs from vertical drag
+      if (bootstrap?.detachedTab) {
+        const { id, url, title, favicon, isLoading, isStealth } = bootstrap.detachedTab;
+        hasRegisteredTabRef.current = true;
+        dispatch(insertTabAt({
+          index: 0,
+          id,
+          url,
+          title: title || 'New Tab',
+          favicon: favicon || null,
+          isLoading: !!isLoading,
+          isStealth: !!isStealth,
+        }));
+        return;
+      }
+
       // 1.5 Bootstrap payload for windows created from "Move Tab to New Window".
       if (bootstrap?.movedTab?.url) {
         const movedTabId = `tab-${Date.now()}`;
@@ -883,6 +917,48 @@ function AppShell() {
     return typeof unsub === 'function' ? unsub : undefined;
   }, [dispatch]);
 
+  // Handle cross-window tab reattaching / docking
+  useEffect(() => {
+    const unsubReattach = window.electronAPI?.onTabReattached?.((payload) => {
+      const { tab, screenX } = payload || {};
+      if (!tab?.id) return;
+      const { tabOrder, tabs } = stateRef.current;
+      if (tabs[tab.id]) return;
+
+      const container = document.querySelector('.tab-container');
+      const containerRect = container?.getBoundingClientRect();
+      let insertIndex = tabOrder.length;
+      if (containerRect) {
+        const windowLeft = window.screenX || 0;
+        const relativeX = (Number(screenX) - windowLeft) - containerRect.left;
+        const tabEls = Array.from(container.querySelectorAll('.tab'));
+        for (let i = 0; i < tabEls.length; i++) {
+          const r = tabEls[i].getBoundingClientRect();
+          const tabCenter = (r.left - containerRect.left) + r.width / 2;
+          if (relativeX < tabCenter) {
+            insertIndex = i;
+            break;
+          }
+        }
+      }
+
+      dispatch(insertTabAt({
+        index: insertIndex,
+        id: tab.id,
+        url: tab.url,
+        title: tab.title,
+        favicon: tab.favicon || null,
+        isLoading: !!tab.isLoading,
+        isStealth: !!tab.isStealth,
+      }));
+      dispatch(setCurrentTab(tab.id));
+    });
+
+    return () => {
+      if (typeof unsubReattach === 'function') unsubReattach();
+    };
+  }, [dispatch]);
+
   return (
     <>
       <div className={`header${isStealthShell ? ' header--stealth-window' : ''}${isGhostShell ? ' header--ghost-window' : ''}`}>
@@ -892,6 +968,7 @@ function AppShell() {
           onCloseTab={closeTab}
           onSwitchTab={switchTab}
           onDragEnd={handleDragEnd}
+          onDetachTab={handleDetachTab}
           onTabStripContextMenu={handleTabStripContextMenu}
         />
         <NavBar

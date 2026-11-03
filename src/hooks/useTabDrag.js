@@ -58,18 +58,21 @@ function resolveTabDragBackgroundColor(tabEl) {
  */
 export function useTabDrag({
   id,
+  tab,
   onSwitchTab,
   onDragEnd,
   onHideTooltip,
   isPinned = false,
   pinnedTabCount = 0,
   isActive = false,
+  tabCount = 1,
+  onDetachTab,
 }) {
   const tabRef = useRef(null);
 
   // Keep stable refs to callbacks so the effect never needs to re-run
   const cbRef = useRef({});
-  cbRef.current = { onSwitchTab, onDragEnd, onHideTooltip, isPinned, pinnedTabCount, isActive };
+  cbRef.current = { tab, onSwitchTab, onDragEnd, onHideTooltip, isPinned, pinnedTabCount, isActive, tabCount, onDetachTab };
 
   useEffect(() => {
     const tabEl = tabRef.current;
@@ -86,8 +89,18 @@ export function useTabDrag({
 
       if (cbRef.current.isPinned) return;
 
+      const pointerId = e.pointerId;
+
       let dragStarted = false;
+      let isDetached = false;
+      let rafId = null;
+
       const startX = e.clientX;
+      const startY = e.clientY;
+      const initialTabRect = tabEl.getBoundingClientRect();
+      const grabOffsetX = Math.max(0, e.clientX - initialTabRect.left);
+      const grabOffsetY = Math.max(0, e.clientY - initialTabRect.top);
+      const tabWidth = initialTabRect.width;
       let offsetX = 0;
 
       let originalTabs = [];
@@ -97,9 +110,27 @@ export function useTabDrag({
       let dragBackgroundColor = '';
 
       const onMove = (me) => {
+        if (isDetached) {
+          if (!rafId) {
+            const sx = me.screenX;
+            const sy = me.screenY;
+            rafId = requestAnimationFrame(() => {
+              rafId = null;
+              window.electronAPI?.tabDragMove?.({ screenX: sx, screenY: sy });
+            });
+          }
+          return;
+        }
+
+        const deltaX = me.clientX - startX;
+        const deltaY = me.clientY - startY;
+
         if (!dragStarted) {
-          if (Math.abs(me.clientX - startX) < 6) return; // dead-zone
+          if (Math.hypot(deltaX, deltaY) < 6) return; // dead-zone
           dragStarted = true;
+          try {
+            tabEl.setPointerCapture(pointerId);
+          } catch (_) {}
 
           const bar = tabEl.closest('.tab-bar');
           originalTabs = Array.from(bar.querySelectorAll('.tab'));
@@ -110,7 +141,7 @@ export function useTabDrag({
           // Disable tab transitions during drag/drop to avoid jitter on cleanup.
           originalTabs.forEach((t) => { t.style.transition = 'none'; });
 
-          const rect = originalRects[draggingIndex];
+          const rect = originalRects[draggingIndex] || initialTabRect;
           offsetX = me.clientX - rect.left;
           tabEl.classList.add('tab-dragging');
           dragBackgroundColor = resolveTabDragBackgroundColor(tabEl);
@@ -119,12 +150,53 @@ export function useTabDrag({
           window._draggingTabId = id;
         }
 
+        // Check vertical detachment threshold (35px)
+        if (!isDetached && Math.abs(deltaY) > 35) {
+          isDetached = true;
+
+          // Clear transforms on remaining tabs
+          originalTabs.forEach((t) => {
+            t.style.transform = '';
+            t.style.transition = '';
+            t.style.zIndex = '';
+          });
+          tabEl.classList.remove('tab-dragging');
+          tabEl.style.backgroundColor = '';
+          const barEl = tabEl.closest('.tab-bar');
+          if (barEl) barEl.classList.remove('tab-bar--dragging');
+
+          const count = cbRef.current.tabCount ?? originalTabs.length;
+          const isSingle = count <= 1;
+          const currentTab = cbRef.current.tab;
+
+          window.electronAPI?.tabDragDetach?.({
+            tabId: id,
+            screenX: me.screenX,
+            screenY: me.screenY,
+            grabOffsetX,
+            grabOffsetY,
+            tabWidth,
+            isSingleTab: isSingle,
+            tabData: currentTab ? {
+              url: currentTab.url,
+              title: currentTab.title,
+              favicon: currentTab.favicon || null,
+              isLoading: !!currentTab.isLoading,
+            } : undefined,
+          });
+
+          if (!isSingle) {
+            cbRef.current.onDetachTab?.(id);
+          }
+          return;
+        }
+
         // ── Constrain to tab container bounds ────────────────────────────
         const container = tabEl.closest('.tab-container');
         const boundsRect = container ? container.getBoundingClientRect() : tabEl.closest('.tab-bar').getBoundingClientRect();
-        const tabW = originalRects[draggingIndex].width;
+        const tabW = originalRects[draggingIndex]?.width || tabWidth;
         const newX = Math.max(boundsRect.left, Math.min(me.clientX - offsetX, boundsRect.right - tabW));
-        const dragDx = newX - originalRects[draggingIndex].left;
+        const dragDx = newX - (originalRects[draggingIndex]?.left || initialTabRect.left);
 
         // ── Determine new target index ───────────────────────────────────
         let targetIndex = draggingIndex;
@@ -141,7 +213,7 @@ export function useTabDrag({
         finalTargetIndex = targetIndex;
 
         // ── Animate via transform (no DOM reorder during drag) ───────────
-        const draggedWidthWithGap = originalRects[draggingIndex].width + 5;
+        const draggedWidthWithGap = (originalRects[draggingIndex]?.width || tabWidth) + 5;
         originalTabs.forEach((t, i) => {
           if (i === draggingIndex) {
             t.style.transform = `translateX(${dragDx}px)`;
@@ -158,9 +230,28 @@ export function useTabDrag({
         });
       };
 
-      const onUp = () => {
+      const onUp = (me) => {
         document.removeEventListener('pointermove', onMove);
         document.removeEventListener('pointerup', onUp);
+        document.removeEventListener('pointercancel', onUp);
+
+        try {
+          tabEl.releasePointerCapture(pointerId);
+        } catch (_) {}
+
+        if (rafId) {
+          cancelAnimationFrame(rafId);
+          rafId = null;
+        }
+
+        if (isDetached) {
+          window.electronAPI?.tabDragEnd?.({
+            screenX: me?.screenX || 0,
+            screenY: me?.screenY || 0,
+          });
+          window._draggingTabId = null;
+          return;
+        }
 
         if (dragStarted) {
           const didReorder = finalTargetIndex !== -1 && finalTargetIndex !== draggingIndex;
@@ -209,8 +300,6 @@ export function useTabDrag({
         tabEl.style.backgroundColor = '';
         const barEl = tabEl.closest('.tab-bar');
         if (barEl) {
-          // Keep slider transition disabled until post-drop layout settles,
-          // preventing a visual jump from the pre-drop slot.
           window.requestAnimationFrame(() => {
             window.requestAnimationFrame(() => {
               barEl.classList.remove('tab-bar--dragging');
@@ -222,6 +311,7 @@ export function useTabDrag({
 
       document.addEventListener('pointermove', onMove);
       document.addEventListener('pointerup', onUp);
+      document.addEventListener('pointercancel', onUp);
     };
 
     // Middle-click closes
@@ -236,7 +326,7 @@ export function useTabDrag({
       tabEl.removeEventListener('pointerdown', handlePointerDown);
       tabEl.removeEventListener('mousedown', handleMouseDown);
     };
-  }, [id, isPinned, pinnedTabCount, isActive]);
+  }, [id]);
 
   return tabRef;
 }
