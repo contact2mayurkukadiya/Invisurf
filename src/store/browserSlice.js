@@ -245,6 +245,74 @@ const browserSlice = createSlice({
       state.tabOrder = state.tabOrder.filter(tid => tid !== id);
     },
 
+    /**
+     * Detaches an entire split tab (both tabs and split pair) cleanly from state
+     * without un-merging or leaving an orphaned tab behind.
+     */
+    detachSplitTab(state, action) {
+      const splitId = action.payload;
+      let pair = state.splitGroups[splitId];
+      if (!pair) {
+        pair = Object.values(state.splitGroups || {}).find(
+          (p) => p.id === splitId || p.leftTabId === splitId || p.rightTabId === splitId
+        );
+      }
+      if (!pair) return;
+      const { leftTabId, rightTabId, id } = pair;
+      delete state.splitGroups[id];
+      if (leftTabId) {
+        delete state.tabs[leftTabId];
+        state.tabOrder = state.tabOrder.filter(tid => tid !== leftTabId);
+      }
+      if (rightTabId) {
+        delete state.tabs[rightTabId];
+        state.tabOrder = state.tabOrder.filter(tid => tid !== rightTabId);
+      }
+    },
+
+    /**
+     * Inserts an entire split tab (both tabs and splitPair configuration)
+     * at a specific position in tabOrder.
+     */
+    insertSplitTabAt(state, action) {
+      const { index, splitPair, leftTab, rightTab } = action.payload || {};
+      if (!splitPair || !leftTab?.id) return;
+
+      const safeIndex = Math.max(0, Math.min(index ?? state.tabOrder.length, state.tabOrder.length));
+
+      state.tabs[leftTab.id] = {
+        ...tabChromeDefaults(),
+        url: leftTab.url,
+        title: leftTab.title || 'New Tab',
+        favicon: leftTab.favicon || null,
+        isNewTab: isNtpUrl(leftTab.url),
+        isStealth: !!leftTab.isStealth,
+        isLoading: !!leftTab.isLoading,
+        splitPairId: splitPair.id,
+      };
+
+      if (rightTab?.id) {
+        state.tabs[rightTab.id] = {
+          ...tabChromeDefaults(),
+          url: rightTab.url,
+          title: rightTab.title || 'New Tab',
+          favicon: rightTab.favicon || null,
+          isNewTab: isNtpUrl(rightTab.url),
+          isStealth: !!rightTab.isStealth,
+          isLoading: !!rightTab.isLoading,
+          splitPairId: splitPair.id,
+        };
+        state.tabOrder.splice(safeIndex, 0, leftTab.id, rightTab.id);
+      } else {
+        state.tabOrder.splice(safeIndex, 0, leftTab.id);
+      }
+
+      state.splitGroups[splitPair.id] = { ...splitPair };
+
+      const activeId = (splitPair.focusedSide === 'right' && rightTab?.id) ? rightTab.id : leftTab.id;
+      state.currentTabId = activeId;
+    },
+
     setSplitGroup(state, action) {
       const { splitId, pair } = action.payload || {};
       const targetSplitId = splitId || pair?.id;
@@ -303,10 +371,8 @@ const browserSlice = createSlice({
         if (old.leftTabId && state.tabs[old.leftTabId]) {
           state.tabs[old.leftTabId].splitPairId = null;
         }
-        if (old.rightTabId) {
-          if (state.tabs[old.rightTabId]) {
-            state.tabs[old.rightTabId].splitPairId = null;
-          }
+        if (old.rightTabId && state.tabs[old.rightTabId]) {
+          state.tabs[old.rightTabId].splitPairId = null;
           // Crucial: ensure rightTabId is guaranteed in tabOrder immediately adjacent to leftTabId
           const leftIdx = state.tabOrder.indexOf(old.leftTabId);
           const rightIdx = state.tabOrder.indexOf(old.rightTabId);
@@ -330,6 +396,7 @@ const browserSlice = createSlice({
             delete state.splitGroups[gid];
           }
         }
+        state.tabOrder = state.tabOrder.filter(tid => !!state.tabs[tid]);
       }
     },
 
@@ -406,16 +473,7 @@ const browserSlice = createSlice({
 
     updateTab(state, action) {
       const { id, title, favicon, isLoading, url, zoomFactor } = action.payload;
-      if (!state.tabs[id]) {
-        state.tabs[id] = {
-          url: NTP_URL,
-          isNewTab: true,
-          isStealth: false,
-          isLoading: false,
-          ...tabChromeDefaults(),
-        };
-        if (!state.tabOrder.includes(id)) state.tabOrder.push(id);
-      }
+      if (!state.tabs[id]) return;
       const tab = state.tabs[id];
       if (url != null) {
         tab.url = url;
@@ -432,16 +490,7 @@ const browserSlice = createSlice({
 
     updateTabUrl(state, action) {
       const { id, url } = action.payload;
-      if (!state.tabs[id]) {
-        state.tabs[id] = {
-          url: NTP_URL,
-          isNewTab: true,
-          isStealth: false,
-          isLoading: false,
-          ...tabChromeDefaults(),
-        };
-        if (!state.tabOrder.includes(id)) state.tabOrder.push(id);
-      }
+      if (!state.tabs[id]) return;
       const tab = state.tabs[id];
       tab.url = url;
       // NTP (empty omnibox) vs real navigations — e.g. clearing invisurf://settings + Enter.
@@ -505,6 +554,8 @@ export const {
   setPinnedPanels,
   setSplitGroup,
   removeSplitGroup,
+  detachSplitTab,
+  insertSplitTabAt,
   setSplitRatio,
   setSplitFocusedSide,
   swapSplitSides,

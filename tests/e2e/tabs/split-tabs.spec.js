@@ -679,6 +679,173 @@ test.describe('Split Tabs E2E Verification', () => {
     await expect(leftSnapshotImg).toHaveCount(0);
     await expect(rightSnapshotImg).toHaveCount(0);
   });
+
+  test('dragging a split tab vertically down detaches it as a compound split tab into a new window and reattaches as a split tab', async ({ invisurfApp }) => {
+    const { shellWindow, app } = invisurfApp;
+    shellWindow.on('console', msg => console.log('SHELL CONSOLE:', msg.text()));
+    shellWindow.on('pageerror', err => console.log('SHELL ERROR:', err));
+    app.process().stdout.on('data', chunk => console.log('MAIN STDOUT:', chunk.toString()));
+    app.process().stderr.on('data', chunk => console.log('MAIN STDERR:', chunk.toString()));
+
+    // 1. Initial window has 1 tab. Add a second tab so we can merge them into a split tab.
+    const addTabBtn = shellWindow.locator('#add-tab');
+    await expect(addTabBtn).toBeVisible({ timeout: 10000 });
+    await addTabBtn.click();
+    await expect(shellWindow.locator('.tab')).toHaveCount(2);
+
+    // Add a third tab so when split tab is detached, source window still has 1 regular tab remaining (multi-tab detach)
+    await addTabBtn.click();
+    await expect(shellWindow.locator('.tab')).toHaveCount(3);
+
+    const initialTabs = shellWindow.locator('.tab');
+    const all3 = await initialTabs.evaluateAll(tabs => tabs.map(t => t.getAttribute('data-tab-id')));
+    console.log('INITIAL 3 TABS:', all3);
+    const firstTabId = all3[0];
+    const secondTabId = all3[1];
+
+    // Merge first and second tabs into a split view
+    await shellWindow.evaluate(([t1, t2]) => {
+      window.electronAPI?.splitTabEnter?.(t1, t2);
+    }, [firstTabId, secondTabId]);
+    await shellWindow.waitForTimeout(600);
+
+    // Verify split compound tab is active
+    const splitTab = shellWindow.locator('.split-compound-tab');
+    await expect(splitTab).toBeVisible({ timeout: 5000 });
+    const leftMiniTab = splitTab.locator('.split-mini-tab--left');
+    const rightMiniTab = splitTab.locator('.split-mini-tab--right');
+    await expect(leftMiniTab).toBeVisible();
+    await expect(rightMiniTab).toBeVisible();
+
+    // Source window tab bar now shows: 1 split tab + 1 regular tab
+    await expect(shellWindow.locator('.split-compound-tab')).toHaveCount(1);
+    await expect(shellWindow.locator('.tab:not(.split-compound-tab)')).toHaveCount(1);
+
+    // 2. Perform vertical drag downwards on the split tab
+    const splitTabBox = await splitTab.boundingBox();
+    expect(splitTabBox).not.toBeNull();
+    const startX = splitTabBox.x + splitTabBox.width / 2;
+    const startY = splitTabBox.y + splitTabBox.height / 2;
+
+    await shellWindow.mouse.move(startX, startY);
+    await shellWindow.mouse.down();
+    await shellWindow.mouse.move(startX, startY + 70, { steps: 5 });
+    await shellWindow.waitForTimeout(400);
+
+    // 3. Verify a new BrowserWindow has spawned while drag is still active (mouse is down)
+    await expect.poll(async () => {
+      return app.windows().filter(w => w.url().includes('index.html')).length;
+    }, { timeout: 8000 }).toBe(2);
+
+    const allWindows = app.windows().filter(w => w.url().includes('index.html'));
+    const newWindow = allWindows.find(w => w !== shellWindow);
+    expect(newWindow).toBeTruthy();
+
+    // Verify that WHILE DRAGGING (before mouse.up), the new window ALREADY displays the split compound tab,
+    // and does NOT show two separate unmerged tabs!
+    await expect(newWindow.locator('.split-compound-tab')).toBeVisible({ timeout: 5000 });
+    await expect(newWindow.locator('.split-compound-tab .split-mini-tab--left')).toBeVisible();
+    await expect(newWindow.locator('.split-compound-tab .split-mini-tab--right')).toBeVisible();
+    await expect(newWindow.locator('.tab:not(.split-compound-tab)')).toHaveCount(0);
+
+    // Capture screenshot proving the detached window shows the split tab while drag is still in progress
+    const duringDragArtifactPath = '/Users/mayurkukadiya/.gemini/antigravity/brain/f8b869e1-e4ee-45cd-8ac6-946bc7cff6ab/during-drag-split-tab.png';
+    await newWindow.screenshot({ path: duringDragArtifactPath });
+
+    await shellWindow.mouse.up();
+    await shellWindow.waitForTimeout(500);
+
+    // 4. Verify original window:
+    // Split tab is removed, only the 3rd regular tab remains
+    await expect(shellWindow.locator('.split-compound-tab')).toHaveCount(0);
+    const shellTabsInfo = await shellWindow.evaluate(() => {
+      return Array.from(document.querySelectorAll('.tab')).map(el => ({
+        id: el.id,
+        className: el.className,
+        text: el.innerText,
+        dataTabId: el.getAttribute('data-tab-id'),
+      }));
+    });
+    console.log('SHELL TABS INFO AFTER DETACH:', JSON.stringify(shellTabsInfo, null, 2));
+    const reduxState = await shellWindow.evaluate(() => {
+      const state = window.__store?.getState?.()?.browser;
+      return {
+        tabOrder: state?.tabOrder,
+        tabs: Object.keys(state?.tabs || {}),
+        splitGroups: state?.splitGroups,
+      };
+    });
+    console.log('REDUX STATE IN SHELL AFTER DETACH:', JSON.stringify(reduxState, null, 2));
+    await expect(shellWindow.locator('.tab')).toHaveCount(1);
+
+    // 5. Verify new detached window:
+    // MUST contain the compound split tab with both left and right mini tabs! NOT unmerged!
+    const detachedSplitTab = newWindow.locator('.split-compound-tab');
+    await expect(detachedSplitTab).toBeVisible({ timeout: 5000 });
+    await expect(detachedSplitTab.locator('.split-mini-tab--left')).toBeVisible();
+    await expect(detachedSplitTab.locator('.split-mini-tab--right')).toBeVisible();
+
+    // Verify split divider exists in the new window
+    await expect(newWindow.locator('.split-divider')).toBeVisible({ timeout: 5000 });
+
+    // Capture screenshot of detached window with split tab intact
+    const artifactPath = '/Users/mayurkukadiya/.gemini/antigravity/brain/f8b869e1-e4ee-45cd-8ac6-946bc7cff6ab/detached-split-tab.png';
+    await newWindow.screenshot({ path: artifactPath });
+
+    // 6. Now drag the split tab from newWindow back to shellWindow's tab bar to reattach
+    const newSplitBox = await detachedSplitTab.boundingBox();
+    expect(newSplitBox).not.toBeNull();
+
+    const shellBounds = await shellWindow.evaluate(() => ({
+      x: window.screenX,
+      y: window.screenY,
+      width: window.outerWidth,
+      height: window.outerHeight,
+    }));
+
+    const targetScreenX = shellBounds.x + 350;
+    const targetScreenY = shellBounds.y + 25;
+
+    await newWindow.mouse.move(newSplitBox.x + newSplitBox.width / 2, newSplitBox.y + newSplitBox.height / 2);
+    await newWindow.mouse.down();
+    await newWindow.mouse.move(newSplitBox.x + newSplitBox.width / 2, newSplitBox.y + 70, { steps: 5 });
+
+    await newWindow.evaluate(({ targetScreenX, targetScreenY }) => {
+      window.electronAPI.tabDragMove({ screenX: targetScreenX, screenY: targetScreenY });
+      window.electronAPI.tabDragEnd();
+    }, { targetScreenX, targetScreenY }).catch(() => {});
+
+    await shellWindow.waitForTimeout(800);
+
+    // 7. Verify shellWindow now has BOTH the regular tab AND the reattached split tab intact
+    await expect(shellWindow.locator('.split-compound-tab')).toHaveCount(1);
+    await expect(shellWindow.locator('.split-compound-tab .split-mini-tab--left')).toBeVisible();
+    await expect(shellWindow.locator('.split-compound-tab .split-mini-tab--right')).toBeVisible();
+    await expect(shellWindow.locator('.tab:not(.split-compound-tab)')).toHaveCount(1);
+
+    // 8. Verify switching to the other regular tab and back to the split tab maintains the split state cleanly without bugs
+    const otherRegularTab = shellWindow.locator('.tab:not(.split-compound-tab)').first();
+    await otherRegularTab.click();
+    await shellWindow.waitForTimeout(300);
+    await expect(shellWindow.locator('.split-compound-tab')).not.toHaveClass(/active/);
+
+    // Switch back to split tab
+    await shellWindow.locator('.split-compound-tab').click();
+    await shellWindow.waitForTimeout(300);
+    await expect(shellWindow.locator('.split-compound-tab')).toHaveClass(/active/);
+    await expect(shellWindow.locator('.split-compound-tab .split-mini-tab--left')).toBeVisible();
+    await expect(shellWindow.locator('.split-compound-tab .split-mini-tab--right')).toBeVisible();
+
+    // Capture screenshot of reattached and switched split tab
+    const reattachedArtifactPath = '/Users/mayurkukadiya/.gemini/antigravity/brain/f8b869e1-e4ee-45cd-8ac6-946bc7cff6ab/reattached-split-tab.png';
+    await shellWindow.screenshot({ path: reattachedArtifactPath });
+
+    // Clean up if newWindow still exists
+    const remainingWindows = app.windows().filter(w => w.url().includes('index.html') && w !== shellWindow);
+    for (const w of remainingWindows) {
+      await w.close().catch(() => {});
+    }
+  });
 });
 
 

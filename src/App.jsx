@@ -16,6 +16,8 @@ import {
   setSidePanelCustomUrl,
   setSplitGroup,
   removeSplitGroup,
+  detachSplitTab,
+  insertSplitTabAt,
   swapSplitSides,
   toggleSplitStacked,
 } from './store/browserSlice';
@@ -249,8 +251,30 @@ function AppShell() {
     requestSessionSave();
   }, [dispatch, requestSessionSave]);
 
-  const handleDetachTab = useCallback((id) => {
-    const { tabOrder, currentTabId } = stateRef.current;
+  const handleDetachTab = useCallback((id, splitPair) => {
+    const { tabOrder, currentTabId, splitGroups } = stateRef.current;
+    const pair = splitPair || (splitGroups && Object.values(splitGroups).find(p => p.leftTabId === id || p.rightTabId === id));
+
+    if (pair) {
+      const leftId = pair.leftTabId;
+      const rightId = pair.rightTabId;
+      const wasActive = currentTabId === leftId || currentTabId === rightId;
+      const toRemove = [leftId, rightId].filter(Boolean);
+      const remaining = tabOrder.filter((tid) => !toRemove.includes(tid));
+
+      dispatch(detachSplitTab(pair.id));
+
+      if (wasActive && remaining.length > 0) {
+        const leftIdx = tabOrder.indexOf(leftId);
+        const nextId = remaining[leftIdx] ?? remaining[leftIdx - 1] ?? remaining[0];
+        if (nextId) {
+          dispatch(setCurrentTab(nextId));
+          window.electronAPI?.switchTab?.(nextId);
+        }
+      }
+      return;
+    }
+
     const isActive = currentTabId === id;
     const remaining = tabOrder.filter((tid) => tid !== id);
 
@@ -679,6 +703,18 @@ function AppShell() {
       if (settingsData?.searchEngine) setSearchEngine(settingsData.searchEngine);
 
       // 1.4 Bootstrap payload for detached tabs from vertical drag
+      if (bootstrap?.detachedSplit) {
+        const { splitPair, leftTab, rightTab } = bootstrap.detachedSplit;
+        hasRegisteredTabRef.current = true;
+        dispatch(insertSplitTabAt({
+          index: 0,
+          splitPair,
+          leftTab,
+          rightTab,
+        }));
+        return;
+      }
+
       if (bootstrap?.detachedTab) {
         const { id, url, title, favicon, isLoading, isStealth } = bootstrap.detachedTab;
         hasRegisteredTabRef.current = true;
@@ -920,7 +956,38 @@ function AppShell() {
   // Handle cross-window tab reattaching / docking
   useEffect(() => {
     const unsubReattach = window.electronAPI?.onTabReattached?.((payload) => {
-      const { tab, screenX } = payload || {};
+      const { tab, splitPair, leftTab, rightTab, screenX } = payload || {};
+
+      if (splitPair && leftTab?.id) {
+        const { tabOrder, tabs } = stateRef.current;
+        if (tabs[leftTab.id]) return;
+
+        const container = document.querySelector('.tab-container');
+        const containerRect = container?.getBoundingClientRect();
+        let insertIndex = tabOrder.length;
+        if (containerRect) {
+          const windowLeft = window.screenX || 0;
+          const relativeX = (Number(screenX) - windowLeft) - containerRect.left;
+          const tabEls = Array.from(container.querySelectorAll('.tab'));
+          for (let i = 0; i < tabEls.length; i++) {
+            const r = tabEls[i].getBoundingClientRect();
+            const tabCenter = (r.left - containerRect.left) + r.width / 2;
+            if (relativeX < tabCenter) {
+              insertIndex = i;
+              break;
+            }
+          }
+        }
+
+        dispatch(insertSplitTabAt({
+          index: insertIndex,
+          splitPair,
+          leftTab,
+          rightTab,
+        }));
+        return;
+      }
+
       if (!tab?.id) return;
       const { tabOrder, tabs } = stateRef.current;
       if (tabs[tab.id]) return;

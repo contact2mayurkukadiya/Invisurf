@@ -14,6 +14,13 @@ const test = base.extend({
   invisurfApp: async ({}, use) => {
     const tempUserData = fs.mkdtempSync(path.join(os.tmpdir(), 'invisurf-test-data-'));
 
+    const testEnv = {
+      ...process.env,
+      NODE_ENV: 'test',
+      INVISURF_TEST_MODE: 'true',
+    };
+    delete testEnv.ELECTRON_RUN_AS_NODE;
+
     const electronApp = await electron.launch({
       args: [
         path.join(__dirname, '..', '..', '..'),
@@ -21,11 +28,7 @@ const test = base.extend({
         '--no-sandbox',
         '--disable-gpu',
       ],
-      env: {
-        ...process.env,
-        NODE_ENV: 'test',
-        INVISURF_TEST_MODE: 'true',
-      },
+      env: testEnv,
     });
 
     // InviSurf launches the "Choose profile" picker window first

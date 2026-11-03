@@ -7,6 +7,7 @@ const { test, describe, after, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
 
 const State = require('../../../main/state');
+const C = require('../../../src/constants/conditionStrings.cjs');
 const tabDragManager = require('../../../main/windows/tabDragManager');
 
 describe('TabDragManager Unit Tests', () => {
@@ -153,7 +154,12 @@ describe('TabDragManager Unit Tests', () => {
 
     try {
       const sourceContext = {
-        window: { id: 101, isDestroyed: () => false },
+        window: {
+          id: 101,
+          isDestroyed: () => false,
+          getContentBounds: () => ({ x: 0, y: 0, width: 1000, height: 700 }),
+          getBounds: () => ({ x: 0, y: 0, width: 1000, height: 700 }),
+        },
         tabOrder: ['tab-1', 'tab-2'],
         tabs: {
           'tab-1': { webContents: { isDestroyed: () => false, getURL: () => 'https://example.com', getTitle: () => 'Example' } },
@@ -197,6 +203,262 @@ describe('TabDragManager Unit Tests', () => {
       assert.ok(calls.some(c => c[0] === 'focus'));
     } finally {
       windowManager.createWindow = origCreateWindow;
+    }
+  });
+
+  test('startDetach detaches split tabs as a compound pair in multi-tab window', () => {
+    const windowManager = require('../../../main/windows/windowManager');
+    const origCreateWindow = windowManager.createWindow;
+
+    let createdPayload = null;
+    const mockDetachedWin = {
+      id: 601,
+      isDestroyed: () => false,
+      getContentBounds: () => ({ x: 0, y: 0, width: 1000, height: 700 }),
+      getBounds: () => ({ x: 0, y: 0, width: 1000, height: 700 }),
+      isFullScreen: () => false,
+      setAlwaysOnTop: () => {},
+      setFocusable: () => {},
+      showInactive: () => {},
+      moveTop: () => {},
+      setPosition: () => {},
+      focus: () => {},
+    };
+
+    windowManager.createWindow = (opts) => {
+      createdPayload = opts.bootstrapPayload;
+      return {
+        window: mockDetachedWin,
+        windowId: 'win-detached-601',
+        tabs: {},
+      };
+    };
+
+    try {
+      const splitPair = { id: 'pair-1', leftTabId: 'left-1', rightTabId: 'right-1', ratio: 0.5 };
+      const leftView = {
+        setBounds: () => {},
+        webContents: { isDestroyed: () => false, getURL: () => 'https://left.com', getTitle: () => 'Left', id: 701 },
+      };
+      const rightView = {
+        setBounds: () => {},
+        webContents: { isDestroyed: () => false, getURL: () => 'https://right.com', getTitle: () => 'Right', id: 702 },
+      };
+
+      const sourceContext = {
+        window: {
+          id: 101,
+          isDestroyed: () => false,
+          isFullScreen: () => false,
+          getContentBounds: () => ({ x: 0, y: 0, width: 1000, height: 700 }),
+          getBounds: () => ({ x: 0, y: 0, width: 1000, height: 700 }),
+          webContents: {
+            isDestroyed: () => false,
+            send: () => {},
+          },
+        },
+        tabOrder: ['left-1', 'right-1', 'normal-3'],
+        tabs: {
+          'left-1': leftView,
+          'right-1': rightView,
+          'normal-3': {
+            setBounds: () => {},
+            webContents: {
+              isDestroyed: () => false,
+              getURL: () => 'https://other.com',
+              getTitle: () => 'Other',
+              id: 703,
+              focus: () => {},
+              getZoomFactor: () => 1.0,
+            },
+          },
+        },
+        splitPairs: new Map([['pair-1', splitPair]]),
+        profileId: 'default',
+        stealthWindow: false,
+        activeTabId: 'left-1',
+      };
+
+      const res = tabDragManager.startDetach(sourceContext, {
+        tabId: 'left-1',
+        splitPair,
+        rightTabData: { id: 'right-1', title: 'Right', url: 'https://right.com' },
+        screenX: 400,
+        screenY: 200,
+      });
+
+      assert.ok(res.ok);
+      assert.ok(createdPayload);
+      assert.ok(createdPayload.detachedSplit);
+      assert.strictEqual(createdPayload.detachedSplit.splitPair.id, 'pair-1');
+      assert.strictEqual(createdPayload.detachedSplit.leftTab.id, 'left-1');
+      assert.strictEqual(createdPayload.detachedSplit.rightTab.id, 'right-1');
+
+      // Both tabs and splitPair should be removed from sourceContext
+      assert.strictEqual(sourceContext.tabs['left-1'], undefined);
+      assert.strictEqual(sourceContext.tabs['right-1'], undefined);
+      assert.deepStrictEqual(sourceContext.tabOrder, ['normal-3']);
+      assert.strictEqual(sourceContext.splitPairs.has('pair-1'), false);
+      assert.strictEqual(sourceContext.activeTabId, 'normal-3');
+
+      // Active drag should hold splitPair info
+      const active = tabDragManager.getActiveDrag();
+      assert.ok(active);
+      assert.ok(active.splitPair);
+      assert.strictEqual(active.splitPair.id, 'pair-1');
+      assert.strictEqual(active.leftTabId, 'left-1');
+      assert.strictEqual(active.rightTabId, 'right-1');
+    } finally {
+      windowManager.createWindow = origCreateWindow;
+      tabDragManager.handleDragEnd();
+    }
+  });
+
+  test('startDetach handles single split tab window by translating window directly', () => {
+    let positionSet = null;
+    const singleWin = {
+      id: 701,
+      isDestroyed: () => false,
+      setPosition: (x, y) => { positionSet = { x, y }; },
+    };
+
+    const splitPair = { id: 'pair-single', leftTabId: 's-left', rightTabId: 's-right', ratio: 0.5 };
+    const sourceContext = {
+      window: singleWin,
+      tabOrder: ['s-left', 's-right'],
+      tabs: {
+        's-left': { webContents: { isDestroyed: () => false, getURL: () => 'https://a.com', getTitle: () => 'A', id: 801 } },
+        's-right': { webContents: { isDestroyed: () => false, getURL: () => 'https://b.com', getTitle: () => 'B', id: 802 } },
+      },
+      splitPairs: new Map([['pair-single', splitPair]]),
+      profileId: 'default',
+      stealthWindow: false,
+    };
+
+    const res = tabDragManager.startDetach(sourceContext, {
+      tabId: 's-left',
+      splitPair,
+      rightTabData: { id: 's-right', title: 'B', url: 'https://b.com' },
+      screenX: 200,
+      screenY: 200,
+      grabOffsetX: 40,
+      grabOffsetY: 15,
+      isSingleTab: true,
+    });
+
+    assert.ok(res.ok);
+    assert.strictEqual(res.isSingleTab, true);
+
+    const active = tabDragManager.getActiveDrag();
+    assert.ok(active);
+    assert.strictEqual(active.isSingleTabDrag, true);
+    assert.ok(active.splitPair);
+    assert.strictEqual(active.splitPair.id, 'pair-single');
+
+    tabDragManager.handleDragEnd();
+  });
+
+  test('dockTabIntoWindow docks split tab into target window as a split pair', () => {
+    const splitPair = { id: 'pair-dock', leftTabId: 'd-left', rightTabId: 'd-right', ratio: 0.5 };
+    const leftView = {
+      setBounds: () => {},
+      webContents: { isDestroyed: () => false, getURL: () => 'https://left.com', getTitle: () => 'Left', id: 901 },
+    };
+    const rightView = {
+      setBounds: () => {},
+      webContents: { isDestroyed: () => false, getURL: () => 'https://right.com', getTitle: () => 'Right', id: 902 },
+    };
+
+    const detachedWin = {
+      id: 888,
+      isDestroyed: () => false,
+      isFullScreen: () => false,
+      getContentBounds: () => ({ x: 0, y: 0, width: 1000, height: 700 }),
+      getBounds: () => ({ x: 0, y: 0, width: 1000, height: 700 }),
+      hide: () => {},
+      setAlwaysOnTop: () => {},
+    };
+
+    const detachedContext = {
+      window: detachedWin,
+      windowId: 'win-detached-888',
+      tabs: { 'd-left': leftView, 'd-right': rightView },
+      tabOrder: ['d-left', 'd-right'],
+      splitPairs: new Map([['pair-dock', splitPair]]),
+    };
+
+    const sentIpc = [];
+    const targetWin = {
+      id: 999,
+      isDestroyed: () => false,
+      isFullScreen: () => false,
+      getContentBounds: () => ({ x: 0, y: 0, width: 1000, height: 700 }),
+      getBounds: () => ({ x: 0, y: 0, width: 1000, height: 700 }),
+      webContents: {
+        isDestroyed: () => false,
+        send: (channel, data) => { sentIpc.push({ channel, data }); },
+      },
+    };
+
+    const targetContext = {
+      window: targetWin,
+      windowId: 'win-target-999',
+      tabs: { 'existing-1': { webContents: { isDestroyed: () => false, id: 903 } } },
+      tabOrder: ['existing-1'],
+      splitPairs: new Map(),
+      profileId: 'default',
+      stealthWindow: false,
+    };
+
+    const windowManager = require('../../../main/windows/windowManager');
+    const origCreateWindow = windowManager.createWindow;
+    windowManager.createWindow = () => detachedContext;
+
+    try {
+      const sourceContext = {
+        window: {
+          id: 101,
+          isDestroyed: () => false,
+          getContentBounds: () => ({ x: 0, y: 0, width: 1000, height: 700 }),
+          getBounds: () => ({ x: 0, y: 0, width: 1000, height: 700 }),
+        },
+        tabOrder: ['d-left', 'd-right', 'extra'],
+        tabs: { 'd-left': leftView, 'd-right': rightView, 'extra': {} },
+        splitPairs: new Map([['pair-dock', splitPair]]),
+      };
+
+      tabDragManager.startDetach(sourceContext, {
+        tabId: 'd-left',
+        splitPair,
+        rightTabData: { id: 'd-right', title: 'Right', url: 'https://right.com' },
+        screenX: 100,
+        screenY: 100,
+      });
+
+      tabDragManager.dockTabIntoWindow(targetContext, 250, 50);
+
+      const active = tabDragManager.getActiveDrag();
+      assert.ok(active);
+      assert.strictEqual(active.isDocked, true);
+      assert.strictEqual(active.currentContext, targetContext);
+
+      // Verify targetContext has both tabs and split pair
+      assert.ok(targetContext.tabs['d-left']);
+      assert.ok(targetContext.tabs['d-right']);
+      assert.ok(targetContext.tabOrder.includes('d-left'));
+      assert.ok(targetContext.tabOrder.includes('d-right'));
+      assert.ok(targetContext.splitPairs.has('pair-dock'));
+
+      // Verify TAB_REATTACHED IPC was sent with splitPair
+      const reattachMsg = sentIpc.find(m => m.channel === C.IPC_EVENT.TAB_REATTACHED);
+      assert.ok(reattachMsg);
+      assert.ok(reattachMsg.data.splitPair);
+      assert.strictEqual(reattachMsg.data.splitPair.id, 'pair-dock');
+      assert.strictEqual(reattachMsg.data.leftTab.id, 'd-left');
+      assert.strictEqual(reattachMsg.data.rightTab.id, 'd-right');
+    } finally {
+      windowManager.createWindow = origCreateWindow;
+      tabDragManager.handleDragEnd();
     }
   });
 });

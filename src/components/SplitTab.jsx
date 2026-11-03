@@ -57,6 +57,8 @@ export default function SplitTab({
   const tabRef = useTabDrag({
     id: leftTabId,
     tab: leftTab,
+    splitPair,
+    rightTab,
     onSwitchTab: handleSwitchTab,
     onDragEnd: handleDragEnd,
     onHideTooltip: () => {},

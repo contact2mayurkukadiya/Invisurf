@@ -307,7 +307,7 @@ export default function TabBar({
                   isActive={currentTabId === splitPair.leftTabId || currentTabId === splitPair.rightTabId}
                   displayMode={splitDisplayMode}
                   pinnedTabCount={pinnedTabCount}
-                  tabCount={tabOrder.length}
+                  tabCount={visibleTabOrder.length}
                   onCloseLeft={() => onCloseTab(splitPair.leftTabId)}
                   onCloseRight={() => onCloseTab(splitPair.rightTabId)}
                   onClose={() => onCloseTab(id)}
@@ -327,7 +327,7 @@ export default function TabBar({
                 isActive={id === currentTabId}
                 displayMode={displayMode}
                 pinnedTabCount={pinnedTabCount}
-                tabCount={tabOrder.length}
+                tabCount={visibleTabOrder.length}
                 onClose={() => onCloseTab(id)}
                 onSwitch={onSwitchTab}
                 onDragEnd={onDragEnd}

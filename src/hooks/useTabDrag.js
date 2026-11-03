@@ -59,6 +59,8 @@ function resolveTabDragBackgroundColor(tabEl) {
 export function useTabDrag({
   id,
   tab,
+  splitPair,
+  rightTab,
   onSwitchTab,
   onDragEnd,
   onHideTooltip,
@@ -72,7 +74,7 @@ export function useTabDrag({
 
   // Keep stable refs to callbacks so the effect never needs to re-run
   const cbRef = useRef({});
-  cbRef.current = { tab, onSwitchTab, onDragEnd, onHideTooltip, isPinned, pinnedTabCount, isActive, tabCount, onDetachTab };
+  cbRef.current = { tab, splitPair, rightTab, onSwitchTab, onDragEnd, onHideTooltip, isPinned, pinnedTabCount, isActive, tabCount, onDetachTab };
 
   useEffect(() => {
     const tabEl = tabRef.current;
@@ -168,6 +170,8 @@ export function useTabDrag({
           const count = cbRef.current.tabCount ?? originalTabs.length;
           const isSingle = count <= 1;
           const currentTab = cbRef.current.tab;
+          const currentSplitPair = cbRef.current.splitPair;
+          const currentRightTab = cbRef.current.rightTab;
 
           window.electronAPI?.tabDragDetach?.({
             tabId: id,
@@ -183,10 +187,17 @@ export function useTabDrag({
               favicon: currentTab.favicon || null,
               isLoading: !!currentTab.isLoading,
             } : undefined,
+            splitPair: currentSplitPair ? { ...currentSplitPair } : undefined,
+            rightTabData: currentRightTab ? {
+              url: currentRightTab.url,
+              title: currentRightTab.title,
+              favicon: currentRightTab.favicon || null,
+              isLoading: !!currentRightTab.isLoading,
+            } : undefined,
           });
 
           if (!isSingle) {
-            cbRef.current.onDetachTab?.(id);
+            cbRef.current.onDetachTab?.(id, currentSplitPair);
           }
           return;
         }

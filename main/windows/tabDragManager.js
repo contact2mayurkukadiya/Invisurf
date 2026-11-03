@@ -44,23 +44,36 @@ function startDetach(sourceContext, payload = {}) {
         grabOffsetY = 20,
         isSingleTab = false,
         tabData: clientTabData = null,
+        splitPair: clientSplitPair = null,
+        rightTabData: clientRightTabData = null,
     } = payload;
 
     if (!tabId || typeof tabId !== 'string') return { ok: false };
 
     const tabManager = require('./tabManager');
     const windowManager = require('./windowManager');
+    const splitTabManager = require('./splitTabManager');
 
-    const tabCount = Array.isArray(sourceContext.tabOrder) ? sourceContext.tabOrder.length : 0;
-    const isSingle = typeof isSingleTab === 'boolean' ? isSingleTab : tabCount <= 1;
+    const splitPair = clientSplitPair || splitTabManager.getSplitPairByTabId(sourceContext, tabId);
+    const isSplit = !!splitPair;
+    const leftTabId = isSplit ? splitPair.leftTabId : tabId;
+    const rightTabId = isSplit ? splitPair.rightTabId : null;
+
+    const nonSplitTabs = Array.isArray(sourceContext.tabOrder)
+        ? sourceContext.tabOrder.filter((tid) => tid !== leftTabId && tid !== rightTabId)
+        : [];
+    const isSingle = isSplit
+        ? (isSingleTab === true || nonSplitTabs.length === 0)
+        : (typeof isSingleTab === 'boolean' ? isSingleTab : ((sourceContext.tabOrder?.length || 0) <= 1));
 
     try {
         if (typeof tabManager.activateOrWakeTab === 'function') {
-            tabManager.activateOrWakeTab(tabId);
+            tabManager.activateOrWakeTab(leftTabId);
         }
     } catch (_) { }
 
-    const view = sourceContext.tabs?.[tabId] || null;
+    const leftView = sourceContext.tabs?.[leftTabId] || null;
+    const view = leftView;
 
     let url = clientTabData?.url || '';
     let title = clientTabData?.title || '';
@@ -68,21 +81,21 @@ function startDetach(sourceContext, payload = {}) {
     let isLoading = clientTabData?.isLoading ?? false;
     let history = null;
 
-    if (view && view.webContents && (typeof view.webContents.isDestroyed !== 'function' || !view.webContents.isDestroyed())) {
-        url = typeof view.webContents.getURL === 'function' ? view.webContents.getURL() : url;
-        title = typeof view.webContents.getTitle === 'function' ? view.webContents.getTitle() : title;
-        if (view._favicon) {
-            favicon = view._favicon;
+    if (leftView && leftView.webContents && (typeof leftView.webContents.isDestroyed !== 'function' || !leftView.webContents.isDestroyed())) {
+        url = typeof leftView.webContents.getURL === 'function' ? leftView.webContents.getURL() : url;
+        title = typeof leftView.webContents.getTitle === 'function' ? leftView.webContents.getTitle() : title;
+        if (leftView._favicon) {
+            favicon = leftView._favicon;
         }
-        if (typeof view.webContents.isLoading === 'function') {
-            isLoading = view.webContents.isLoading();
+        if (typeof leftView.webContents.isLoading === 'function') {
+            isLoading = leftView.webContents.isLoading();
         }
         try {
             const { captureNavigationHistorySnapshot } = require('../services/sessionService');
-            history = captureNavigationHistorySnapshot(view.webContents);
+            history = captureNavigationHistorySnapshot(leftView.webContents);
         } catch (_) { }
-    } else if (sourceContext.sleepingTabs?.[tabId]) {
-        const sleep = sourceContext.sleepingTabs[tabId];
+    } else if (sourceContext.sleepingTabs?.[leftTabId]) {
+        const sleep = sourceContext.sleepingTabs[leftTabId];
         url = sleep.url || url;
         title = sleep.title || title;
         favicon = sleep.favicon || favicon;
@@ -96,8 +109,8 @@ function startDetach(sourceContext, payload = {}) {
         url = clientTabData.url;
     }
 
-    const tabData = {
-        id: tabId,
+    const leftTabData = {
+        id: leftTabId,
         url: toDisplayUrl(url),
         title: title || 'New Tab',
         favicon: favicon || null,
@@ -105,6 +118,57 @@ function startDetach(sourceContext, payload = {}) {
         isStealth: !!sourceContext.stealthWindow,
         history,
     };
+
+    let rightView = null;
+    let rightTabData = null;
+    if (isSplit && rightTabId) {
+        try {
+            if (typeof tabManager.activateOrWakeTab === 'function') {
+                tabManager.activateOrWakeTab(rightTabId);
+            }
+        } catch (_) { }
+
+        rightView = sourceContext.tabs?.[rightTabId] || null;
+        let rUrl = clientRightTabData?.url || '';
+        let rTitle = clientRightTabData?.title || '';
+        let rFavicon = clientRightTabData?.favicon || null;
+        let rIsLoading = clientRightTabData?.isLoading ?? false;
+        let rHistory = null;
+
+        if (rightView && rightView.webContents && (typeof rightView.webContents.isDestroyed !== 'function' || !rightView.webContents.isDestroyed())) {
+            rUrl = typeof rightView.webContents.getURL === 'function' ? rightView.webContents.getURL() : rUrl;
+            rTitle = typeof rightView.webContents.getTitle === 'function' ? rightView.webContents.getTitle() : rTitle;
+            if (rightView._favicon) {
+                rFavicon = rightView._favicon;
+            }
+            if (typeof rightView.webContents.isLoading === 'function') {
+                rIsLoading = rightView.webContents.isLoading();
+            }
+            try {
+                const { captureNavigationHistorySnapshot } = require('../services/sessionService');
+                rHistory = captureNavigationHistorySnapshot(rightView.webContents);
+            } catch (_) { }
+        } else if (sourceContext.sleepingTabs?.[rightTabId]) {
+            const sleep = sourceContext.sleepingTabs[rightTabId];
+            rUrl = sleep.url || rUrl;
+            rTitle = sleep.title || rTitle;
+            rFavicon = sleep.favicon || rFavicon;
+            rHistory = sleep.history || null;
+        }
+
+        if (!rTitle && clientRightTabData?.title) rTitle = clientRightTabData.title;
+        if (!rUrl && clientRightTabData?.url) rUrl = clientRightTabData.url;
+
+        rightTabData = {
+            id: rightTabId,
+            url: toDisplayUrl(rUrl),
+            title: rTitle || 'New Tab',
+            favicon: rFavicon || null,
+            isLoading: !!rIsLoading,
+            isStealth: !!sourceContext.stealthWindow,
+            history: rHistory,
+        };
+    }
 
     // Case 1: Single tab window - drag moves the entire window directly
     if (isSingle) {
@@ -119,12 +183,19 @@ function startDetach(sourceContext, payload = {}) {
 
         activeDrag = {
             tabId,
+            splitPair: isSplit ? { ...splitPair } : null,
+            leftTabId,
+            rightTabId,
+            leftTabData,
+            rightTabData,
+            leftView,
+            rightView,
             sourceContext,
             currentContext: sourceContext,
             detachedWindow: sourceContext.window,
             detachedContext: sourceContext,
-            tabData,
-            view,
+            tabData: leftTabData,
+            view: leftView,
             grabOffsetX: Number(grabOffsetX) || 50,
             grabOffsetY: Number(grabOffsetY) || 20,
             isSingleTabDrag: true,
@@ -133,7 +204,139 @@ function startDetach(sourceContext, payload = {}) {
         return { ok: true, isSingleTab: true };
     }
 
-    // Detach view from source context
+    // Case 2: Multi-tab window detachment
+    if (isSplit) {
+        try {
+            if (leftView) tabManager.removeTabContentChildView(sourceContext, leftView);
+        } catch (_) { }
+        try {
+            if (rightView) tabManager.removeTabContentChildView(sourceContext, rightView);
+        } catch (_) { }
+
+        delete sourceContext.tabs?.[leftTabId];
+        delete sourceContext.sleepingTabs?.[leftTabId];
+        if (rightTabId) {
+            delete sourceContext.tabs?.[rightTabId];
+            delete sourceContext.sleepingTabs?.[rightTabId];
+        }
+        if (Array.isArray(sourceContext.tabOrder)) {
+            sourceContext.tabOrder = sourceContext.tabOrder.filter((tid) => tid !== leftTabId && tid !== rightTabId);
+        }
+        if (sourceContext.splitPairs) {
+            sourceContext.splitPairs.delete(splitPair.id);
+        }
+        splitTabManager.broadcastSplitUpdate(sourceContext, { id: splitPair.id }, { removed: true });
+
+        // If active tab was in the split pair, switch source context to next adjacent tab
+        if (sourceContext.activeTabId === leftTabId || sourceContext.activeTabId === rightTabId) {
+            const remainingTabs = sourceContext.tabOrder || [];
+            const nextId = remainingTabs[0] || null;
+            if (nextId) {
+                tabManager.activateTabInContext(sourceContext, nextId);
+            } else {
+                sourceContext.activeTabId = null;
+            }
+        }
+
+        try {
+            require('./lensManager').destroyLensSession(sourceContext, leftTabId);
+            if (rightTabId) require('./lensManager').destroyLensSession(sourceContext, rightTabId);
+        } catch (_) { }
+
+        const padLeft = getTabStripPaddingLeft();
+        const targetX = Math.round(screenX - (Number(grabOffsetX) || 50) - padLeft);
+        const targetY = Math.round(screenY - (Number(grabOffsetY) || 20) - 5);
+
+        const bootstrapPayload = {
+            detachedSplit: {
+                splitPair: { ...splitPair },
+                leftTab: leftTabData,
+                rightTab: rightTabData,
+            },
+        };
+
+        const targetContext = windowManager.createWindow({
+            profileId: sourceContext.profileId,
+            stealthWindow: sourceContext.stealthWindow,
+            bounds: {
+                x: targetX,
+                y: targetY,
+                width: 1100,
+                height: 750,
+            },
+            bootstrapPayload,
+            show: false,
+            focusable: false,
+            alwaysOnTop: true,
+        });
+
+        if (!targetContext?.window || targetContext.window.isDestroyed()) {
+            return { ok: false };
+        }
+
+        try {
+            if (typeof targetContext.window.setAlwaysOnTop === 'function') {
+                targetContext.window.setAlwaysOnTop(true, 'floating');
+            }
+            if (typeof targetContext.window.setFocusable === 'function') {
+                targetContext.window.setFocusable(false);
+            }
+            if (typeof targetContext.window.showInactive === 'function') {
+                targetContext.window.showInactive();
+            }
+            if (typeof targetContext.window.moveTop === 'function') {
+                targetContext.window.moveTop();
+            }
+        } catch (_) { }
+
+        if (!targetContext.tabs) targetContext.tabs = {};
+        if (leftView && !leftView.webContents.isDestroyed()) {
+            targetContext.tabs[leftTabId] = leftView;
+            State.tabIdToWindowId.set(leftTabId, targetContext.window.id);
+            State.webContentsIdToTabId.set(leftView.webContents.id, leftTabId);
+            tabManager.addTabContentChildView(targetContext, leftView);
+        }
+        if (rightTabId && rightView && !rightView.webContents.isDestroyed()) {
+            targetContext.tabs[rightTabId] = rightView;
+            State.tabIdToWindowId.set(rightTabId, targetContext.window.id);
+            State.webContentsIdToTabId.set(rightView.webContents.id, rightTabId);
+            tabManager.addTabContentChildView(targetContext, rightView);
+        }
+
+        if (!targetContext.splitPairs) targetContext.splitPairs = new Map();
+        targetContext.splitPairs.set(splitPair.id, { ...splitPair });
+        targetContext.tabOrder = rightTabId ? [leftTabId, rightTabId] : [leftTabId];
+
+        const activeTabId = (splitPair.focusedSide === 'right' && rightTabId) ? rightTabId : leftTabId;
+        targetContext.activeTabId = activeTabId;
+
+        splitTabManager.layoutSplitTabViews(targetContext, splitPair);
+
+        activeDrag = {
+            tabId,
+            splitPair: { ...splitPair },
+            leftTabId,
+            rightTabId,
+            leftTabData,
+            rightTabData,
+            leftView,
+            rightView,
+            sourceContext,
+            currentContext: targetContext,
+            detachedWindow: targetContext.window,
+            detachedContext: targetContext,
+            tabData: leftTabData,
+            view: leftView,
+            grabOffsetX: Number(grabOffsetX) || 50,
+            grabOffsetY: Number(grabOffsetY) || 20,
+            isSingleTabDrag: false,
+            isDocked: false,
+        };
+
+        return { ok: true, detachedWindowId: targetContext.windowId };
+    }
+
+    // Detach single normal view from source context
     try {
         if (view) tabManager.removeTabContentChildView(sourceContext, view);
     } catch (_) { }
@@ -335,6 +538,7 @@ function dockTabIntoWindow(targetContext, screenX, screenY) {
     if (activeDrag.currentContext === targetContext && activeDrag.isDocked) return;
 
     const tabManager = require('./tabManager');
+    const splitTabManager = require('./splitTabManager');
 
     // Hide temporary detached window while docked
     if (activeDrag.detachedWindow && !activeDrag.detachedWindow.isDestroyed()) {
@@ -344,6 +548,90 @@ function dockTabIntoWindow(targetContext, screenX, screenY) {
             }
             activeDrag.detachedWindow.hide();
         } catch (_) { }
+    }
+
+    if (activeDrag.splitPair) {
+        const { splitPair, leftTabId, rightTabId, leftView, rightView, leftTabData, rightTabData } = activeDrag;
+
+        // Remove from current context
+        if (activeDrag.currentContext) {
+            try {
+                if (leftView) tabManager.removeTabContentChildView(activeDrag.currentContext, leftView);
+                if (rightView) tabManager.removeTabContentChildView(activeDrag.currentContext, rightView);
+                delete activeDrag.currentContext.tabs?.[leftTabId];
+                if (rightTabId) delete activeDrag.currentContext.tabs?.[rightTabId];
+                if (Array.isArray(activeDrag.currentContext.tabOrder)) {
+                    activeDrag.currentContext.tabOrder = activeDrag.currentContext.tabOrder.filter(tid => tid !== leftTabId && tid !== rightTabId);
+                }
+                if (activeDrag.currentContext.splitPairs) {
+                    activeDrag.currentContext.splitPairs.delete(splitPair.id);
+                }
+            } catch (_) { }
+        }
+
+        // Remove any full-screen view from targetContext so it doesn't linger under split view
+        if (targetContext.tabs) {
+            for (const tid of Object.keys(targetContext.tabs)) {
+                if (tid !== leftTabId && tid !== rightTabId) {
+                    try {
+                        tabManager.removeTabContentChildView(targetContext, targetContext.tabs[tid]);
+                    } catch (_) { }
+                }
+            }
+        }
+
+        // Add to target context
+        if (!targetContext.tabs) targetContext.tabs = {};
+        if (!Array.isArray(targetContext.tabOrder)) targetContext.tabOrder = [];
+
+        if (leftView && !leftView.webContents.isDestroyed()) {
+            targetContext.tabs[leftTabId] = leftView;
+            State.tabIdToWindowId.set(leftTabId, targetContext.window.id);
+            State.webContentsIdToTabId.set(leftView.webContents.id, leftTabId);
+            if (!targetContext.tabOrder.includes(leftTabId)) targetContext.tabOrder.push(leftTabId);
+            tabManager.addTabContentChildView(targetContext, leftView);
+        }
+
+        if (rightTabId && rightView && !rightView.webContents.isDestroyed()) {
+            targetContext.tabs[rightTabId] = rightView;
+            State.tabIdToWindowId.set(rightTabId, targetContext.window.id);
+            State.webContentsIdToTabId.set(rightView.webContents.id, rightTabId);
+            if (!targetContext.tabOrder.includes(rightTabId)) targetContext.tabOrder.push(rightTabId);
+            tabManager.addTabContentChildView(targetContext, rightView);
+        }
+
+        if (!targetContext.splitPairs) targetContext.splitPairs = new Map();
+        targetContext.splitPairs.set(splitPair.id, { ...splitPair });
+
+        const activeId = (splitPair.focusedSide === 'right' && rightTabId) ? rightTabId : leftTabId;
+        targetContext.activeTabId = activeId;
+
+        splitTabManager.layoutSplitTabViews(targetContext, splitPair);
+
+        // Update live favicons / loading state if available
+        if (leftView && !leftView.webContents.isDestroyed() && leftTabData) {
+            if (leftView._favicon) leftTabData.favicon = leftView._favicon;
+            if (typeof leftView.webContents.isLoading === 'function') leftTabData.isLoading = leftView.webContents.isLoading();
+        }
+        if (rightView && !rightView.webContents.isDestroyed() && rightTabData) {
+            if (rightView._favicon) rightTabData.favicon = rightView._favicon;
+            if (typeof rightView.webContents.isLoading === 'function') rightTabData.isLoading = rightView.webContents.isLoading();
+        }
+
+        if (targetContext.window.webContents && !targetContext.window.webContents.isDestroyed()) {
+            targetContext.window.webContents.send(C.IPC_EVENT.TAB_REATTACHED, {
+                splitPair,
+                leftTab: leftTabData,
+                rightTab: rightTabData,
+                screenX,
+                screenY,
+            });
+            splitTabManager.broadcastSplitUpdate(targetContext, splitPair);
+        }
+
+        activeDrag.currentContext = targetContext;
+        activeDrag.isDocked = true;
+        return;
     }
 
     // Transfer WebContentsView to target context
@@ -407,6 +695,81 @@ function undockTabToDetachedWindow(screenX, screenY) {
     if (!activeDrag || !activeDrag.isDocked || !activeDrag.detachedContext) return;
 
     const tabManager = require('./tabManager');
+    const splitTabManager = require('./splitTabManager');
+
+    if (activeDrag.splitPair) {
+        const { splitPair, leftTabId, rightTabId, leftView, rightView } = activeDrag;
+
+        // Remove tab from previously docked window
+        if (activeDrag.currentContext && activeDrag.currentContext !== activeDrag.detachedContext) {
+            const win = activeDrag.currentContext.window;
+            if (win && !win.isDestroyed() && win.webContents && !win.webContents.isDestroyed()) {
+                win.webContents.send('tab-closed-external', { id: leftTabId });
+                if (rightTabId) win.webContents.send('tab-closed-external', { id: rightTabId });
+            }
+            try {
+                if (leftView) tabManager.removeTabContentChildView(activeDrag.currentContext, leftView);
+                if (rightView) tabManager.removeTabContentChildView(activeDrag.currentContext, rightView);
+                delete activeDrag.currentContext.tabs?.[leftTabId];
+                if (rightTabId) delete activeDrag.currentContext.tabs?.[rightTabId];
+                if (Array.isArray(activeDrag.currentContext.tabOrder)) {
+                    activeDrag.currentContext.tabOrder = activeDrag.currentContext.tabOrder.filter(tid => tid !== leftTabId && tid !== rightTabId);
+                }
+                if (activeDrag.currentContext.splitPairs) {
+                    activeDrag.currentContext.splitPairs.delete(splitPair.id);
+                }
+            } catch (_) { }
+        }
+
+        // Transfer view back to detached window
+        if (!activeDrag.detachedContext.tabs) activeDrag.detachedContext.tabs = {};
+        if (!Array.isArray(activeDrag.detachedContext.tabOrder)) activeDrag.detachedContext.tabOrder = [];
+
+        if (leftView && !leftView.webContents.isDestroyed()) {
+            activeDrag.detachedContext.tabs[leftTabId] = leftView;
+            State.tabIdToWindowId.set(leftTabId, activeDrag.detachedContext.window.id);
+            if (!activeDrag.detachedContext.tabOrder.includes(leftTabId)) activeDrag.detachedContext.tabOrder.push(leftTabId);
+            tabManager.addTabContentChildView(activeDrag.detachedContext, leftView);
+        }
+        if (rightTabId && rightView && !rightView.webContents.isDestroyed()) {
+            activeDrag.detachedContext.tabs[rightTabId] = rightView;
+            State.tabIdToWindowId.set(rightTabId, activeDrag.detachedContext.window.id);
+            if (!activeDrag.detachedContext.tabOrder.includes(rightTabId)) activeDrag.detachedContext.tabOrder.push(rightTabId);
+            tabManager.addTabContentChildView(activeDrag.detachedContext, rightView);
+        }
+
+        if (!activeDrag.detachedContext.splitPairs) activeDrag.detachedContext.splitPairs = new Map();
+        activeDrag.detachedContext.splitPairs.set(splitPair.id, { ...splitPair });
+
+        const activeId = (splitPair.focusedSide === 'right' && rightTabId) ? rightTabId : leftTabId;
+        activeDrag.detachedContext.activeTabId = activeId;
+        splitTabManager.layoutSplitTabViews(activeDrag.detachedContext, splitPair);
+
+        // Reveal and reposition detached window, ensuring it is on top of existing windows
+        const win = activeDrag.detachedWindow;
+        if (win && !win.isDestroyed()) {
+            const padLeft = getTabStripPaddingLeft();
+            win.setPosition(
+                Math.round(screenX - activeDrag.grabOffsetX - padLeft),
+                Math.round(screenY - activeDrag.grabOffsetY - 5)
+            );
+            try {
+                if (typeof win.setAlwaysOnTop === 'function') {
+                    win.setAlwaysOnTop(true, 'floating');
+                }
+                if (typeof win.showInactive === 'function') {
+                    win.showInactive();
+                }
+                if (typeof win.moveTop === 'function') {
+                    win.moveTop();
+                }
+            } catch (_) { }
+        }
+
+        activeDrag.currentContext = activeDrag.detachedContext;
+        activeDrag.isDocked = false;
+        return;
+    }
 
     // Remove tab from previously docked window
     if (activeDrag.currentContext && activeDrag.currentContext !== activeDrag.detachedContext) {
@@ -465,7 +828,7 @@ function undockTabToDetachedWindow(screenX, screenY) {
 function handleDragEnd(payload = {}) {
     if (!activeDrag) return { ok: true };
 
-    const { isSingleTabDrag, isDocked, detachedWindow, currentContext, view } = activeDrag;
+    const { isSingleTabDrag, isDocked, detachedWindow, currentContext, view, splitPair, leftView, rightView } = activeDrag;
 
     if (isSingleTabDrag) {
         try {
@@ -493,10 +856,15 @@ function handleDragEnd(payload = {}) {
         if (currentContext?.window && !currentContext.window.isDestroyed()) {
             try {
                 currentContext.window.focus();
-                if (view && !view.webContents.isDestroyed()) {
-                    view.webContents.focus();
+                const activeFocusView = (splitPair && splitPair.focusedSide === 'right' && rightView) ? rightView : (leftView || view);
+                if (activeFocusView && !activeFocusView.webContents.isDestroyed()) {
+                    activeFocusView.webContents.focus();
                 }
-                if (currentContext.window.webContents && !currentContext.window.webContents.isDestroyed() && activeDrag.tabData?.favicon) {
+                if (splitPair) {
+                    const splitTabManager = require('./splitTabManager');
+                    splitTabManager.layoutSplitTabViews(currentContext, splitPair);
+                    splitTabManager.broadcastSplitUpdate(currentContext, splitPair);
+                } else if (currentContext.window.webContents && !currentContext.window.webContents.isDestroyed() && activeDrag.tabData?.favicon) {
                     currentContext.window.webContents.send(C.IPC_EVENT.TAB_UPDATE, {
                         id: activeDrag.tabId,
                         favicon: activeDrag.tabData.favicon,
@@ -522,10 +890,15 @@ function handleDragEnd(payload = {}) {
                     detachedWindow.show();
                 }
                 detachedWindow.focus();
-                if (view && !view.webContents.isDestroyed()) {
-                    view.webContents.focus();
+                const activeFocusView = (splitPair && splitPair.focusedSide === 'right' && rightView) ? rightView : (leftView || view);
+                if (activeFocusView && !activeFocusView.webContents.isDestroyed()) {
+                    activeFocusView.webContents.focus();
                 }
-                if (detachedWindow.webContents && !detachedWindow.webContents.isDestroyed() && activeDrag.tabData?.favicon) {
+                if (splitPair) {
+                    const splitTabManager = require('./splitTabManager');
+                    splitTabManager.layoutSplitTabViews(activeDrag.detachedContext, splitPair);
+                    splitTabManager.broadcastSplitUpdate(activeDrag.detachedContext, splitPair);
+                } else if (detachedWindow.webContents && !detachedWindow.webContents.isDestroyed() && activeDrag.tabData?.favicon) {
                     detachedWindow.webContents.send(C.IPC_EVENT.TAB_UPDATE, {
                         id: activeDrag.tabId,
                         favicon: activeDrag.tabData.favicon,
