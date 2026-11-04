@@ -12,6 +12,13 @@ test.describe('Profile Picker Flow', () => {
 
   test.beforeEach(async () => {
     tempUserData = fs.mkdtempSync(path.join(os.tmpdir(), 'invisurf-picker-test-'));
+    const testEnv = {
+      ...process.env,
+      NODE_ENV: 'test',
+      INVISURF_TEST_MODE: 'true',
+    };
+    delete testEnv.ELECTRON_RUN_AS_NODE;
+
     electronApp = await electron.launch({
       args: [
         path.join(__dirname, '..', '..', '..'),
@@ -19,11 +26,7 @@ test.describe('Profile Picker Flow', () => {
         '--no-sandbox',
         '--disable-gpu',
       ],
-      env: {
-        ...process.env,
-        NODE_ENV: 'test',
-        INVISURF_TEST_MODE: 'true',
-      },
+      env: testEnv,
     });
   });
 

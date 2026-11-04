@@ -14,6 +14,13 @@ test.describe('InviSurf Profiles Detailed Scenarios', () => {
 
   test.beforeEach(async () => {
     tempUserData = fs.mkdtempSync(path.join(os.tmpdir(), 'invisurf-profile-scenarios-'));
+    const testEnv = {
+      ...process.env,
+      NODE_ENV: 'test',
+      INVISURF_TEST_MODE: 'true',
+    };
+    delete testEnv.ELECTRON_RUN_AS_NODE;
+
     electronApp = await electron.launch({
       args: [
         path.join(__dirname, '..', '..', '..'),
@@ -21,11 +28,7 @@ test.describe('InviSurf Profiles Detailed Scenarios', () => {
         '--no-sandbox',
         '--disable-gpu',
       ],
-      env: {
-        ...process.env,
-        NODE_ENV: 'test',
-        INVISURF_TEST_MODE: 'true',
-      },
+      env: testEnv,
     });
   });
 

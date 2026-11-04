@@ -64,8 +64,8 @@ export const DEFAULT_TOOLBAR_CONFIG = Object.freeze({
   print: false,
   lens: false,
   devTools: false,
-  arrangeWindow: false,
-  transparency: false,
+  arrangeWindow: true,
+  transparency: true,
 });
 
 const getInitialToolbarConfig = () => {

@@ -266,8 +266,11 @@ export default function NavBar({
     currentProfileRef.current = activeProfile || null;
     setProfiles(nextProfiles);
     setCurrentProfile(activeProfile || null);
+    if (activeProfile?.toolbarConfig) {
+      dispatch(setToolbarConfig(activeProfile.toolbarConfig));
+    }
     return { profiles: nextProfiles, currentProfile: activeProfile || null };
-  }, []);
+  }, [dispatch]);
 
   useEffect(() => {
     loadProfiles();

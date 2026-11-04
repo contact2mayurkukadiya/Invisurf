@@ -434,7 +434,7 @@ function registerIpcHandlers() {
 
     ipcMain.handle(C.IPC_INVOKE.PROFILE_GET_TOOLBAR_CONFIG, (event, payload = {}) => {
         if (!isSenderTrusted(event)) return null;
-        const senderContext = getWindowContextByWebContents(event.sender);
+        const senderContext = getWindowContextByEventSender(event.sender);
         const pid = typeof payload?.profileId === 'string' && payload.profileId.trim()
             ? payload.profileId.trim()
             : senderContext?.profileId;
@@ -446,7 +446,7 @@ function registerIpcHandlers() {
 
     ipcMain.handle(C.IPC_INVOKE.PROFILE_SET_TOOLBAR_CONFIG, (event, payload = {}) => {
         if (!isSenderTrusted(event)) return { ok: false };
-        const senderContext = getWindowContextByWebContents(event.sender);
+        const senderContext = getWindowContextByEventSender(event.sender);
         const pid = typeof payload?.profileId === 'string' && payload.profileId.trim()
             ? payload.profileId.trim()
             : senderContext?.profileId;
