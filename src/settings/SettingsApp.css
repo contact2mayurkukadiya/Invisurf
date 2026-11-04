@@ -2275,11 +2275,11 @@ body.settings-stealth-ui .text-highlight {
 }
 
 .cookies-table--cookie-cols {
-  grid-template-columns: minmax(260px, 2fr) minmax(130px, 1fr) minmax(130px, 1fr) 72px;
+  grid-template-columns: minmax(0, 2fr) minmax(130px, 1fr) minmax(130px, 1fr) 72px;
 }
 
 .cookies-table--perm-cols {
-  grid-template-columns: minmax(260px, 2fr) minmax(180px, 1.2fr) minmax(110px, 0.8fr) 72px;
+  grid-template-columns: minmax(0, 2fr) minmax(160px, 1.2fr) minmax(110px, 0.8fr) 72px;
 }
 
 .cookies-table--header {
@@ -2360,7 +2360,25 @@ body.settings-stealth-ui .text-highlight {
   align-items: center;
   gap: 12px;
   min-width: 0;
+  max-width: 100%;
   font-weight: 500;
+  overflow: hidden;
+}
+
+.cookies-site__name,
+.cookies-site > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.cookies-table-cell--truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .cookies-site__icon-box {

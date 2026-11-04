@@ -377,7 +377,7 @@ body:has(.header--stealth-window) .side-panel-content-snapshot {
     display: flex;
     position: relative;
     padding: 5px 0px 0px 0px;
-    gap: 5px;
+    gap: 0px;
     height: 45px;
     align-items: center;
     /* border: 1px solid red; */
@@ -386,18 +386,23 @@ body:has(.header--stealth-window) .side-panel-content-snapshot {
 .tab-container {
     flex: 0 1 auto;
     min-width: 0;
-    max-width: calc(100% - 60px);
+    max-width: calc(100% - 48px);
     height: 100%;
+    overflow: visible;
+    scrollbar-width: none;
+    padding: 0px 1px 3px 10px;
+    -webkit-app-region: no-drag;
+}
+
+.tab-container.tab-container--overflow {
     overflow-x: auto;
     overflow-y: hidden;
-    scrollbar-width: none;
-    padding: 0px 10px 3px;
-    -webkit-app-region: no-drag;
 }
 
 .tab-container.tab-container--stuck {
     flex: 1 1 auto;
     width: 100%;
+    max-width: calc(100% - 48px);
 }
 
 .tab-container::-webkit-scrollbar {
@@ -421,11 +426,17 @@ body:has(.header--stealth-window) .side-panel-content-snapshot {
     min-width: 100%;
 }
 
-/* Add-tab sits immediately right of .tab-container. The 60px slack on the
-   right of .tab-container (from its max-width) hosts this button plus the
-   remaining OS drag region. */
+/* Add-tab sits immediately right of .tab-container. The 48px slack on the
+   right of .tab-container (from its max-width) hosts the separator (8px),
+   this button (32px) plus the right spacing (8px). */
 .tab-bar #add-tab {
     flex-shrink: 0;
+    margin-top: -5px;
+    margin-right: 8px;
+}
+
+.tab-bar #add-tab:not(:last-child) {
+    margin-right: 0px;
 }
 
 /* macOS — reserve space for the traffic-light buttons on the left */
@@ -509,6 +520,33 @@ body:has(.header--stealth-window) .side-panel-content-snapshot {
 
 .tab:not(.active):hover::before,
 .tab:hover+.tab:not(.active)::before {
+    opacity: 0;
+}
+
+/* ── Extra separator beside the plus icon in tab bar ─────────────────────── */
+.tab-add-separator {
+    width: 2px;
+    height: 15px;
+    background: var(--chrome-tab-separator);
+    border-radius: 1px;
+    flex-shrink: 0;
+    pointer-events: none;
+    z-index: 1;
+    margin-left: 2px;
+    margin-right: 3px;
+    margin-top: -4px;
+    transition: opacity 0.2s ease;
+}
+
+/* Remove separator beside plus button when the last tab is hovered or active */
+.tab-container:has(.tab-track > :last-child:hover) + .tab-add-separator,
+.tab-container:has(.tab-track > :last-child.active) + .tab-add-separator,
+.tab-container:has(.tab:last-child:hover) + .tab-add-separator,
+.tab-container:has(.tab:last-child.active) + .tab-add-separator,
+.tab-bar:has(.tab-track > :last-child:hover) .tab-add-separator,
+.tab-bar:has(.tab-track > :last-child.active) .tab-add-separator,
+.tab-bar:has(#add-tab:hover) .tab-add-separator,
+.tab-add-separator.tab-add-separator--hidden {
     opacity: 0;
 }
 

@@ -1312,11 +1312,11 @@ export default function SettingsApp() {
           ) : (
             sortedCookieSites.map((site) => (
               <div className="cookies-table cookies-table--row cookies-table--cookie-cols" role="row" key={site.domain}>
-                <span className="cookies-site">
+                <span className="cookies-site" title={site.domain}>
                   <span className="cookies-site__icon-box" aria-hidden="true">
                     <SiteGlobeIcon size={15} />
                   </span>
-                  <span>{site.domain}</span>
+                  <span className="cookies-site__name" title={site.domain}>{site.domain}</span>
                 </span>
                 <span>{site.count} {site.count === 1 ? 'cookie' : 'cookies'}</span>
                 <span>{formatBytes(site.storageBytes)}</span>
@@ -1588,13 +1588,13 @@ export default function SettingsApp() {
               const chip = getPermissionChipProps(item.state);
               return (
                 <div className="cookies-table cookies-table--row cookies-table--perm-cols" role="row" key={`${item.origin}-${item.permName}`}>
-                  <span className="cookies-site">
+                  <span className="cookies-site" title={item.origin}>
                     <span className="cookies-site__icon-box" aria-hidden="true">
                       <SiteGlobeIcon size={15} />
                     </span>
-                    <span style={{ fontWeight: 500 }}>{item.origin}</span>
+                    <span className="cookies-site__name" style={{ fontWeight: 500 }} title={item.origin}>{item.origin}</span>
                   </span>
-                  <span style={{ fontWeight: 500, color: 'var(--settings-text)' }}>
+                  <span className="cookies-table-cell--truncate" style={{ fontWeight: 500, color: 'var(--settings-text)' }} title={formatPermissionName(item.permName)}>
                     {formatPermissionName(item.permName)}
                   </span>
                   <span>

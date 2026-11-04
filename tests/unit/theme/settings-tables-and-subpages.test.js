@@ -200,6 +200,67 @@ describe('Settings Tables and Subpages Layout & Sorting (Playwright Automated Te
     await ctx.close();
   });
 
+  test('truncates and ellipses long extension IDs without overlapping adjacent columns', async () => {
+    const ctx = await browser.newContext({ viewport: { width: 900, height: 700 } });
+    const page = await ctx.newPage();
+
+    const longExtOrigin = 'chrome-extension://liecbddmkiihnedobmlmillhodjkdmb';
+
+    await page.addInitScript(({ longOrigin }) => {
+      window.cookieAPI = {
+        getCookieTree: async () => [],
+      };
+      window.permissionAPI = {
+        getAll: async () => [
+          {
+            origin: longOrigin,
+            permissions: {
+              camera: { state: 'allow', lastUpdated: Date.now() },
+            },
+          },
+        ],
+        resetPermission: async () => ({ ok: true }),
+        resetAll: async () => ({ ok: true }),
+      };
+    }, { longOrigin: longExtOrigin });
+
+    await page.goto(fileUrl);
+    await page.waitForSelector('.settings-sidebar-item', { timeout: 3000 });
+
+    // Navigate to Privacy -> Site settings and permissions
+    await page.locator('.settings-sidebar-item', { hasText: 'Privacy and security' }).click();
+    await page.locator('.settings-link-row', { hasText: 'Site settings and permissions' }).click();
+
+    const siteSpan = page.locator('.cookies-site .cookies-site__name');
+    await assert.doesNotReject(siteSpan.waitFor({ state: 'visible', timeout: 3000 }));
+
+    // Verify title attribute has full origin
+    const titleAttr = await siteSpan.getAttribute('title');
+    assert.equal(titleAttr, longExtOrigin);
+
+    // Verify computed styles: text-overflow is ellipsis, overflow is hidden, white-space is nowrap
+    const styles = await siteSpan.evaluate((el) => {
+      const computed = window.getComputedStyle(el);
+      return {
+        textOverflow: computed.textOverflow,
+        overflow: computed.overflow,
+        whiteSpace: computed.whiteSpace,
+      };
+    });
+    assert.equal(styles.textOverflow, 'ellipsis');
+    assert.equal(styles.overflow, 'hidden');
+    assert.equal(styles.whiteSpace, 'nowrap');
+
+    // Verify bounding box does not overlap permission column
+    const siteBox = await page.locator('.cookies-site').boundingBox();
+    const permCol = page.locator('.cookies-table--row > span:nth-child(2)');
+    const permBox = await permCol.boundingBox();
+
+    assert.ok(siteBox.x + siteBox.width <= permBox.x + 2, 'Site origin must not overlap into the permission column');
+
+    await ctx.close();
+  });
+
   test('closes browser instance', async () => {
     if (browser) {
       await browser.close();
