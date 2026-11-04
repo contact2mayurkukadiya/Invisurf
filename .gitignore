@@ -9,3 +9,8 @@ Prompts/*
 Testing-Extensions/*
 # Playwright CLI output (may contain credentials)
 .playwright-cli/
+
+# Test output & artifacts
+test-results/
+tests/reports/
+
