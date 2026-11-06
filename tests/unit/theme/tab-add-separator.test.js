@@ -2,6 +2,7 @@
 
 const { describe, test, after } = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('fs');
 const path = require('path');
 const { chromium } = require('playwright');
 
@@ -154,7 +155,9 @@ describe('Tab Add Separator UI (Playwright Automated Test)', () => {
     assert.equal(opacity, '1', 'Separator should be visible when the last tab is not active and not hovered');
 
     // Capture visual proof of separator beside plus button
-    const screenshotPath = path.join(ROOT, 'tab-add-separator.png');
+    const screenshotDir = path.join(ROOT, 'test-results', 'screenshots');
+    if (!fs.existsSync(screenshotDir)) fs.mkdirSync(screenshotDir, { recursive: true });
+    const screenshotPath = path.join(screenshotDir, 'tab-add-separator.png');
     await page.locator('.tab-bar').screenshot({ path: screenshotPath });
 
     // Now hover over the last tab near the plus icon

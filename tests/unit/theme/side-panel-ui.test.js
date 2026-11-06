@@ -2,14 +2,17 @@
 
 const { describe, test, after } = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('fs');
 const path = require('path');
 const { chromium } = require('playwright');
 
 describe('Chrome Side Panel UI (Playwright Automated Test)', () => {
   const ROOT = path.resolve(__dirname, '../../..');
   const indexUrl = 'file://' + path.join(ROOT, 'renderer/dist/index.html');
+  const screenshotDir = path.join(ROOT, 'test-results', 'screenshots');
+  if (!fs.existsSync(screenshotDir)) fs.mkdirSync(screenshotDir, { recursive: true });
   const artifactScreenshot = path.join(
-    ROOT,
+    screenshotDir,
     'side-panel-reading-list.png'
   );
 

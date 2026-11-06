@@ -2,13 +2,16 @@
 
 const { describe, test, after } = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('fs');
 const path = require('path');
 const { chromium } = require('playwright');
 
 describe('Customize Toolbar & Sidebar UI (Playwright Automated Test)', () => {
   const ROOT = path.resolve(__dirname, '../../..');
   const indexUrl = 'file://' + path.join(ROOT, 'renderer/dist/index.html');
-  const screenshotPath = path.join(ROOT, 'customize-toolbar-sidebar.png');
+  const screenshotDir = path.join(ROOT, 'test-results', 'screenshots');
+  if (!fs.existsSync(screenshotDir)) fs.mkdirSync(screenshotDir, { recursive: true });
+  const screenshotPath = path.join(screenshotDir, 'customize-toolbar-sidebar.png');
 
   let browser;
 
