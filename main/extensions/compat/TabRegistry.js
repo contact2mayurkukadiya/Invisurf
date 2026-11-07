@@ -37,35 +37,49 @@ class TabRegistry {
                     if (stringTabId) break;
                 }
             }
-        } else if (typeof tabId === 'string' && State.tabIdToWindowId.has(tabId)) {
-            stringTabId = tabId;
+        } else if (typeof tabId === 'string') {
+            const cleanId = tabId.startsWith('tab:') ? tabId.slice(4) : tabId;
+            if (State.tabIdToWindowId.has(cleanId)) {
+                stringTabId = cleanId;
+            } else {
+                for (const [winId, ctx] of State.windowContextsById.entries()) {
+                    if ((ctx?.tabs && ctx.tabs[cleanId]) || (ctx?.sleepingTabs && ctx.sleepingTabs[cleanId])) {
+                        stringTabId = cleanId;
+                        State.tabIdToWindowId.set(cleanId, winId);
+                        break;
+                    }
+                }
+            }
         }
 
         if (!stringTabId) {
             if (isNaN(numericId)) return null;
             // Check if tabId itself is a webContents that exists
-            const wc = webContents.fromId(numericId);
-            if (!wc || wc.isDestroyed()) return null;
+            const wc = typeof webContents?.fromId === 'function' ? webContents.fromId(numericId) : null;
+            if (!wc || (typeof wc.isDestroyed === 'function' && wc.isDestroyed())) return null;
             return {
                 context: null,
                 stringTabId: null,
                 view: null,
                 webContents: wc,
-                window: BrowserWindow.fromWebContents(wc) || null,
+                window: (BrowserWindow && typeof BrowserWindow.fromWebContents === 'function') ? BrowserWindow.fromWebContents(wc) : null,
             };
         }
 
         const windowId = State.tabIdToWindowId.get(stringTabId);
         const context = windowId ? State.windowContextsById.get(windowId) : null;
         const view = context?.tabs?.[stringTabId] || null;
-        const wc = view?.webContents || webContents.fromId(numericId);
+        const wc = view?.webContents || (numericId > 0 && typeof webContents?.fromId === 'function' ? webContents.fromId(numericId) : null);
+        const isSleeping = !view && !!context?.sleepingTabs?.[stringTabId];
 
         return {
             context,
             stringTabId,
             view,
             webContents: wc,
-            window: context?.window || (wc ? BrowserWindow.fromWebContents(wc) : null),
+            window: context?.window || (wc && BrowserWindow && typeof BrowserWindow.fromWebContents === 'function' ? BrowserWindow.fromWebContents(wc) : null),
+            isSleeping,
+            sleepingTab: isSleeping ? context.sleepingTabs[stringTabId] : null,
         };
     }
 
@@ -130,6 +144,7 @@ class TabRegistry {
 
         return {
             id,
+            stringTabId,
             index: tabIndex,
             windowId,
             highlighted: isActive,
@@ -139,7 +154,7 @@ class TabRegistry {
             hidden: false,
             url,
             title,
-            favIconUrl: '',
+            favIconUrl: view?._favicon || '',
             status: isLoading ? 'loading' : 'complete',
             incognito: !!context?.stealthWindow,
             width,
@@ -173,6 +188,21 @@ class TabRegistry {
         return this.formatTab(ctx, ctx.activeTabId, view, view.webContents);
     }
 
+    _getOrAssignNumericIdForSleepingTab(stringTabId, windowId) {
+        if (!this._sleepingNumericIds) {
+            this._sleepingNumericIds = new Map();
+            this._nextSleepingId = 900000;
+        }
+        if (this._sleepingNumericIds.has(stringTabId)) {
+            return this._sleepingNumericIds.get(stringTabId);
+        }
+        const numericId = ++this._nextSleepingId;
+        this._sleepingNumericIds.set(stringTabId, numericId);
+        State.webContentsIdToTabId.set(numericId, stringTabId);
+        if (windowId) State.tabIdToWindowId.set(stringTabId, windowId);
+        return numericId;
+    }
+
     /**
      * chrome.tabs.query(queryInfo)
      */
@@ -200,60 +230,134 @@ class TabRegistry {
                 continue;
             }
 
-            if (!ctx?.tabs) continue;
+            if (!ctx?.tabs && !ctx?.sleepingTabs) continue;
+
+            const allTabIds = new Set();
+            if (Array.isArray(ctx.tabOrder)) {
+                ctx.tabOrder.forEach((id) => allTabIds.add(id));
+            }
+            if (ctx.tabs) {
+                Object.keys(ctx.tabs).forEach((id) => allTabIds.add(id));
+            }
+            if (ctx.sleepingTabs) {
+                Object.keys(ctx.sleepingTabs).forEach((id) => allTabIds.add(id));
+            }
 
             const orderedIds = (Array.isArray(ctx.tabOrder) && ctx.tabOrder.length > 0)
                 ? [
-                    ...ctx.tabOrder.filter(tid => ctx.tabs[tid]),
-                    ...Object.keys(ctx.tabs).filter(tid => !ctx.tabOrder.includes(tid)),
+                    ...ctx.tabOrder.filter((tid) => allTabIds.has(tid)),
+                    ...Array.from(allTabIds).filter((tid) => !ctx.tabOrder.includes(tid)),
                   ]
-                : Object.keys(ctx.tabs);
+                : Array.from(allTabIds);
 
             let tabIndex = 0;
             for (const strId of orderedIds) {
-                const view = ctx.tabs[strId];
-                if (!view?.webContents || view.webContents.isDestroyed()) continue;
+                const view = ctx.tabs?.[strId];
+                if (view?.webContents && !view.webContents.isDestroyed()) {
+                    const tab = this.formatTab(ctx, strId, view, view.webContents);
+                    if (!tab) continue;
+                    tab.index = tabIndex++;
 
-                const tab = this.formatTab(ctx, strId, view, view.webContents);
-                if (!tab) continue;
-                tab.index = tabIndex++;
-
-                // Filter by active
-                if (queryInfo.active !== undefined && tab.active !== queryInfo.active) {
-                    continue;
-                }
-
-                // Filter by highlighted
-                if (queryInfo.highlighted !== undefined && tab.highlighted !== queryInfo.highlighted) {
-                    continue;
-                }
-
-                // Filter by index
-                if (queryInfo.index !== undefined && tab.index !== queryInfo.index) {
-                    continue;
-                }
-
-                // Filter by status
-                if (queryInfo.status !== undefined && tab.status !== queryInfo.status) {
-                    continue;
-                }
-
-                // Filter by url match
-                if (queryInfo.url) {
-                    const pattern = queryInfo.url;
-                    if (Array.isArray(pattern)) {
-                        if (!pattern.some(p => this._matchesUrl(tab.url, p))) continue;
-                    } else if (!this._matchesUrl(tab.url, pattern)) {
+                    // Filter by active
+                    if (queryInfo.active !== undefined && tab.active !== queryInfo.active) {
                         continue;
                     }
-                }
 
-                // Filter by title match
-                if (queryInfo.title && !tab.title.includes(queryInfo.title)) {
-                    continue;
-                }
+                    // Filter by highlighted
+                    if (queryInfo.highlighted !== undefined && tab.highlighted !== queryInfo.highlighted) {
+                        continue;
+                    }
 
-                results.push(tab);
+                    // Filter by index
+                    if (queryInfo.index !== undefined && tab.index !== queryInfo.index) {
+                        continue;
+                    }
+
+                    // Filter by status
+                    if (queryInfo.status !== undefined && tab.status !== queryInfo.status) {
+                        continue;
+                    }
+
+                    // Filter by url match
+                    if (queryInfo.url) {
+                        const pattern = queryInfo.url;
+                        if (Array.isArray(pattern)) {
+                            if (!pattern.some(p => this._matchesUrl(tab.url, p))) continue;
+                        } else if (!this._matchesUrl(tab.url, pattern)) {
+                            continue;
+                        }
+                    }
+
+                    // Filter by title match
+                    if (queryInfo.title && !tab.title.includes(queryInfo.title)) {
+                        continue;
+                    }
+
+                    results.push(tab);
+                } else if (ctx.sleepingTabs?.[strId]) {
+                    const sleep = ctx.sleepingTabs[strId];
+                    const numericId = this._getOrAssignNumericIdForSleepingTab(strId, Number(winId));
+                    const tab = {
+                        id: numericId,
+                        stringTabId: strId,
+                        index: tabIndex++,
+                        windowId: Number(winId),
+                        highlighted: false,
+                        active: false,
+                        selected: false,
+                        pinned: false,
+                        hidden: false,
+                        url: sleep.url || '',
+                        title: sleep.title || sleep.url || `Tab ${tabIndex}`,
+                        favIconUrl: sleep.favicon || '',
+                        status: 'unloaded',
+                        discarded: true,
+                        incognito: !!ctx?.stealthWindow,
+                        width: 1280,
+                        height: 800,
+                        audible: false,
+                        mutedInfo: {
+                            muted: false,
+                        },
+                    };
+
+                    // Filter by active
+                    if (queryInfo.active !== undefined && tab.active !== queryInfo.active) {
+                        continue;
+                    }
+
+                    // Filter by highlighted
+                    if (queryInfo.highlighted !== undefined && tab.highlighted !== queryInfo.highlighted) {
+                        continue;
+                    }
+
+                    // Filter by index
+                    if (queryInfo.index !== undefined && tab.index !== queryInfo.index) {
+                        continue;
+                    }
+
+                    // Filter by status
+                    if (queryInfo.status !== undefined && tab.status !== queryInfo.status) {
+                        continue;
+                    }
+
+                    // Filter by url match
+                    if (queryInfo.url) {
+                        const pattern = queryInfo.url;
+                        if (Array.isArray(pattern)) {
+                            if (!pattern.some(p => this._matchesUrl(tab.url, p))) continue;
+                        } else if (!this._matchesUrl(tab.url, pattern)) {
+                            continue;
+                        }
+                    }
+
+                    // Filter by title match
+                    if (queryInfo.title && !tab.title.includes(queryInfo.title)) {
+                        continue;
+                    }
+
+                    results.push(tab);
+                }
             }
         }
 

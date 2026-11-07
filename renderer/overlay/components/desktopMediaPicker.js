@@ -302,6 +302,22 @@ export function renderDesktopMediaPicker(payload) {
                 img.style.height = '100%';
                 img.style.objectFit = 'contain';
                 previewBox.appendChild(img);
+            } else if (item.favicon) {
+                const placeholder = document.createElement('div');
+                placeholder.style.display = 'flex';
+                placeholder.style.alignItems = 'center';
+                placeholder.style.justifyContent = 'center';
+                placeholder.style.width = '100%';
+                placeholder.style.height = '100%';
+
+                const favImg = document.createElement('img');
+                favImg.src = item.favicon;
+                favImg.style.width = '36px';
+                favImg.style.height = '36px';
+                favImg.style.objectFit = 'contain';
+                favImg.style.filter = 'drop-shadow(0 2px 6px rgba(0,0,0,0.4))';
+                placeholder.appendChild(favImg);
+                previewBox.appendChild(placeholder);
             } else {
                 const placeholder = document.createElement('div');
                 placeholder.innerHTML = `

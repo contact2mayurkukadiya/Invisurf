@@ -134,15 +134,22 @@ function focusOmniboxInput(input, selStart, selEnd, selectAll) {
 }
 
 function renderOmniboxSuggestionRows(scroll, items, query, sel) {
-    scroll.innerHTML = '';
     if (!items.length) {
-        if (!String(query || '').trim()) return;
+        scroll.innerHTML = '';
+        if (!String(query || '').trim()) {
+            scroll.style.display = 'none';
+            return;
+        }
         var empty = document.createElement('div');
         empty.className = 'co-ob-empty';
         empty.textContent = 'No Suggestions';
         scroll.appendChild(empty);
+        scroll.style.display = '';
         return;
     }
+    scroll.style.display = '';
+
+    var frag = document.createDocumentFragment();
     for (var i = 0; i < items.length; i++) {
         (function (index) {
             var it = items[index];
@@ -194,9 +201,11 @@ function renderOmniboxSuggestionRows(scroll, items, query, sel) {
             }
             row.addEventListener('mousedown', function (e) { e.preventDefault(); });
             row.addEventListener('click', function () { notifyHost({ type: 'omniboxSuggestPick', index: index }); });
-            scroll.appendChild(row);
+            frag.appendChild(row);
         })(i);
     }
+    scroll.innerHTML = '';
+    scroll.appendChild(frag);
 }
 
 function updateOmniboxGhost(inputWrap, query, ghostSuffix) {
@@ -251,13 +260,20 @@ function getOmniboxPanelGeometry(payload) {
 function positionOmniboxPanel(payload) {
     lastOmniboxPayload = payload;
     var geom = getOmniboxPanelGeometry(payload);
-    DOM.panel.style.left = geom.left + 'px';
-    DOM.panel.style.top = geom.top + 'px';
-    DOM.panel.style.width = geom.width + 'px';
-    DOM.panel.style.minWidth = geom.width + 'px';
-    DOM.panel.style.maxHeight = geom.maxPanelHeight + 'px';
+    var leftStr = geom.left + 'px';
+    var topStr = geom.top + 'px';
+    var widthStr = geom.width + 'px';
+    var maxHStr = geom.maxPanelHeight + 'px';
+    if (DOM.panel.style.left !== leftStr) DOM.panel.style.left = leftStr;
+    if (DOM.panel.style.top !== topStr) DOM.panel.style.top = topStr;
+    if (DOM.panel.style.width !== widthStr) DOM.panel.style.width = widthStr;
+    if (DOM.panel.style.minWidth !== widthStr) DOM.panel.style.minWidth = widthStr;
+    if (DOM.panel.style.maxHeight !== maxHStr) DOM.panel.style.maxHeight = maxHStr;
     if (omniboxOverlayScroll) {
-        omniboxOverlayScroll.style.maxHeight = Math.max(36, geom.maxPanelHeight - geom.inputHeight) + 'px';
+        var scrollMaxH = Math.max(36, geom.maxPanelHeight - geom.inputHeight) + 'px';
+        if (omniboxOverlayScroll.style.maxHeight !== scrollMaxH) {
+            omniboxOverlayScroll.style.maxHeight = scrollMaxH;
+        }
     }
     return geom;
 }

@@ -809,18 +809,11 @@ function computeOmniboxOverlayBounds(context, patch) {
     left = Math.max(pad, Math.min(left, windowW - w - pad));
     top = Math.max(pad, Math.min(top, windowH - 120 - pad));
 
-    const items = Array.isArray(patch?.items) ? patch.items.slice(0, 24) : [];
-    const rowHeight = 50;
-    const scrollPad = 6;
+    // Stable bounds: size to maximum possible dropdown height so the native view does not resize on every keystroke
     const maxScrollH = Math.min(480, Math.floor(windowH * 0.75));
-    let scrollH = 0;
-    if (items.length > 0) {
-        scrollH = Math.min(items.length * rowHeight, maxScrollH);
-    } else if (String(patch?.query || '').trim()) {
-        scrollH = 36;
-    }
-    const panelH = inputH + scrollPad + scrollH;
-    const panelHeight = Math.min(panelH, windowH - top - pad);
+    const scrollPad = 6;
+    const maxPanelH = inputH + scrollPad + maxScrollH;
+    const panelHeight = Math.min(maxPanelH, windowH - top - pad);
     const x = Math.max(0, left - shadowMargin);
     const y = Math.max(0, top - shadowMargin);
     const width = Math.min(windowW - x, w + (left - x) + shadowMargin);
@@ -838,7 +831,10 @@ function layoutOmniboxOverlayBounds(context, patch) {
     if ((context.chromeOmniboxOverlayAcquireCount || 0) <= 0) return null;
     const bounds = computeOmniboxOverlayBounds(context, patch);
     try {
-        context.chromeOmniboxOverlayView.setBounds(bounds);
+        const cur = context.chromeOmniboxOverlayView.getBounds();
+        if (!cur || cur.x !== bounds.x || cur.y !== bounds.y || cur.width !== bounds.width || cur.height !== bounds.height) {
+            context.chromeOmniboxOverlayView.setBounds(bounds);
+        }
         return bounds;
     } catch (err) {
         console.error('layoutOmniboxOverlayBounds', err?.message || err);
@@ -866,7 +862,11 @@ function replayOmniboxOverlayPatchIfNeeded(context) {
         const replayPatch = { ...patch };
         const overlayBounds = layoutOmniboxOverlayBounds(context, replayPatch);
         if (overlayBounds) replayPatch.overlayBounds = overlayBounds;
-        ensureChromeOverlayOnTop(context);
+        const cv = context.window?.contentView;
+        const children = cv?.children;
+        if (!children || children[children.length - 1] !== context.chromeOmniboxOverlayView) {
+            ensureChromeOverlayOnTop(context);
+        }
         context.chromeOmniboxOverlayView.webContents.send(C.IPC_EVENT.CHROME_OVERLAY_PATCH, replayPatch);
         if (replayPatch.focusInput !== false) {
             setImmediate(() => {
@@ -891,7 +891,15 @@ function deliverOmniboxOverlayPatch(context, patch) {
         const deliverPatch = { ...patch };
         const overlayBounds = layoutOmniboxOverlayBounds(context, deliverPatch);
         if (overlayBounds) deliverPatch.overlayBounds = overlayBounds;
-        ensureChromeOverlayOnTop(context);
+
+        // Only ensure overlay is on top if it is not already the top child view,
+        // avoiding relayering all window subviews while the user is actively typing.
+        const cv = context.window?.contentView;
+        const children = cv?.children;
+        if (!children || children[children.length - 1] !== context.chromeOmniboxOverlayView) {
+            ensureChromeOverlayOnTop(context);
+        }
+
         if (context.chromeOmniboxOverlayReady) {
             context.chromeOmniboxOverlayView.webContents.send(C.IPC_EVENT.CHROME_OVERLAY_PATCH, deliverPatch);
             if (deliverPatch.focusInput !== false) {

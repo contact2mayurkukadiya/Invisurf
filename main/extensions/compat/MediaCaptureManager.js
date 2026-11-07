@@ -159,31 +159,7 @@ class MediaCaptureManager extends EventEmitter {
         // Gather open tabs with live thumbnails if tab capture is requested
         let tabSources = [];
         if (includeTab) {
-            try {
-                const openTabs = await getTabRegistry().query({});
-                for (const t of openTabs) {
-                    let thumbnail = '';
-                    const resolved = getTabRegistry().resolveTab(t.id);
-                    if (resolved?.view?.webContents && !resolved.view.webContents.isDestroyed()) {
-                        try {
-                            const img = await resolved.view.webContents.capturePage();
-                            if (img && !img.isEmpty()) {
-                                thumbnail = img.toDataURL();
-                            }
-                        } catch (_) {}
-                    }
-                    tabSources.push({
-                        id: `tab:${t.id}`,
-                        tabId: t.id,
-                        name: t.title || t.url || `Tab ${t.id}`,
-                        url: t.url || '',
-                        favicon: t.favIconUrl || '',
-                        thumbnail,
-                        type: 'tab',
-                        windowId: t.windowId,
-                    });
-                }
-            } catch (_) {}
+            tabSources = await this._gatherTabSources();
         }
 
         // Resolve requester information (extension name and icon)
@@ -305,14 +281,37 @@ class MediaCaptureManager extends EventEmitter {
                 return;
             }
 
-            let matchingSource = null;
-            if (sourceKind === 'tab' && tabId) {
-                const hostWin = this._resolveWindowForTab(tabId);
-                const winName = hostWin?.getTitle();
-                matchingSource = pending.rawDesktopSources?.find((s) => s.name === winName) || pending.rawDesktopSources?.[0];
-            } else {
-                matchingSource = pending.rawDesktopSources?.find((s) => s.id === sourceId) || pending.rawDesktopSources?.[0];
+            // Tab sharing: capture the selected tab directly via WebFrameMain (not the entire window)
+            if (sourceKind === 'tab' && (tabId || sourceId)) {
+                const targetId = tabId || (sourceId.startsWith('tab:') ? sourceId.replace('tab:', '') : sourceId);
+                const tabManager = require('../../windows/tabManager');
+                let resolved = getTabRegistry().resolveTab(targetId);
+                const stringTabId = resolved?.stringTabId || (typeof targetId === 'string' ? targetId : State.webContentsIdToTabId.get(Number(targetId)));
+
+                if (stringTabId) {
+                    // Activate or wake the tab so it is attached to the view hierarchy and rendering frames
+                    try {
+                        tabManager.activateOrWakeTab(stringTabId);
+                        resolved = getTabRegistry().resolveTab(stringTabId);
+                    } catch (err) {
+                        console.warn('[MediaCaptureManager] activateOrWakeTab error:', err);
+                    }
+                }
+
+                const targetWc = resolved?.view?.webContents || resolved?.webContents;
+                if (targetWc && !targetWc.isDestroyed() && targetWc.mainFrame) {
+                    if (typeof pending.callback === 'function') {
+                        pending.callback({
+                            video: targetWc.mainFrame,
+                            audio: shareAudio ? targetWc.mainFrame : null,
+                        });
+                    }
+                    return;
+                }
             }
+
+            // Window or screen capture
+            let matchingSource = pending.rawDesktopSources?.find((s) => s.id === sourceId) || pending.rawDesktopSources?.[0];
 
             if (typeof pending.callback === 'function') {
                 pending.callback({
@@ -338,9 +337,18 @@ class MediaCaptureManager extends EventEmitter {
 
         // Map tab selection to host window streamId so getUserMedia natively succeeds in WebRTC
         if (sourceKind === 'tab' || sourceId.startsWith('tab:')) {
-            const numericTabId = tabId || Number(sourceId.replace('tab:', ''));
+            const targetId = tabId || (sourceId.startsWith('tab:') ? sourceId.replace('tab:', '') : sourceId);
+            const tabManager = require('../../windows/tabManager');
+            let resolved = getTabRegistry().resolveTab(targetId);
+            const stringTabId = resolved?.stringTabId || (typeof targetId === 'string' ? targetId : State.webContentsIdToTabId.get(Number(targetId)));
+            if (stringTabId) {
+                try {
+                    tabManager.activateOrWakeTab(stringTabId);
+                } catch (_) {}
+            }
+            const numericTabId = typeof targetId === 'number' ? targetId : (resolved?.webContents?.id || Number(targetId));
             chosenTabId = numericTabId;
-            const hostWin = this._resolveWindowForTab(numericTabId);
+            const hostWin = this._resolveWindowForTab(numericTabId || stringTabId);
             if (hostWin && pending.rawDesktopSources?.length > 0) {
                 const winName = hostWin.getTitle();
                 const matched = pending.rawDesktopSources.find((s) => s.name === winName);
@@ -538,6 +546,43 @@ class MediaCaptureManager extends EventEmitter {
     }
 
     /**
+     * Gathers all open and sleeping tabs across windows with titles, favicons, and live thumbnails.
+     */
+    async _gatherTabSources() {
+        const tabSources = [];
+        try {
+            const openTabs = await getTabRegistry().query({});
+            for (const t of openTabs) {
+                let thumbnail = '';
+                const tabIdentifier = t.id || t.stringTabId;
+                const resolved = getTabRegistry().resolveTab(tabIdentifier);
+                if (resolved?.view?.webContents && !resolved.view.webContents.isDestroyed()) {
+                    try {
+                        const img = await resolved.view.webContents.capturePage();
+                        if (img && !img.isEmpty()) {
+                            thumbnail = img.toDataURL();
+                        }
+                    } catch (_) {}
+                }
+                tabSources.push({
+                    id: `tab:${tabIdentifier}`,
+                    tabId: tabIdentifier,
+                    stringTabId: t.stringTabId || resolved?.stringTabId || null,
+                    name: t.title || t.url || `Tab ${tabIdentifier}`,
+                    url: t.url || '',
+                    favicon: t.favIconUrl || '',
+                    thumbnail,
+                    type: 'tab',
+                    windowId: t.windowId,
+                });
+            }
+        } catch (err) {
+            console.error('[MediaCaptureManager] _gatherTabSources error:', err);
+        }
+        return tabSources;
+    }
+
+    /**
      * Handles Electron session display media request (navigator.mediaDevices.getDisplayMedia).
      * Routes through the interactive source picker dialog.
      */
@@ -576,32 +621,7 @@ class MediaCaptureManager extends EventEmitter {
                 type: 'window',
             }));
 
-        let tabSources = [];
-        try {
-            const openTabs = await getTabRegistry().query({});
-            for (const t of openTabs) {
-                let thumbnail = '';
-                const resolved = getTabRegistry().resolveTab(t.id);
-                if (resolved?.view?.webContents && !resolved.view.webContents.isDestroyed()) {
-                    try {
-                        const img = await resolved.view.webContents.capturePage();
-                        if (img && !img.isEmpty()) {
-                            thumbnail = img.toDataURL();
-                        }
-                    } catch (_) {}
-                }
-                tabSources.push({
-                    id: `tab:${t.id}`,
-                    tabId: t.id,
-                    name: t.title || t.url || `Tab ${t.id}`,
-                    url: t.url || '',
-                    favicon: t.favIconUrl || '',
-                    thumbnail,
-                    type: 'tab',
-                    windowId: t.windowId,
-                });
-            }
-        } catch (_) {}
+        const tabSources = await this._gatherTabSources();
 
         const context = this._resolveContext();
 

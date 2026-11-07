@@ -282,4 +282,44 @@ test.describe('Omnibox Detailed Scenarios', () => {
     });
     expect(overlayItems).toBe(true);
   });
+
+  test('3.3 omnibox-single-open-inplace-suggestions-update: overlay stays open and updates in place while typing', async ({ invisurfApp }) => {
+    const { app, shellWindow } = invisurfApp;
+    const omnibox = shellWindow.locator('#url-input');
+    await expect(omnibox).toBeVisible();
+
+    // 1. Focus omnibox and type initial character
+    await omnibox.click();
+    await omnibox.fill('p');
+    await shellWindow.waitForTimeout(300);
+
+    // Verify overlay acquired
+    const boundsFirst = await app.evaluate(() => {
+      const State = global.__invisurfState;
+      const ctx = State?.windowContextsById?.values()?.next()?.value;
+      const isAcquired = (ctx?.chromeOmniboxOverlayAcquireCount || 0) > 0;
+      const bounds = ctx?.chromeOmniboxOverlayView?.getBounds();
+      return { isAcquired, bounds };
+    });
+    expect(boundsFirst.isAcquired).toBe(true);
+    expect(boundsFirst.bounds.height).toBeGreaterThan(100);
+
+    // 2. Type additional characters progressively
+    await omnibox.fill('ph');
+    await shellWindow.waitForTimeout(150);
+    await omnibox.fill('photo');
+    await shellWindow.waitForTimeout(300);
+
+    // Verify overlay is still acquired (no show/hide cycle) and bounds remain stable
+    const boundsProgressive = await app.evaluate(() => {
+      const State = global.__invisurfState;
+      const ctx = State?.windowContextsById?.values()?.next()?.value;
+      const isAcquired = (ctx?.chromeOmniboxOverlayAcquireCount || 0) > 0;
+      const bounds = ctx?.chromeOmniboxOverlayView?.getBounds();
+      return { isAcquired, bounds };
+    });
+    expect(boundsProgressive.isAcquired).toBe(true);
+    expect(boundsProgressive.bounds.height).toBe(boundsFirst.bounds.height);
+    expect(boundsProgressive.bounds.width).toBe(boundsFirst.bounds.width);
+  });
 });

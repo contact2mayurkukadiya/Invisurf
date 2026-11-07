@@ -81,16 +81,34 @@ export default class AutocompleteController {
       publish([]);
     }
 
-    // Fire all providers; history and bookmarks respond quickly
+    // Batch local fast providers (history, extension, keywords, bookmarks) into a single update
+    // to prevent multiple rapid relayouts/flickers per keystroke
     Promise.all([
-      this._history.getSuggestions(inputText).then(publish),
-      this._extension.getSuggestions(inputText).then(publish),
-      this._keywords.getSuggestions(inputText).then(publish),
-      this._bookmarks.getSuggestions(inputText).then(publish),
-      this._search.getSuggestions(inputText).then(publish),
-    ]).catch(() => {
+      this._history.getSuggestions(inputText).catch(() => []),
+      this._extension.getSuggestions(inputText).catch(() => []),
+      this._keywords.getSuggestions(inputText).catch(() => []),
+      this._bookmarks.getSuggestions(inputText).catch(() => []),
+    ]).then(([historyRes, extRes, kwRes, bmRes]) => {
+      if (queryId !== this._queryId) return;
+      const combined = [];
+      if (Array.isArray(historyRes)) combined.push(...historyRes);
+      if (Array.isArray(extRes)) combined.push(...extRes);
+      if (Array.isArray(kwRes)) combined.push(...kwRes);
+      if (Array.isArray(bmRes)) combined.push(...bmRes);
+      publish(combined);
+    }).catch(() => {
       // Individual provider errors are caught inside each provider
     });
+
+    // Search suggestions may arrive asynchronously over network
+    this._search.getSuggestions(inputText)
+      .then((searchRes) => {
+        if (queryId !== this._queryId) return;
+        if (Array.isArray(searchRes) && searchRes.length > 0) {
+          publish(searchRes);
+        }
+      })
+      .catch(() => {});
   }
 
   /**
