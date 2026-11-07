@@ -454,13 +454,18 @@ function exitSplitView(context, splitId, options = {}) {
     return true;
 }
 
-function setSplitRatio(context, splitId, rawRatio) {
+function setSplitRatio(context, splitId, rawRatio, options = {}) {
     const pair = getSplitPair(context, splitId);
     if (!pair) return false;
 
-    pair.ratio = clampRatio(rawRatio);
+    const nextRatio = clampRatio(rawRatio);
+    if (pair.ratio === nextRatio && !options.force) return true;
+
+    pair.ratio = nextRatio;
     layoutSplitTabViews(context, pair);
-    broadcastSplitUpdate(context, pair);
+    if (options.broadcast !== false) {
+        broadcastSplitUpdate(context, pair);
+    }
     return true;
 }
 

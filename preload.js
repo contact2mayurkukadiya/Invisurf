@@ -802,7 +802,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     reload: (id) => ipcRenderer.send(C.IPC_SEND.RELOAD, { id }),
     splitTabEnter: (leftTabId, rightTabId) => ipcRenderer.send(C.IPC_SEND.SPLIT_TAB_ENTER, { leftTabId, rightTabId }),
     splitTabExit: (splitId, options = {}) => ipcRenderer.send(C.IPC_SEND.SPLIT_TAB_EXIT, { splitId, ...options }),
-    splitTabSetRatio: (splitId, ratio) => ipcRenderer.send(C.IPC_SEND.SPLIT_TAB_SET_RATIO, { splitId, ratio }),
+    splitTabSetRatio: (splitId, ratio, options = {}) => ipcRenderer.send(C.IPC_SEND.SPLIT_TAB_SET_RATIO, { splitId, ratio, ...options }),
     splitTabFocusSide: (splitId, side) => ipcRenderer.send(C.IPC_SEND.SPLIT_TAB_FOCUS_SIDE, { splitId, side }),
     splitTabSwapSides: (splitId) => ipcRenderer.send(C.IPC_SEND.SPLIT_TAB_SWAP_SIDES, { splitId }),
     splitTabToggleStacked: (splitId) => ipcRenderer.send(C.IPC_SEND.SPLIT_TAB_TOGGLE_STACKED, { splitId }),

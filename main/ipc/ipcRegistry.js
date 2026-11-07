@@ -1181,10 +1181,10 @@ function registerIpcHandlers() {
         if (!isSenderTrusted(e)) return;
         const context = getWindowContextByEventSender(e.sender);
         if (!context) return;
-        const { splitId, ratio } = payload;
+        const { splitId, ratio, isLive } = payload;
         if (!splitId || typeof splitId !== 'string') return;
         const splitTabManager = require('../windows/splitTabManager');
-        splitTabManager.setSplitRatio(context, splitId, ratio);
+        splitTabManager.setSplitRatio(context, splitId, ratio, { broadcast: !isLive });
     });
 
     ipcMain.on(C.IPC_SEND.SPLIT_TAB_FOCUS_SIDE, (e, payload = {}) => {

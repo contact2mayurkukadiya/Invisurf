@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { setSplitRatio } from '../../store/browserSlice';
 import SplitTabChooser from './SplitTabChooser';
@@ -19,8 +19,19 @@ export default function SplitDivider() {
 
   const [isDragging, setIsDragging] = useState(false);
   const [dragRatio, setDragRatio] = useState(null);
+  const rafIdRef = useRef(null);
+  const pendingRatioRef = useRef(null);
   const overlayContext = useOptionalTabOverlay();
   const splitSnapshot = overlayContext?.splitSnapshot;
+
+  useEffect(() => {
+    return () => {
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+    };
+  }, []);
 
   if (!splitPair) return null;
   if (sidePanel?.isOpen && sidePanel?.activePanelId === 'lens') return null;
@@ -82,11 +93,23 @@ export default function SplitDivider() {
   const bottomY = topMargin + topHeight + paneGap;
   const dividerY = topMargin + topHeight;
 
-  const sendIpcRatio = (ratio) => {
-    const now = performance.now();
-    if (now - lastIpcTimeRef.current >= 16) { // ~60fps throttle
-      lastIpcTimeRef.current = now;
-      window.electronAPI?.splitTabSetRatio?.(splitPair.id, ratio);
+  const sendIpcRatio = (ratio, isLive = true) => {
+    pendingRatioRef.current = ratio;
+    if (isLive) {
+      if (rafIdRef.current === null) {
+        rafIdRef.current = requestAnimationFrame(() => {
+          rafIdRef.current = null;
+          if (pendingRatioRef.current !== null) {
+            window.electronAPI?.splitTabSetRatio?.(splitPair.id, pendingRatioRef.current, { isLive: true });
+          }
+        });
+      }
+    } else {
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+      window.electronAPI?.splitTabSetRatio?.(splitPair.id, ratio, { isLive: false });
     }
   };
 
@@ -94,6 +117,10 @@ export default function SplitDivider() {
     if (e.button !== 0 || splitPair.isChoosing) return;
     e.preventDefault();
     e.stopPropagation();
+
+    try {
+      e.target.setPointerCapture?.(e.pointerId);
+    } catch (_) {}
 
     setIsDragging(true);
     setDragRatio(effectiveRatio);
@@ -106,18 +133,21 @@ export default function SplitDivider() {
         const rawRatio = (moveEvent.clientY - 122 - topMargin) / usable;
         const clamped = Math.max(0.2, Math.min(0.8, rawRatio));
         setDragRatio(clamped);
-        sendIpcRatio(clamped);
+        sendIpcRatio(clamped, true);
       } else {
         const currentAvail = Math.max(300, window.innerWidth - sidePanelWidth);
         const usable = Math.max(100, currentAvail - leftMargin - rightMargin - paneGap);
         const rawRatio = (moveEvent.clientX - leftMargin) / usable;
         const clamped = Math.max(0.2, Math.min(0.8, rawRatio));
         setDragRatio(clamped);
-        sendIpcRatio(clamped);
+        sendIpcRatio(clamped, true);
       }
     };
 
     const onPointerUp = (upEvent) => {
+      try {
+        upEvent.target.releasePointerCapture?.(upEvent.pointerId);
+      } catch (_) {}
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
 
@@ -136,7 +166,7 @@ export default function SplitDivider() {
       setDragRatio(null);
 
       dispatch(setSplitRatio({ splitId: splitPair.id, ratio: finalRatio }));
-      window.electronAPI?.splitTabSetRatio?.(splitPair.id, finalRatio);
+      sendIpcRatio(finalRatio, false);
     };
 
     window.addEventListener('pointermove', onPointerMove);
