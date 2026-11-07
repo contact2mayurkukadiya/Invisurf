@@ -402,6 +402,7 @@ export const IPC_INVOKE = freeze({
   DOWNLOADS_OPEN_FOLDER: 'downloads:open-folder',
   DOWNLOADS_SHOW_ATTENTION: 'downloads:show-attention',
   SIDE_PANEL_GET_STATE: 'side-panel:get-state',
+  FOCUS_ACTIVE_TAB_VIEW: 'tab:focus-active-view',
 });
 
 /** IPC send channels */
@@ -417,6 +418,8 @@ export const IPC_SEND = freeze({
   TAB_MENU_SYNC: 'tab-menu:sync-labels',
   TAB_SET_AUDIO_MUTED: 'tab:set-audio-muted',
   OMNIBOX_STEAL_FOCUS: 'omnibox:steal-focus',
+  TAB_FOCUS_CYCLE: 'tab:focus-cycle',
+  GHOST_SET_IGNORE_MOUSE_EVENTS: 'ghost:set-ignore-mouse-events',
   TOOLTIP_SHOW: 'tooltip:show',
   TOOLTIP_HIDE: 'tooltip:hide',
   CHROME_OVERLAY_FROM_OVERLAY: 'chrome-overlay:v1:from-overlay',
@@ -447,6 +450,8 @@ export const IPC_EVENT = freeze({
   TAB_SWITCHED: 'tab-switched',
   SPLIT_TAB_UPDATED: 'split-tab:updated',
   OMNIBOX_FOCUS: 'omnibox:focus',
+  TOOLBAR_FOCUS_CYCLE: 'toolbar:focus-cycle',
+  TAB_FOCUS_RECEIVED: 'tab:focus-received',
   SHORTCUT_NEW_TAB: 'shortcut-new-tab',
   SHORTCUT_HISTORY: 'shortcut-history',
   SHORTCUT_SETTINGS: 'shortcut-settings',

@@ -207,6 +207,33 @@ describe('SplitTabManager Unit Tests', () => {
     assert.equal(context.activeTabId, 'tab-1');
   });
 
+  test('setFocusedSplitSide is blocked while Lens is active on the split pair', () => {
+    const context = createMockContext();
+    const pair = splitTabManager.enterSplitView(context, 'tab-1', 'tab-2', { focusedSide: 'left' });
+
+    const sidePanelManager = require('../../../main/windows/sidePanelManager');
+    sidePanelManager.setSidePanelState(context, { isOpen: true, activePanelId: 'lens' });
+    const lensManager = require('../../../main/windows/lensManager');
+    const session = lensManager.getLensSession(context, 'tab-1', true);
+    session.selectionActive = true;
+
+    // Switching should be blocked
+    const switched = splitTabManager.setFocusedSplitSide(context, pair.id, 'right');
+    assert.equal(switched, false);
+    assert.equal(pair.focusedSide, 'left');
+    assert.equal(context.activeTabId, 'tab-1');
+
+    // Turn off lens selection
+    session.selectionActive = false;
+    sidePanelManager.setSidePanelState(context, { isOpen: false, activePanelId: null });
+
+    // Switching now succeeds
+    const switchedAfter = splitTabManager.setFocusedSplitSide(context, pair.id, 'right');
+    assert.equal(switchedAfter, true);
+    assert.equal(pair.focusedSide, 'right');
+    assert.equal(context.activeTabId, 'tab-2');
+  });
+
   test('exitSplitView removes pair, keeps both tabs adjacent in tabOrder when separating', () => {
     const context = createMockContext();
     // tab-3 at the end

@@ -659,7 +659,8 @@ const C = Object.freeze({
         "DOWNLOADS_CLEAR_ALL": "downloads:clear-all",
         "DOWNLOADS_OPEN_FOLDER": "downloads:open-folder",
         "DOWNLOADS_SHOW_ATTENTION": "downloads:show-attention",
-        "SIDE_PANEL_GET_STATE": "side-panel:get-state"
+        "SIDE_PANEL_GET_STATE": "side-panel:get-state",
+        "FOCUS_ACTIVE_TAB_VIEW": "tab:focus-active-view"
     },
     "IPC_SEND": {
         "NEW_TAB": "new-tab",
@@ -673,6 +674,8 @@ const C = Object.freeze({
         "TAB_MENU_SYNC": "tab-menu:sync-labels",
         "TAB_SET_AUDIO_MUTED": "tab:set-audio-muted",
         "OMNIBOX_STEAL_FOCUS": "omnibox:steal-focus",
+        "TAB_FOCUS_CYCLE": "tab:focus-cycle",
+        "GHOST_SET_IGNORE_MOUSE_EVENTS": "ghost:set-ignore-mouse-events",
         "TOOLTIP_SHOW": "tooltip:show",
         "TOOLTIP_HIDE": "tooltip:hide",
         "CHROME_OVERLAY_FROM_OVERLAY": "chrome-overlay:v1:from-overlay",
@@ -701,6 +704,8 @@ const C = Object.freeze({
         "TAB_SWITCHED": "tab-switched",
         "SPLIT_TAB_UPDATED": "split-tab:updated",
         "OMNIBOX_FOCUS": "omnibox:focus",
+        "TOOLBAR_FOCUS_CYCLE": "toolbar:focus-cycle",
+        "TAB_FOCUS_RECEIVED": "tab:focus-received",
         "SHORTCUT_NEW_TAB": "shortcut-new-tab",
         "SHORTCUT_HISTORY": "shortcut-history",
         "SHORTCUT_SETTINGS": "shortcut-settings",
@@ -847,10 +852,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ghostToggleClickThrough: () => ipcRenderer.invoke(C.IPC_INVOKE.GHOST_TOGGLE_CLICK_THROUGH),
     ghostSetClickThrough: (enable) => ipcRenderer.invoke(C.IPC_INVOKE.GHOST_SET_CLICK_THROUGH, enable),
     ghostGetClickThrough: () => ipcRenderer.invoke(C.IPC_INVOKE.GHOST_GET_CLICK_THROUGH),
+    ghostSetIgnoreMouseEvents: (ignore, options) => ipcRenderer.send(C.IPC_SEND.GHOST_SET_IGNORE_MOUSE_EVENTS, ignore, options),
     onGhostClickThroughChanged: (callback) => {
         const handler = (_event, data) => callback(data);
         ipcRenderer.on(C.IPC_EVENT.GHOST_CLICK_THROUGH_CHANGED, handler);
         return () => ipcRenderer.removeListener(C.IPC_EVENT.GHOST_CLICK_THROUGH_CHANGED, handler);
+    },
+    focusActiveTabView: (payload = {}) => ipcRenderer.invoke(C.IPC_INVOKE.FOCUS_ACTIVE_TAB_VIEW, payload),
+    onToolbarFocusCycle: (callback) => {
+        const handler = (_event, data) => callback(data);
+        ipcRenderer.on(C.IPC_EVENT.TOOLBAR_FOCUS_CYCLE, handler);
+        return () => ipcRenderer.removeListener(C.IPC_EVENT.TOOLBAR_FOCUS_CYCLE, handler);
     },
     windowGetBootstrap: () => ipcRenderer.invoke(C.IPC_INVOKE.WINDOW_GET_BOOTSTRAP),
     isStealthWindow: () => ipcRenderer.invoke(C.IPC_INVOKE.IS_STEALTH_WINDOW),
@@ -1712,6 +1724,107 @@ try {
 } catch (overscrollErr) {
     console.warn('[Preload] Overscroll engine failed to init:', overscrollErr?.message || overscrollErr);
 }
+
+function setupGuestTabFocusTraversal() {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+    if (window.location.protocol === 'app:' && (window.location.pathname.endsWith('index.html') || window.location.pathname.endsWith('chrome-overlay.html'))) {
+        return;
+    }
+
+    let sentinelStart = null;
+    let sentinelEnd = null;
+    let isCycling = false;
+
+    function createSentinel(id, onFocus) {
+        const s = document.createElement('span');
+        s.id = id;
+        s.tabIndex = 0;
+        s.setAttribute('aria-hidden', 'true');
+        s.setAttribute('data-invisurf-sentinel', 'true');
+        s.style.cssText = 'position:fixed;width:0;height:0;opacity:0;pointer-events:none;z-index:-99999;outline:none;';
+        s.addEventListener('focus', onFocus);
+        return s;
+    }
+
+    function ensureSentinels() {
+        if (!document.body) return;
+
+        if (!sentinelStart || !sentinelStart.isConnected) {
+            sentinelStart = createSentinel('__invisurf_focus_sentinel_start', () => {
+                if (isCycling) return;
+                isCycling = true;
+                try { sentinelStart.blur(); } catch (_) {}
+                ipcRenderer.send(C.IPC_SEND.TAB_FOCUS_CYCLE, { direction: 'backward' });
+                setTimeout(() => { isCycling = false; }, 120);
+            });
+            try {
+                document.body.insertBefore(sentinelStart, document.body.firstChild);
+            } catch (_) {}
+        }
+
+        if (!sentinelEnd || !sentinelEnd.isConnected) {
+            sentinelEnd = createSentinel('__invisurf_focus_sentinel_end', () => {
+                if (isCycling) return;
+                isCycling = true;
+                try { sentinelEnd.blur(); } catch (_) {}
+                ipcRenderer.send(C.IPC_SEND.TAB_FOCUS_CYCLE, { direction: 'forward' });
+                setTimeout(() => { isCycling = false; }, 120);
+            });
+            try {
+                document.body.appendChild(sentinelEnd);
+            } catch (_) {}
+        }
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', ensureSentinels);
+    } else {
+        ensureSentinels();
+    }
+
+    try {
+        const observer = new MutationObserver(() => {
+            if (document.body && (!sentinelStart?.isConnected || !sentinelEnd?.isConnected)) {
+                ensureSentinels();
+            }
+        });
+        if (document.documentElement) {
+            observer.observe(document.documentElement, { childList: true, subtree: true });
+        }
+    } catch (_) {}
+
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'Tab' && !e.altKey && !e.ctrlKey && !e.metaKey) {
+            ensureSentinels();
+        }
+    }, true);
+
+    ipcRenderer.on(C.IPC_EVENT.TAB_FOCUS_RECEIVED, (_, payload) => {
+        ensureSentinels();
+        const direction = payload?.direction || 'forward';
+
+        const focusableSelector = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"]), [contenteditable="true"]';
+        const all = Array.from(document.querySelectorAll(focusableSelector)).filter((el) => {
+            if (el === sentinelStart || el === sentinelEnd || el.getAttribute('data-invisurf-sentinel')) return false;
+            if (!el.isConnected || el.disabled) return false;
+            if (el.getAttribute('tabindex') === '-1') return false;
+            const style = window.getComputedStyle(el);
+            if (style.display === 'none' || style.visibility === 'hidden') return false;
+            return true;
+        });
+
+        if (all.length > 0) {
+            const target = direction === 'backward' ? all[all.length - 1] : all[0];
+            try { target.focus(); } catch (_) {}
+        } else {
+            try { document.body.focus(); } catch (_) {}
+        }
+    });
+}
+
+try {
+    setupGuestTabFocusTraversal();
+} catch (_) {}
 
 contextBridge.exposeInMainWorld('extensionAPI', {
     list: (profileId = null) => ipcRenderer.invoke('extensions:list', { profileId }),

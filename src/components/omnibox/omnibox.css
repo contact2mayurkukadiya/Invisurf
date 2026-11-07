@@ -179,16 +179,22 @@
 }
 
 .omnibox-input-zone.omnibox-overlay-active #url-input {
-  opacity: 0;
-  pointer-events: none;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
-.omnibox-input-zone.has-draft #url-input {
+.omnibox-input-zone:not(.omnibox-overlay-active).has-draft #url-input {
   opacity: 1 !important;
 }
 
+#url-input::placeholder {
+  color: var(--chrome-url-ghost, rgba(255, 255, 255, 0.45));
+  font-family: inherit;
+  font-size: 14px;
+}
+
 .omnibox-input-zone.omnibox-overlay-active .omnibox-ghost {
-  display: none;
+  display: none !important;
 }
 
 /* Legacy full-bar rule — deprecated */
@@ -220,9 +226,9 @@
   padding-left: 38px;
 } */
 
-.omnibox-input-zone:focus-within .url-display {
+/* .omnibox-input-zone:focus-within .url-display {
   padding-left: 38px;
-}
+} */
 
 /* Legacy */
 /* .url-container:focus-within #url-input {
@@ -239,7 +245,7 @@
   inset: 0;
   display: flex;
   align-items: center;
-  padding: 0 15px;
+  padding: 0 12px 0 6px;
   font-size: 14px;
   color: var(--chrome-url-ghost, rgba(255, 255, 255, 0.45));
   pointer-events: none;
@@ -254,7 +260,7 @@
   inset: 0;
   display: flex;
   align-items: center;
-  padding: 0 15px;
+  padding: 0 12px 0 6px;
   font-size: 14px;
   font-family: inherit;
   letter-spacing: inherit;

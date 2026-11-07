@@ -23,6 +23,7 @@ export default function SplitDivider() {
   const splitSnapshot = overlayContext?.splitSnapshot;
 
   if (!splitPair) return null;
+  if (sidePanel?.isOpen && sidePanel?.activePanelId === 'lens') return null;
 
   const isStacked = !!splitPair.isStacked;
   const effectiveRatio = isDragging && dragRatio !== null ? dragRatio : (splitPair.ratio || 0.5);

@@ -39,10 +39,10 @@ let currentContainer = { x: 8, y: 4, width: 800, height: 600 };
 
 onHideAll((options) => {
     if (options && options.hideLens === false) return;
-    hideLensSelection();
+    hideLensSelection(options);
 });
 
-export function hideLensSelection() {
+export function hideLensSelection(options = {}) {
     lensPointerId = null;
     isDragging = false;
     currentRect = null;
@@ -70,7 +70,9 @@ export function hideLensSelection() {
         sidebarFrame.parentNode.removeChild(sidebarFrame);
     }
     sidebarFrame = null;
-    cachedSnapshotDataUrl = '';
+    if (options && options.clearCache) {
+        cachedSnapshotDataUrl = '';
+    }
 }
 
 function computeGeometry(patch) {
@@ -301,7 +303,9 @@ export function renderLensSelection(patch) {
     }
 
     // INITIAL RENDER: Create DOM structure matching Chrome's Lens UI
+    const snapshotUrl = patch.snapshotDataUrl || cachedSnapshotDataUrl;
     hideAll({ hideLens: true });
+    cachedSnapshotDataUrl = snapshotUrl;
 
     lensLayer = document.createElement('div');
     lensLayer.className = 'co-lens-layer';

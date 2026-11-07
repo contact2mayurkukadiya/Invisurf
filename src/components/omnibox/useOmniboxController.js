@@ -2,7 +2,7 @@ import {
   useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo,
 } from 'react';
 import AutocompleteController from './AutocompleteController.js';
-import { toNavigateUrl } from './AutocompleteInput.js';
+import { toNavigateUrl, buildSearchUrl } from './AutocompleteInput.js';
 import { useChromeOverlay, useChromeShellMenuOverlay } from '../../context/ChromeOverlayContext.jsx';
 import { buildDisplayParts, isNtpOmniboxUrl, toOmniboxBarValue } from '../../utils/omniboxDisplayUrl.js';
 import { OMNIBOX_POPUP } from './omniboxConstants.js';
@@ -105,7 +105,12 @@ export function useOmniboxController({ currentTabId, tabsData, searchEngine = 'g
     post: shellPost,
   } = useChromeShellMenuOverlay();
 
-  const [isFocused, setIsFocused] = useState(false);
+  const [isFocused, setIsFocusedState] = useState(false);
+  const isFocusedRef = useRef(false);
+  const setIsFocused = useCallback((val) => {
+    isFocusedRef.current = val;
+    setIsFocusedState(val);
+  }, []);
   const [draftValue, setDraftValue] = useState(displayUrl);
   const [hasUncommittedDraft, setHasUncommittedDraft] = useState(false);
   const hasUncommittedDraftRef = useRef(false);
@@ -243,7 +248,8 @@ export function useOmniboxController({ currentTabId, tabsData, searchEngine = 'g
       recentHistoryFallbackRef.current = mapped;
       if (!applyToOverlay) return;
       if (!overlayRequestedRef.current) return;
-      if (String(draftValueRef.current || '').trim() !== key) return;
+      // Never apply recent history to overlay if user has typed a query
+      if (String(draftValueRef.current || '').trim().length > 0) return;
       if (suggestionsRef.current.length > 0) return;
       suggestionCacheRef.current = { query: queryText, suggestions: mapped, ghostSuffix: '' };
       setSuggestions(mapped);
@@ -346,27 +352,55 @@ export function useOmniboxController({ currentTabId, tabsData, searchEngine = 'g
         recentFallbackSeqRef.current += 1;
       } else {
         inlineCompletionRef.current = null;
-        setSuggestions(recentHistoryFallbackRef.current);
+        ghostSuffixRef.current = '';
+        if (!trimmed) {
+          setSuggestions(recentHistoryFallbackRef.current);
+          setGhostSuffix('');
+          suggestionCacheRef.current = {
+            query,
+            suggestions: recentHistoryFallbackRef.current,
+            ghostSuffix: '',
+            inlineInfo: null,
+          };
+          if (!isNavigatingRef.current) {
+            setSelectedIndex(-1);
+          }
+          void loadRecentHistoryFallback('', true);
+          return;
+        }
+
+        // When user typed a query, NEVER show unrelated recent history!
+        // Show Google search suggestion for the typed text
+        const fallbackSearchItem = {
+          text: trimmed,
+          url: buildSearchUrl(searchEngine, trimmed),
+          type: 'search',
+          score: 400,
+          description: `Search with ${searchEngine === 'google' ? 'Google' : searchEngine}`,
+          favicon: null,
+        };
+        setSuggestions([fallbackSearchItem]);
         setGhostSuffix('');
         suggestionCacheRef.current = {
           query,
-          suggestions: recentHistoryFallbackRef.current,
+          suggestions: [fallbackSearchItem],
           ghostSuffix: '',
           inlineInfo: null,
         };
         if (!isNavigatingRef.current) {
           setSelectedIndex(-1);
         }
-        void loadRecentHistoryFallback(trimmed, true);
         return;
       }
       setSuggestions(merged);
       const nextGhost = inlineInfo ? '' : (ghost || '');
+      ghostSuffixRef.current = nextGhost;
       setGhostSuffix(nextGhost);
       suggestionCacheRef.current = { query, suggestions: merged, ghostSuffix: nextGhost, inlineInfo };
       if (!isNavigatingRef.current) {
         if (inlineInfo && !suppressInlineAutocompleteRef.current) {
           inlineCompletionRef.current = inlineInfo;
+          ghostSuffixRef.current = '';
           setGhostSuffix('');
           setSelectedIndex(0);
           draftValueRef.current = inlineInfo.completedText;
@@ -666,8 +700,9 @@ export function useOmniboxController({ currentTabId, tabsData, searchEngine = 'g
           setDraftValue(current);
         }
         closeOverlay({ preserveDraft });
-        if (edited && !preserveDraft) revertDraftToDisplayUrl();
+        if (!preserveDraft) revertDraftToDisplayUrl();
         setIsFocused(false);
+        inputRef.current?.blur();
         return;
       }
 
@@ -1043,13 +1078,25 @@ export function useOmniboxController({ currentTabId, tabsData, searchEngine = 'g
 
   useEffect(() => {
     const handleGlobalMouseDown = (e) => {
-      if (!popupOpenRef.current) return;
-      if (e.target.closest('.omnibox-action-btn')) return;
-      void closePopup();
+      if (popupOpenRef.current && !e.target.closest('.omnibox-action-btn')) {
+        void closePopup();
+      }
+      if (barRef.current && !barRef.current.contains(e.target)) {
+        if (overlayRequestedRef.current) {
+          closeOverlay();
+        }
+        if (isFocusedRef.current || document.activeElement === inputRef.current) {
+          inputRef.current?.blur();
+          setIsFocused(false);
+          if (!hasUncommittedDraftRef.current) {
+            revertDraftToDisplayUrl();
+          }
+        }
+      }
     };
-    window.addEventListener('mousedown', handleGlobalMouseDown);
-    return () => window.removeEventListener('mousedown', handleGlobalMouseDown);
-  }, [closePopup]);
+    window.addEventListener('mousedown', handleGlobalMouseDown, true);
+    return () => window.removeEventListener('mousedown', handleGlobalMouseDown, true);
+  }, [closePopup, closeOverlay, revertDraftToDisplayUrl, setIsFocused]);
 
   const handlePointerDown = useCallback(() => {
     if (aOnlyFocusUntilUserEditRef.current) {

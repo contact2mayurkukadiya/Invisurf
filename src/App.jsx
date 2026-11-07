@@ -24,6 +24,8 @@ import {
 import { setBookmarks } from './store/bookmarksSlice';
 import { useElectronIPC } from './hooks/useElectronIPC';
 import { useChromeTheme } from './hooks/useChromeTheme';
+import { useToolbarFocusBridge } from './hooks/useToolbarFocusBridge';
+import { useGhostTitleBarInteractivity } from './hooks/useGhostTitleBarInteractivity';
 import TabBar from './components/TabBar';
 import NavBar from './components/NavBar';
 import BookmarkBar from './components/BookmarkBar';
@@ -645,6 +647,9 @@ function AppShell() {
     });
     return typeof unsub === 'function' ? unsub : undefined;
   }, []);
+
+  useToolbarFocusBridge();
+  useGhostTitleBarInteractivity(isGhostShell);
 
   useElectronIPC({
     onNewTab: createTab,

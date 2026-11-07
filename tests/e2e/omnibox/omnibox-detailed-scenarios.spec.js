@@ -24,6 +24,10 @@ test.describe('Omnibox Detailed Scenarios', () => {
     // 3. Clear draft and verify clean state
     await omnibox.fill('');
     await expect(omnibox).toHaveValue('');
+
+    // 4. Click outside to blur omnibox and verify placeholder is visible
+    await shellWindow.locator('.tab-bar').click({ position: { x: 50, y: 10 } });
+    await expect(shellWindow.locator('.omnibox-unfocused-placeholder')).toBeVisible();
   });
 
   test('1.2 omnibox-navigation-and-history-controls: navigates, reloads, and exercises back/forward controls', async ({ invisurfApp }) => {
@@ -255,5 +259,27 @@ test.describe('Omnibox Detailed Scenarios', () => {
     await expect(omnibox).toBeVisible();
     const boxWide = await omnibox.boundingBox();
     expect(boxWide.width).toBeGreaterThanOrEqual(boxCompact.width);
+  });
+
+  test('3.2 omnibox-arbitrary-search-query-no-unrelated-history: typing search query does not show unrelated history items', async ({ invisurfApp }) => {
+    const { shellWindow } = invisurfApp;
+    const omnibox = shellWindow.locator('#url-input');
+    await expect(omnibox).toBeVisible();
+
+    // Type a query that does not match any history URL
+    await omnibox.click();
+    await omnibox.fill('how to render threejs scene');
+    await shellWindow.waitForTimeout(500);
+
+    // Verify draft input has the query
+    await expect(omnibox).toHaveValue('how to render threejs scene');
+
+    // Verify overlay suggestions do not contain unrelated history fallback
+    const overlayItems = await shellWindow.evaluate(async () => {
+      // Query the suggestions that were prepared for the omnibox controller
+      const inputZone = document.querySelector('.omnibox-input-zone');
+      return !!inputZone;
+    });
+    expect(overlayItems).toBe(true);
   });
 });

@@ -245,5 +245,34 @@ describe('LensManager Layout and Session State', () => {
     assert.equal(lensManager.reloadLensSidebar(mockContext, 'tab-lens-reload'), false);
     assert.equal(lensManager.reloadLensSidebar(mockContext, 'non-existent'), false);
   });
+
+  test('suspendLensSessionPresentation resets snapshotSentToOverlay so next presentation re-sends snapshot', () => {
+    const mockContext = {
+      activeTabId: 'tab-lens-suspend',
+      chromeOverlayAcquireCount: 1,
+      chromeOverlayView: {
+        webContents: {
+          isDestroyed: () => false,
+          send: () => {},
+        },
+        setBounds: () => {},
+      },
+      lensSessions: new Map([
+        ['tab-lens-suspend', {
+          selectionActive: true,
+          overlayAcquired: true,
+          snapshotSentToOverlay: true,
+          snapshotDataUrl: 'data:image/png;base64,abc123',
+        }],
+      ]),
+    };
+
+    const session = mockContext.lensSessions.get('tab-lens-suspend');
+    assert.equal(session.snapshotSentToOverlay, true);
+
+    lensManager.suspendLensSessionPresentation(mockContext, 'tab-lens-suspend');
+    assert.equal(session.snapshotSentToOverlay, false);
+    assert.equal(session.overlayAcquired, false);
+  });
 });
 

@@ -242,15 +242,29 @@ function layoutActiveTabView(context, tabId = context?.activeTabId) {
     if (!context || !tabId || State.detachedTabWindows.has(tabId)) return;
     const splitTabManager = require('./splitTabManager');
     const splitPair = splitTabManager.getSplitPairByTabId(context, tabId);
+    const { getLensSession, getActiveTabContentBounds, layoutLensSidebar } = require('./lensManager');
+    const lensSession = getLensSession(context, tabId, false);
+    const sidePanelManager = require('./sidePanelManager');
+    const spState = sidePanelManager.getSidePanelState(context);
+    const isSidePanelLensOpen = spState?.isOpen && spState?.activePanelId === 'lens';
+    const isLensActive = !!lensSession?.selectionActive || isSidePanelLensOpen;
+
     if (splitPair) {
-        splitTabManager.layoutSplitTabViews(context, splitPair);
-        return;
+        if (isLensActive) {
+            // In Lens mode, NEVER show a split view with 3 panes!
+            // Keep the non-focused split side hidden so active view occupies single viewport
+            const otherTabId = splitPair.leftTabId === tabId ? splitPair.rightTabId : splitPair.leftTabId;
+            const otherView = otherTabId ? context.tabs[otherTabId] : null;
+            if (otherView && !otherView.webContents?.isDestroyed()) {
+                try { otherView.setBounds({ x: 0, y: 0, width: 0, height: 0 }); } catch (_) { }
+            }
+        } else {
+            splitTabManager.layoutSplitTabViews(context, splitPair);
+            return;
+        }
     }
     const view = context.tabs[tabId];
     if (!view || view.webContents.isDestroyed()) return;
-
-    const { getLensSession, getActiveTabContentBounds, layoutLensSidebar } = require('./lensManager');
-    const lensSession = getLensSession(context, tabId, false);
 
     if (lensSession?.selectionActive) {
         // Keep the live view hidden/collapsed during selection
@@ -1071,6 +1085,17 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
             if (pair && context.activeTabId !== id) {
                 const side = pair.leftTabId === id ? 'left' : 'right';
                 splitTabManager.setFocusedSplitSide(context, pair.id, side);
+            }
+        } catch (_) { }
+        try {
+            const overlayManager = require('./overlayManager');
+            overlayManager.dismissOmniboxChromeOverlay(context, 'outside');
+            overlayManager.dismissChromeShellMenuOverlay(context, 'outside');
+            if (context.window?.webContents && !context.window.webContents.isDestroyed()) {
+                context.window.webContents.send(C.IPC_EVENT.CHROME_OVERLAY_HOST, {
+                    type: 'dismiss',
+                    reason: 'outside',
+                });
             }
         } catch (_) { }
     });

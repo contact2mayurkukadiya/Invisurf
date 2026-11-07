@@ -65,6 +65,20 @@ function layoutSplitTabViews(context, splitId) {
     const pair = typeof splitId === 'string' ? getSplitPair(context, splitId) : splitId;
     if (!pair) return;
 
+    const activeTabId = context.activeTabId;
+    if (activeTabId && (pair.leftTabId === activeTabId || pair.rightTabId === activeTabId)) {
+        const sidePanelManager = require('./sidePanelManager');
+        const spState = sidePanelManager.getSidePanelState(context);
+        const { getLensSession } = require('./lensManager');
+        const lensSession = getLensSession(context, activeTabId, false);
+        const isLensActive = !!lensSession?.selectionActive || (spState?.isOpen && spState?.activePanelId === 'lens');
+        if (isLensActive) {
+            const tabManager = require('./tabManager');
+            tabManager.layoutActiveTabView(context, activeTabId);
+            return;
+        }
+    }
+
     const leftView = context.tabs?.[pair.leftTabId];
     if (!leftView || leftView.webContents?.isDestroyed()) {
         return;
@@ -490,6 +504,17 @@ function setFocusedSplitSide(context, splitId, side) {
     const pair = getSplitPair(context, splitId);
     if (!pair || (side !== 'left' && side !== 'right')) return false;
 
+    const sidePanelManager = require('./sidePanelManager');
+    const spState = sidePanelManager.getSidePanelState(context);
+    const isLensOpen = spState?.isOpen && spState?.activePanelId === 'lens';
+    const { getLensSession } = require('./lensManager');
+    const leftLens = pair.leftTabId ? getLensSession(context, pair.leftTabId, false) : null;
+    const rightLens = pair.rightTabId ? getLensSession(context, pair.rightTabId, false) : null;
+    if (isLensOpen && (leftLens?.selectionActive || rightLens?.selectionActive)) {
+        // While Lens is active on any side of the split tab, switching focused side is blocked
+        return false;
+    }
+
     pair.focusedSide = side;
     const targetTabId = side === 'left' ? pair.leftTabId : pair.rightTabId;
     if (!targetTabId) {
@@ -503,6 +528,7 @@ function setFocusedSplitSide(context, splitId, side) {
         try { targetView.webContents.focus(); } catch (_) { }
     }
 
+    layoutSplitTabViews(context, pair);
     broadcastSplitUpdate(context, pair);
 
     if (context.window && !context.window.webContents.isDestroyed()) {

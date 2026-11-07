@@ -95,6 +95,7 @@ function suspendLensSessionPresentation(context, tabId = context?.activeTabId) {
         context.chromeOverlayAcquireCount -= 1;
     }
     lensSession.overlayAcquired = false;
+    lensSession.snapshotSentToOverlay = false;
     repairLensChromeOverlayAcquireCount(context);
 
     if ((context.chromeOverlayAcquireCount || 0) <= 0 && isViewWebContentsAlive(context.chromeOverlayView)) {
@@ -1078,7 +1079,8 @@ async function startGoogleLensSelection(context = getWindowContextByBrowserWindo
         width: initialSidebarWidth,
     }, { broadcast: true });
 
-    // Detach only active tab content view so user can interact with Lens selection canvas
+    // Detach active tab content view so user can interact with Lens selection canvas.
+    // Also detach the other split view if active tab is in a split pair.
     if (context.activeTabId && !State.detachedTabWindows.has(context.activeTabId)) {
         const view = context.tabs[context.activeTabId];
         if (view && !view.webContents.isDestroyed()) {
@@ -1089,6 +1091,21 @@ async function startGoogleLensSelection(context = getWindowContextByBrowserWindo
                 context.activeTabViewRemovedForShellOverlay = true;
             } catch (_) {
                 try { view.setBounds({ x: 0, y: 0, width: 0, height: 0 }); } catch (_) {}
+            }
+        }
+
+        const splitTabManager = require('./splitTabManager');
+        const splitPair = splitTabManager.getSplitPairByTabId(context, context.activeTabId);
+        if (splitPair) {
+            const otherTabId = splitPair.leftTabId === context.activeTabId ? splitPair.rightTabId : splitPair.leftTabId;
+            const otherView = otherTabId ? context.tabs[otherTabId] : null;
+            if (otherView && !otherView.webContents?.isDestroyed()) {
+                try {
+                    const { removeTabContentChildView } = require('./tabManager');
+                    removeTabContentChildView(context, otherView);
+                } catch (_) {
+                    try { otherView.setBounds({ x: 0, y: 0, width: 0, height: 0 }); } catch (_) {}
+                }
             }
         }
     }

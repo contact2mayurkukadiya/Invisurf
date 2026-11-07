@@ -2132,12 +2132,41 @@ function registerIpcHandlers() {
         try { return await State.historyService.clear(context.profileId, payload || {}); } catch (error) { console.error('Failed to clear history:', error); return false; }
     });
 
-    // === NTP ===
+    // === NTP & TAB FOCUS ===
     ipcMain.on(C.IPC_SEND.OMNIBOX_STEAL_FOCUS, (e) => {
-        if (!isSenderTrusted(e)) return;
         const context = getWindowContextByEventSender(e.sender);
         if (!context?.activeTabId) return;
         tabManager.sendOmniboxFocusToShell(context, context.activeTabId, true, false);
+    });
+
+    ipcMain.on(C.IPC_SEND.TAB_FOCUS_CYCLE, (e, payload) => {
+        const context = getWindowContextByEventSender(e.sender);
+        if (!context?.window || context.window.isDestroyed()) return;
+        const direction = payload?.direction || 'forward';
+        context.window.focus();
+        context.window.webContents.focus();
+        context.window.webContents.send(C.IPC_EVENT.TOOLBAR_FOCUS_CYCLE, { direction });
+    });
+
+    ipcMain.handle(C.IPC_INVOKE.FOCUS_ACTIVE_TAB_VIEW, (e, payload) => {
+        if (!isSenderTrusted(e)) return false;
+        const context = getWindowContextByEventSender(e.sender);
+        if (!context?.activeTabId) return false;
+        const view = context.tabs[context.activeTabId];
+        if (!view?.webContents || view.webContents.isDestroyed()) return false;
+        view.webContents.focus();
+        view.webContents.send(C.IPC_EVENT.TAB_FOCUS_RECEIVED, { direction: payload?.direction || 'forward' });
+        return true;
+    });
+
+    ipcMain.on(C.IPC_SEND.GHOST_SET_IGNORE_MOUSE_EVENTS, (e, ignore, options) => {
+        if (!isSenderTrusted(e)) return;
+        const context = getWindowContextByEventSender(e.sender);
+        if (!context?.window || context.window.isDestroyed() || !context.ghostWindow) return;
+        if (!context.isClickThrough) return;
+        try {
+            context.window.setIgnoreMouseEvents(!!ignore, options || { forward: true });
+        } catch (_) { }
     });
 
     ipcMain.handle(C.IPC_INVOKE.NTP_TOP_SITES, async (e) => {

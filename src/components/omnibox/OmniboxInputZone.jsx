@@ -50,6 +50,7 @@ export default function OmniboxInputZone({
         aria-expanded={overlayRequested}
         aria-controls="omnibox-suggestions"
         value={draftValue}
+        placeholder={!displayParts && !hasUncommittedDraft ? "Search or enter address" : ""}
         onChange={onChange}
         onFocus={onFocus}
         onBlur={onBlur}

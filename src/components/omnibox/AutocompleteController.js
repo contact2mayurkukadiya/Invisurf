@@ -74,8 +74,12 @@ export default class AutocompleteController {
       }
       const merged = this._mergeResults(accumulated);
       const inlineInfo = this._getInlineAutocomplete(inputText, merged[0] ?? null);
-      callback(merged, inlineInfo ? null : this._getGhostSuffix(inputText, merged[0] ?? null), inlineInfo);
+      callback(merged, null, inlineInfo);
     };
+
+    if (trimmed) {
+      publish([]);
+    }
 
     // Fire all providers; history and bookmarks respond quickly
     Promise.all([

@@ -97,22 +97,37 @@ function createWindow({
         typeof bounds.width === 'number' && bounds.width > 0 &&
         typeof bounds.height === 'number' && bounds.height > 0;
 
+    let initialBounds;
+    if (hasValidBounds) {
+        initialBounds = {
+            x: Math.round(bounds.x),
+            y: Math.round(bounds.y),
+            width: Math.round(bounds.width),
+            height: Math.round(bounds.height),
+        };
+    } else if (isGhost) {
+        // Ghost window defaults to half screen
+        const primaryWa = getPrimaryWorkAreaBounds() || { x: 0, y: 0, width: 1440, height: 900 };
+        const halfW = Math.round(primaryWa.width / 2);
+        initialBounds = {
+            x: primaryWa.x + halfW,
+            y: primaryWa.y,
+            width: halfW,
+            height: primaryWa.height,
+        };
+    } else if (workArea) {
+        initialBounds = {
+            x: workArea.x,
+            y: workArea.y,
+            width: workArea.width,
+            height: workArea.height,
+        };
+    } else {
+        initialBounds = { width: 1200, height: 800 };
+    }
+
     const window = new BrowserWindow({
-        ...(hasValidBounds
-            ? {
-                x: Math.round(bounds.x),
-                y: Math.round(bounds.y),
-                width: Math.round(bounds.width),
-                height: Math.round(bounds.height),
-            }
-            : (workArea
-                ? {
-                    x: workArea.x,
-                    y: workArea.y,
-                    width: workArea.width,
-                    height: workArea.height,
-                }
-                : { width: 1200, height: 800 })),
+        ...initialBounds,
         titleBarStyle: (isMac && !isGhost) ? 'hiddenInset' : 'hidden',
         ...(isMac
             ? { trafficLightPosition: { x: 15, y: 15 } }
@@ -127,7 +142,7 @@ function createWindow({
                 type: isMac ? 'panel' : undefined,
                 alwaysOnTop: true,
                 acceptFirstMouse: true,
-                fullscreenable: false,
+                fullscreenable: true,
                 show: false,
             }
             : (alwaysOnTop
@@ -506,7 +521,9 @@ function setWindowClickThrough(context, enable, source = 'manual') {
     // ── Native + Electron layer ───────────────────────────────────────────
     try {
         const { setClickThrough } = require('../native');
-        setClickThrough(context.window, context.isClickThrough);
+        if (process.platform === 'win32' || !context.isClickThrough) {
+            setClickThrough(context.window, context.isClickThrough);
+        }
     } catch (err) {
         console.error('[windowManager] setClickThrough native:', err);
     }

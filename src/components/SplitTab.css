@@ -275,3 +275,18 @@ html[data-forced-appearance="dark"] .mini-tab-close-btn:hover {
   pointer-events: auto !important;
 }
 
+/* ── Lens-Locked State: Sub-tabs and close buttons disabled while Lens is active on split tab ── */
+.tab.split-compound-tab.split-compound-tab--lens-locked {
+  cursor: default !important;
+}
+
+.tab.split-compound-tab.split-compound-tab--lens-locked .split-mini-tab {
+  cursor: default !important;
+}
+
+.tab.split-compound-tab.split-compound-tab--lens-locked .mini-tab-close-btn {
+  pointer-events: none !important;
+  opacity: 0 !important;
+}
+
+

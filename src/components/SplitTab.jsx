@@ -27,10 +27,15 @@ export default function SplitTab({
 }) {
   const dispatch = useDispatch();
   const currentTabId = useSelector(s => s.browser.currentTabId);
+  const sidePanel = useSelector(s => s.browser.sidePanel);
   const invsurfLogoFavicon = useInvsurfLogoFaviconUrl();
   const leftTabId = splitPair.leftTabId;
   const rightTabId = splitPair.rightTabId;
   const isSwapped = !!splitPair.isSwapped;
+
+  // While Google Lens is open on this active split tab, locking prevents switching
+  // or clicking sub-tabs until Google Lens is closed.
+  const isLensActiveOnThisSplit = isActive && sidePanel?.isOpen && sidePanel?.activePanelId === 'lens';
 
   // Visual sub-tabs reflect the screen-side content panes:
   // When swapped, visual left is rightTab, visual right is leftTab
@@ -62,7 +67,7 @@ export default function SplitTab({
     onSwitchTab: handleSwitchTab,
     onDragEnd: handleDragEnd,
     onHideTooltip: () => {},
-    isPinned: false,
+    isPinned: isLensActiveOnThisSplit ? true : false,
     pinnedTabCount,
     isActive,
     tabCount,
@@ -83,12 +88,14 @@ export default function SplitTab({
   const visualRightFavicon = getFavicon(visualRightTab);
 
   const handleClickTab = (e) => {
+    if (isLensActiveOnThisSplit) return;
     if (e.target.closest('.mini-tab-close-btn')) return;
     const targetId = splitPair.focusedSide === 'right' ? rightTabId : leftTabId;
     if (targetId) onSwitch(targetId);
   };
 
   const handleSubTabClick = (e, visualSide) => {
+    if (isLensActiveOnThisSplit) return;
     if (e.target.closest('.mini-tab-close-btn')) return;
     e.stopPropagation();
 
@@ -114,6 +121,7 @@ export default function SplitTab({
   };
 
   const handleCloseSubTab = (e, visualSide) => {
+    if (isLensActiveOnThisSplit) return;
     e.stopPropagation();
     const isChoosing = visualSide === 'left' ? visualLeftIsChoosing : visualRightIsChoosing;
     const targetId = visualSide === 'left' ? visualLeftId : visualRightId;
@@ -142,6 +150,7 @@ export default function SplitTab({
   };
 
   const handleContextMenuSubTab = (e, visualSide) => {
+    if (isLensActiveOnThisSplit) return;
     e.preventDefault();
     e.stopPropagation();
     const targetId = visualSide === 'left' ? visualLeftId : visualRightId;
@@ -149,11 +158,13 @@ export default function SplitTab({
   };
 
   const handleTabContextMenu = (e) => {
+    if (isLensActiveOnThisSplit) return;
     e.preventDefault();
     if (onContextMenu) onContextMenu(e, leftTabId);
   };
 
   const handleAuxClickSubTab = (e, visualSide) => {
+    if (isLensActiveOnThisSplit) return;
     if (e.button === 1) {
       e.preventDefault();
       e.stopPropagation();
@@ -165,6 +176,7 @@ export default function SplitTab({
     'tab',
     'split-compound-tab',
     isActive ? 'active' : '',
+    isLensActiveOnThisSplit ? 'split-compound-tab--lens-locked' : '',
     `tab--mode-${displayMode}`,
   ].filter(Boolean).join(' ');
 

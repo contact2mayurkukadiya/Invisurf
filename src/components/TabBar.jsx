@@ -301,6 +301,7 @@ export default function TabBar({
       {isGhostWindow && !isMac && (
         <button
           type="button"
+          tabIndex={-1}
           className={`ghost-badge ghost-badge--left${isClickThrough ? ' ghost-badge--passthrough' : ''}`}
           onClick={handleGhostBadgeClick}
           title={isClickThrough ? "Click-Through: ON (Passthrough) • Press Ctrl+Shift+G to restore" : "Click-Through: OFF (Interactive) • Click or Ctrl+Shift+G to enable passthrough"}
@@ -372,12 +373,13 @@ export default function TabBar({
           aria-hidden="true"
         />
       )}
-      <button id="add-tab" className="btn" onClick={() => onNewTab()}>
+      <button id="add-tab" tabIndex={-1} className="btn" onClick={() => onNewTab()}>
         {ADD_ICON}
       </button>
       {isGhostWindow && isMac && (
         <button
           type="button"
+          tabIndex={-1}
           className={`ghost-badge ghost-badge--right${isClickThrough ? ' ghost-badge--passthrough' : ''}`}
           onClick={handleGhostBadgeClick}
           title={isClickThrough ? "Click-Through: ON (Passthrough) • Press ⌘⇧G to restore" : "Click-Through: OFF (Interactive) • Click or ⌘⇧G to enable passthrough"}
