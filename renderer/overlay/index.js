@@ -31,10 +31,10 @@ document.addEventListener('keydown', function (e) {
         if (DOM.panel.classList.contains('co-visible') || DOM.submenu.classList.contains('co-visible')) {
             e.preventDefault();
             e.stopPropagation();
-            notifyHost({ type: 'dismiss' });
+            notifyHost({ type: 'dismiss', reason: 'escape' });
             return;
         }
-        notifyHost({ type: 'dismiss' });
+        notifyHost({ type: 'dismiss', reason: 'escape' });
     }
 });
 

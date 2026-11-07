@@ -40,6 +40,7 @@ export default function OmniboxBar({
         draftValue={draftValue}
         ghostSuffix={ghostSuffix}
         displayParts={displayParts}
+        hasUncommittedDraft={hasUncommittedDraft}
         onFocus={handleFocus}
         onBlur={handleBlur}
         onChange={handleChange}

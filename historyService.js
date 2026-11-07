@@ -383,17 +383,20 @@ class HistoryService {
         );
 
         return rows.map((row) => {
-            const urlLower = String(row.url || '').toLowerCase();
-            const titleLower = String(row.title || '').toLowerCase();
-            const urlMatch = urlLower.includes(q);
-            const titleOnly = !urlMatch && titleLower.includes(q);
+            let domain = '';
+            try {
+                domain = new URL(row.url).hostname;
+            } catch (_) {}
+            const cleanUrl = String(row.url || '').replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
+            const hasTitle = row.title && row.title.trim() && row.title.trim() !== row.url;
+            const title = hasTitle ? row.title.trim() : cleanUrl;
             return {
-                text: titleOnly ? (row.title || row.url) : row.url,
+                text: title,
                 url: row.url,
                 type: 'history',
                 score: Math.max(0, Math.min(1000, Math.round(Number(row.score) || 0))),
-                description: titleOnly ? row.url : (row.title || row.url),
-                favicon: null,
+                description: cleanUrl,
+                favicon: domain ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=32` : null,
             };
         });
     }

@@ -10,7 +10,18 @@ let omniboxDismissPending = false;
 let omniboxPanelGuardsBound = false;
 let omniboxFocusGen = 0;
 
+let lastOmniboxPayload = null;
+
+if (typeof window !== 'undefined') {
+    window.addEventListener('resize', function () {
+        if (lastOmniboxPayload && isOmniboxPanelVisible()) {
+            positionOmniboxPanel(lastOmniboxPayload);
+        }
+    });
+}
+
 onHideAll(() => {
+    lastOmniboxPayload = null;
     omniboxFocusGen += 1;
     disableOmniboxEscapeDismiss();
     omniboxDismissPending = false;
@@ -168,17 +179,19 @@ function renderOmniboxSuggestionRows(scroll, items, query, sel) {
             content.appendChild(textEl);
             var urlStr = String(it.url || '');
             var desc = it.description && String(it.description);
-            if (desc && desc !== urlStr) {
+            if (desc && desc !== it.text) {
                 var descEl = document.createElement('span');
                 descEl.className = 'co-ob-row__description';
                 descEl.textContent = desc.slice(0, 240);
                 content.appendChild(descEl);
             }
             row.appendChild(content);
-            var badge = document.createElement('span');
-            badge.className = 'co-ob-badge co-ob-badge--' + typ;
-            badge.textContent = typ;
-            row.appendChild(badge);
+            if (typ === 'keyword' || typ === 'extension') {
+                var badge = document.createElement('span');
+                badge.className = 'co-ob-badge co-ob-badge--' + typ;
+                badge.textContent = typ;
+                row.appendChild(badge);
+            }
             row.addEventListener('mousedown', function (e) { e.preventDefault(); });
             row.addEventListener('click', function () { notifyHost({ type: 'omniboxSuggestPick', index: index }); });
             scroll.appendChild(row);
@@ -213,21 +226,30 @@ function getOmniboxPanelGeometry(payload) {
     var left = Math.round(Number(dr.left) || 0);
     var top = Math.round(Number(dr.top) || 0);
     var pad = 8;
-    w = Math.max(200, Math.min(w, window.innerWidth - 2 * pad));
     var overlayBounds = payload.overlayBounds || null;
+    var viewW = (overlayBounds && Number.isFinite(Number(overlayBounds.width)) && Number(overlayBounds.width) > 0)
+        ? Math.round(Number(overlayBounds.width))
+        : window.innerWidth;
+    var viewH = (overlayBounds && Number.isFinite(Number(overlayBounds.height)) && Number(overlayBounds.height) > 0)
+        ? Math.round(Number(overlayBounds.height))
+        : window.innerHeight;
+
+    w = Math.max(200, Math.min(w, viewW - 2 * pad));
     if (overlayBounds && Number.isFinite(Number(overlayBounds.x)) && Number.isFinite(Number(overlayBounds.y))) {
         left = Math.round(left - Number(overlayBounds.x));
         top = Math.round(top - Number(overlayBounds.y));
-        left = Math.max(0, Math.min(left, Math.max(0, window.innerWidth - w)));
-        top = Math.max(0, Math.min(top, Math.max(0, window.innerHeight - h)));
+        left = Math.max(0, Math.min(left, Math.max(0, viewW - w)));
+        top = Math.max(0, Math.min(top, Math.max(0, viewH - h)));
     } else {
-        left = Math.max(pad, Math.min(left, window.innerWidth - w - pad));
-        top = Math.max(pad, Math.min(top, window.innerHeight - 120 - pad));
+        left = Math.max(pad, Math.min(left, viewW - w - pad));
+        top = Math.max(pad, Math.min(top, viewH - 120 - pad));
     }
-    return { left: left, top: top, width: w, inputHeight: h, maxPanelHeight: Math.max(h, window.innerHeight - top) };
+    var maxPanelHeight = Math.max(h, viewH - top);
+    return { left: left, top: top, width: w, inputHeight: h, maxPanelHeight: maxPanelHeight };
 }
 
 function positionOmniboxPanel(payload) {
+    lastOmniboxPayload = payload;
     var geom = getOmniboxPanelGeometry(payload);
     DOM.panel.style.left = geom.left + 'px';
     DOM.panel.style.top = geom.top + 'px';
@@ -243,7 +265,8 @@ function positionOmniboxPanel(payload) {
 export function updateOmniboxSuggestionsInPlace(payload) {
     var geom = positionOmniboxPanel(payload);
     var query = String(payload.query || '');
-    var ghostSuffix = String(payload.ghostSuffix || '');
+    var inlineComp = payload.inlineCompletion;
+    var ghostSuffix = inlineComp ? '' : String(payload.ghostSuffix || '');
     var isSecure = !!payload.isSecure;
     var selectedIndex = Math.round(Number(payload.selectedIndex));
     if (!Number.isFinite(selectedIndex)) selectedIndex = -1;
@@ -266,15 +289,42 @@ export function updateOmniboxSuggestionsInPlace(payload) {
 
     var selStart = Number(payload.selectionStart);
     var selEnd = Number(payload.selectionEnd);
-    var preserveSelection = input && document.activeElement === input && input.value === query;
+    var isInputActive = input && document.activeElement === input;
+    var preserveSelection = isInputActive && input.value === query;
     var preservedStart = preserveSelection ? input.selectionStart : null;
     var preservedEnd = preserveSelection ? input.selectionEnd : null;
+    var baseTyped;
 
     if (input) {
-        if (!preserveSelection) {
-            input.value = query;
-            if (Number.isFinite(selStart) && Number.isFinite(selEnd)) {
-                try { input.setSelectionRange(selStart, selEnd); } catch (_) { }
+        if (inlineComp) {
+            var currentVal = input.value || '';
+            var lowerCompleted = inlineComp.completedText.toLowerCase();
+            var lowerQuery = query.toLowerCase();
+            var lowerCurrent = currentVal.toLowerCase();
+
+            if (isInputActive) {
+                var unselectedVal = (input.selectionStart < input.selectionEnd && input.selectionEnd === currentVal.length)
+                    ? currentVal.slice(0, input.selectionStart)
+                    : currentVal;
+                baseTyped = lowerCurrent.startsWith(lowerQuery) ? currentVal : (unselectedVal || query);
+                var lowerBase = baseTyped.toLowerCase();
+
+                if (lowerCompleted.startsWith(lowerBase) && lowerCompleted.length > lowerBase.length) {
+                    input.value = inlineComp.completedText;
+                    try { input.setSelectionRange(baseTyped.length, inlineComp.completedText.length); } catch (_) { }
+                }
+            } else {
+                input.value = inlineComp.completedText;
+                if (Number.isFinite(inlineComp.selectionStart) && Number.isFinite(inlineComp.selectionEnd)) {
+                    try { input.setSelectionRange(inlineComp.selectionStart, inlineComp.selectionEnd); } catch (_) { }
+                }
+            }
+        } else if (!preserveSelection) {
+            if (!isInputActive || selectedIndex >= 0 || input.value.length === 0) {
+                input.value = query;
+                if (Number.isFinite(selStart) && Number.isFinite(selEnd)) {
+                    try { input.setSelectionRange(selStart, selEnd); } catch (_) { }
+                }
             }
         }
         bindOmniboxInputBlurDismiss(input);
@@ -289,12 +339,17 @@ export function updateOmniboxSuggestionsInPlace(payload) {
     if (input) bindOmniboxInputBlurDismiss(input);
 
     if (payload.focusInput !== false) {
-        var focusStart = preserveSelection && preservedStart != null ? preservedStart : selStart;
-        var focusEnd = preserveSelection && preservedEnd != null ? preservedEnd : selEnd;
-        if (!preserveSelection && !(Number.isFinite(focusStart) && Number.isFinite(focusEnd))) {
-            focusStart = query.length; focusEnd = query.length;
+        if (inlineComp) {
+            var startIdx = (isInputActive && typeof baseTyped !== 'undefined') ? baseTyped.length : inlineComp.selectionStart;
+            focusOmniboxInput(input, startIdx, inlineComp.selectionEnd, false);
+        } else {
+            var focusStart = preserveSelection && preservedStart != null ? preservedStart : selStart;
+            var focusEnd = preserveSelection && preservedEnd != null ? preservedEnd : selEnd;
+            if (!preserveSelection && !(Number.isFinite(focusStart) && Number.isFinite(focusEnd))) {
+                focusStart = query.length; focusEnd = query.length;
+            }
+            focusOmniboxInput(input, focusStart, focusEnd, false);
         }
-        focusOmniboxInput(input, focusStart, focusEnd, false);
     }
 }
 
@@ -316,7 +371,8 @@ export function renderOmniboxSuggestions(payload) {
     var geom = positionOmniboxPanel(payload);
 
     var query = String(payload.query || '');
-    var ghostSuffix = String(payload.ghostSuffix || '');
+    var inlineComp = payload.inlineCompletion;
+    var ghostSuffix = inlineComp ? '' : String(payload.ghostSuffix || '');
     var isSecure = !!payload.isSecure;
     var selectedIndex = Math.round(Number(payload.selectedIndex));
     if (!Number.isFinite(selectedIndex)) selectedIndex = -1;
@@ -358,24 +414,71 @@ export function renderOmniboxSuggestions(payload) {
     var preserveSelection = previousInput && document.activeElement === previousInput && previousInput.value === query;
     var preservedStart = preserveSelection ? previousInput.selectionStart : null;
     var preservedEnd = preserveSelection ? previousInput.selectionEnd : null;
-    input.value = query;
+    var inlineComp = payload.inlineCompletion;
+
+    if (inlineComp) {
+        input.value = inlineComp.completedText;
+    } else {
+        input.value = query;
+    }
     omniboxOverlayInput = input;
 
     var selStart = Number(payload.selectionStart);
     var selEnd = Number(payload.selectionEnd);
-    if (preserveSelection && preservedStart != null && preservedEnd != null) {
+    if (inlineComp) {
+        if (Number.isFinite(inlineComp.selectionStart) && Number.isFinite(inlineComp.selectionEnd)) {
+            try { input.setSelectionRange(inlineComp.selectionStart, inlineComp.selectionEnd); } catch (_) { }
+        }
+    } else if (preserveSelection && preservedStart != null && preservedEnd != null) {
         try { input.setSelectionRange(preservedStart, preservedEnd); } catch (_) { }
     } else if (Number.isFinite(selStart) && Number.isFinite(selEnd)) {
         try { input.setSelectionRange(selStart, selEnd); } catch (_) { }
     }
 
-    function notifyInputChange() {
-        notifyHost({ type: 'omniboxInputChange', value: input.value, selectionStart: input.selectionStart, selectionEnd: input.selectionEnd });
+    function notifyInputChange(e) {
+        var isDel = !!(e && (e.inputType === 'deleteContentBackward' || e.inputType === 'deleteContentForward' || e.inputType === 'deleteByCut'));
+        notifyHost({
+            type: 'omniboxInputChange',
+            value: input.value,
+            selectionStart: input.selectionStart,
+            selectionEnd: input.selectionEnd,
+            isDelete: isDel
+        });
     }
     input.addEventListener('input', notifyInputChange);
 
     input.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape') { e.preventDefault(); notifyHost({ type: 'dismiss', reason: 'escape' }); return; }
+        if (e.key === 'Backspace' || e.key === 'Delete') {
+            if (input.selectionStart < input.selectionEnd && input.selectionEnd === input.value.length) {
+                var keepText = input.value.substring(0, input.selectionStart);
+                e.preventDefault();
+                input.value = keepText;
+                input.setSelectionRange(keepText.length, keepText.length);
+                notifyHost({
+                    type: 'omniboxInputChange',
+                    value: keepText,
+                    selectionStart: keepText.length,
+                    selectionEnd: keepText.length,
+                    isDelete: true
+                });
+                return;
+            }
+        }
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            var actualVal = input.value;
+            if (inlineComp && Number.isFinite(inlineComp.selectionStart) && input.selectionEnd === input.value.length) {
+                actualVal = input.value.slice(0, inlineComp.selectionStart);
+            }
+            notifyHost({
+                type: 'dismiss',
+                reason: 'escape',
+                value: actualVal,
+                selectionStart: actualVal.length,
+                selectionEnd: actualVal.length
+            });
+            return;
+        }
         if (e.key === 'Enter') { e.preventDefault(); notifyHost({ type: 'omniboxInputCommit', value: input.value, selectedIndex: omniboxOverlayState.selectedIndex }); return; }
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Tab') {
             e.preventDefault();
@@ -403,11 +506,15 @@ export function renderOmniboxSuggestions(payload) {
     bindOmniboxInputBlurDismiss(input);
 
     if (payload.focusInput !== false) {
-        var focusStart = preserveSelection && preservedStart != null ? preservedStart : selStart;
-        var focusEnd = preserveSelection && preservedEnd != null ? preservedEnd : selEnd;
-        if (!preserveSelection && !(Number.isFinite(focusStart) && Number.isFinite(focusEnd))) {
-            focusStart = query.length; focusEnd = query.length;
+        if (inlineComp) {
+            focusOmniboxInput(input, inlineComp.selectionStart, inlineComp.selectionEnd, false);
+        } else {
+            var focusStart = preserveSelection && preservedStart != null ? preservedStart : selStart;
+            var focusEnd = preserveSelection && preservedEnd != null ? preservedEnd : selEnd;
+            if (!preserveSelection && !(Number.isFinite(focusStart) && Number.isFinite(focusEnd))) {
+                focusStart = query.length; focusEnd = query.length;
+            }
+            focusOmniboxInput(input, focusStart, focusEnd, false);
         }
-        focusOmniboxInput(input, focusStart, focusEnd, false);
     }
 }

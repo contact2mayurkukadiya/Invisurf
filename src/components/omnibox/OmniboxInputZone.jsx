@@ -16,6 +16,7 @@ export default function OmniboxInputZone({
   barDisplayValue,
   displayParts,
   overlayRequested,
+  hasUncommittedDraft,
   onFocus,
   onBlur,
   onChange,
@@ -23,14 +24,14 @@ export default function OmniboxInputZone({
   onPointerDown,
   onMouseUp,
 }) {
-  const showShellInput = isFocused && !overlayDelivered;
-  const showUrlDisplay = !isFocused && !overlayDelivered && displayParts;
-  const showPlaceholder = !isFocused && !overlayDelivered && !displayParts;
+  const showShellInput = (isFocused || hasUncommittedDraft) && !overlayDelivered;
+  const showUrlDisplay = !isFocused && !hasUncommittedDraft && !overlayDelivered && displayParts;
+  const showPlaceholder = !isFocused && !hasUncommittedDraft && !overlayDelivered && !displayParts;
 
   return (
     <div
       ref={inputZoneRef}
-      className={`omnibox-input-zone${overlayDelivered ? ' omnibox-overlay-active' : ''}`}
+      className={`omnibox-input-zone${overlayDelivered ? ' omnibox-overlay-active' : ''}${hasUncommittedDraft ? ' has-draft' : ''}`}
     >
 
       {showShellInput && ghostSuffix && (

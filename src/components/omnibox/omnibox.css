@@ -183,6 +183,10 @@
   pointer-events: none;
 }
 
+.omnibox-input-zone.has-draft #url-input {
+  opacity: 1 !important;
+}
+
 .omnibox-input-zone.omnibox-overlay-active .omnibox-ghost {
   display: none;
 }

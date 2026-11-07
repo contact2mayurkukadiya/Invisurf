@@ -751,6 +751,9 @@ function registerIpcHandlers() {
                     context.chromeOmniboxOverlayView.setBounds({ x: 0, y: 0, width: 0, height: 0 });
                 }
             } catch (err) { console.error(C.IPC_INVOKE.CHROME_OVERLAY_RELEASE, err?.message || err); }
+            if (context.window?.webContents && !context.window.webContents.isDestroyed()) {
+                context.window.webContents.focus();
+            }
         }
         overlayManager.ensureChromeOverlayOnTop(context);
         return { ok: true };
@@ -1066,6 +1069,7 @@ function registerIpcHandlers() {
                 overlayManager.hideExtensionPopup(context);
             }
             overlayManager.dismissChromeShellMenuOverlay(context, data.reason || 'overlay-request');
+            overlayManager.dismissOmniboxChromeOverlay(context, data.reason || 'overlay-request', data);
             return;
         }
 

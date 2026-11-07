@@ -812,7 +812,7 @@ function computeOmniboxOverlayBounds(context, patch) {
     const items = Array.isArray(patch?.items) ? patch.items.slice(0, 24) : [];
     const rowHeight = 50;
     const scrollPad = 6;
-    const maxScrollH = Math.min(412, Math.floor(windowH * 0.7));
+    const maxScrollH = Math.min(480, Math.floor(windowH * 0.75));
     let scrollH = 0;
     if (items.length > 0) {
         scrollH = Math.min(items.length * rowHeight, maxScrollH);
@@ -963,6 +963,28 @@ function dismissChromeShellMenuOverlay(context, reason = 'outside') {
         });
     } catch (err) {
         console.error('chrome-shell-menu-overlay:v1:dismiss', err?.message || err);
+    }
+}
+
+function dismissOmniboxChromeOverlay(context, reason = 'escape', extraData = {}) {
+    if (!context?.window?.webContents || context.window.webContents.isDestroyed()) return;
+    if ((context.chromeOmniboxOverlayAcquireCount || 0) <= 0) return;
+    try {
+        if (context.chromeOmniboxOverlayView && !context.chromeOmniboxOverlayView.webContents.isDestroyed()) {
+            context.chromeOmniboxOverlayView.webContents.send(C.IPC_EVENT.CHROME_OVERLAY_PATCH, { kind: 'hide' });
+            context.chromeOmniboxOverlayView.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+        }
+        context.chromeOmniboxOverlayAcquireCount = 0;
+        context.chromeOverlayOmniboxMode = false;
+        context.lastOmniboxOverlayPatch = null;
+        context.window.webContents.focus();
+        context.window.webContents.send(C.IPC_EVENT.CHROME_OVERLAY_HOST, {
+            type: 'dismiss',
+            reason,
+            ...extraData,
+        });
+    } catch (err) {
+        console.error('chrome-omnibox-overlay:v1:dismiss', err?.message || err);
     }
 }
 
@@ -1591,6 +1613,7 @@ module.exports = {
     focusChromeOmniboxOverlayWebContents,
     focusChromeOverlayWebContents,
     dismissOmniboxChromeOverlayOnBlur,
+    dismissOmniboxChromeOverlay,
     dismissChromeShellMenuOverlay,
     dismissChromeShellMenuOverlayOnBlur,
     focusChromeShellMenuOverlayWebContents,

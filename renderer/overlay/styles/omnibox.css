@@ -2,7 +2,7 @@
     --co-omnibox-border-shade: color-mix(in srgb, var(--chrome-nav-bg, #394d55) 76%, #000000);
     padding: 0;
     overflow: hidden;
-    max-height: min(420px, 72vh);
+    max-height: min(520px, 75vh);
     background: var(--chrome-nav-bg, #394d55);
     color: var(--chrome-fg, rgba(255, 255, 255, 0.95));
     border: 1px solid var(--co-omnibox-border-shade);
@@ -77,7 +77,7 @@
 }
 
 #panel.co-panel--omnibox .co-ob-scroll {
-    max-height: min(412px, 70vh);
+    max-height: min(480px, 72vh);
     overflow-y: auto;
     overflow-x: hidden;
     padding-top: 6px;
