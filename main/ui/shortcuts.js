@@ -178,7 +178,11 @@ function handleShortcuts(event, input) {
     }
     if (matchesShortcut(input, shortcuts.newTab)) {
         event.preventDefault();
-        focusedShellWebContents()?.send(C.IPC_EVENT.SHORTCUT_NEW_TAB);
+        const shell = (context?.window && !context.window.isDestroyed() ? context.window.webContents : null) || focusedShellWebContents();
+        if (shell && !shell.isDestroyed()) {
+            try { shell.focus(); } catch (_) {}
+            shell.send(C.IPC_EVENT.SHORTCUT_NEW_TAB);
+        }
         return;
     }
     if (matchesShortcut(input, shortcuts.closeTab)) {

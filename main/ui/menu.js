@@ -83,7 +83,13 @@ function buildApplicationMenu() {
                 {
                     label: 'New Tab',
                     accelerator: 'CmdOrCtrl+T',
-                    click: () => focusedShellWebContents()?.send(C.IPC_EVENT.SHORTCUT_NEW_TAB)
+                    click: () => {
+                        const shell = focusedShellWebContents();
+                        if (shell && !shell.isDestroyed()) {
+                            try { shell.focus(); } catch (_) {}
+                            shell.send(C.IPC_EVENT.SHORTCUT_NEW_TAB);
+                        }
+                    }
                 },
                 {
                     label: 'New Stealth Window',

@@ -153,15 +153,38 @@ export function useOmniboxController({ currentTabId, tabsData, searchEngine = 'g
   // makes NTP load time irrelevant to keyboard readiness.
   useLayoutEffect(() => {
     if (!currentTabId || !tab?.isNewTab) return undefined;
-    const input = inputRef.current;
-    if (!input) return undefined;
+    aOnlyFocusUntilUserEditRef.current = true;
+    suppressOverlayOnNextAFocusRef.current = true;
+    setIsFocused(true);
 
-    input.focus({ preventScroll: true });
     try {
-      input.select();
-    } catch (_) { /* ignore */ }
+      if (typeof window.focus === 'function') window.focus();
+    } catch (_) {}
+
+    const input = inputRef.current;
+    if (input) {
+      if (document.activeElement !== input) {
+        input.focus({ preventScroll: true });
+        if (!input.value) {
+          try {
+            input.select();
+          } catch (_) { /* ignore */ }
+        }
+      }
+    } else {
+      requestAnimationFrame(() => {
+        if (inputRef.current && document.activeElement !== inputRef.current) {
+          inputRef.current.focus({ preventScroll: true });
+          if (!inputRef.current.value) {
+            try {
+              inputRef.current.select();
+            } catch (_) { /* ignore */ }
+          }
+        }
+      });
+    }
     return undefined;
-  }, [currentTabId, tab?.isNewTab]);
+  }, [currentTabId, tab?.isNewTab, setIsFocused]);
 
   useLayoutEffect(() => {
     if (inlineCompletionRef.current && inputRef.current && document.activeElement === inputRef.current) {
@@ -935,7 +958,7 @@ export function useOmniboxController({ currentTabId, tabsData, searchEngine = 'g
     suggestionCacheRef.current = { query: null, suggestions: [], ghostSuffix: '' };
     setHasUncommittedDraft(false);
     suppressOverlayOnNextAFocusRef.current = true;
-    aOnlyFocusUntilUserEditRef.current = false;
+    aOnlyFocusUntilUserEditRef.current = !!tab?.isNewTab;
     overlayRequestedRef.current = false;
     overlayDeliveredRef.current = false;
     omniboxOverlayFocusSentRef.current = false;
@@ -970,22 +993,27 @@ export function useOmniboxController({ currentTabId, tabsData, searchEngine = 'g
         suppressOverlayOnNextAFocusRef.current = false;
         aOnlyFocusUntilUserEditRef.current = false;
       }
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          const input = inputRef.current;
-          if (!input) return;
-          input.focus({ preventScroll: true });
-          if (selectAll) {
-            try {
-              input.select();
-            } catch (_) { /* ignore */ }
-          }
-        });
-      });
+      const applyFocus = () => {
+        const input = inputRef.current;
+        if (!input) return;
+        if (document.activeElement === input) {
+          // Already focused — do not touch or reset user's typing position
+          return;
+        }
+        setIsFocused(true);
+        input.focus({ preventScroll: true });
+        if (selectAll && !hasUncommittedDraftRef.current && !input.value) {
+          try {
+            input.select();
+          } catch (_) { /* ignore */ }
+        }
+      };
+      applyFocus();
+      requestAnimationFrame(applyFocus);
     };
     window.addEventListener(DOM_EVENT.OMNIBOX_REQUEST_FOCUS, onRequestFocus);
     return () => window.removeEventListener(DOM_EVENT.OMNIBOX_REQUEST_FOCUS, onRequestFocus);
-  }, [currentTabId]);
+  }, [currentTabId, setIsFocused]);
 
   const closePopup = useCallback(async () => {
     if (!popupOpenRef.current) return;

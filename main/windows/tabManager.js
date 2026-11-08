@@ -445,10 +445,12 @@ function activateTabInContext(context, id, options = {}) {
         }
     } catch (_) { }
 
-    const activeUrl = context.tabs[id]?.webContents.getURL() ?? '';
+    const activeUrl = context.tabs[id]?._pendingUrl || context.tabs[id]?.webContents?.getURL() || '';
     const blankActive = isBlankTab(activeUrl);
     if (!blankActive && !context.isInitialGhostSpawn) {
         context.tabs[id].webContents.focus();
+    } else if (blankActive && !context.isInitialGhostSpawn) {
+        sendOmniboxFocusToShell(context, id, false, false);
     }
     if (context.ghostWindow && process.platform === 'win32') {
         const { hookWindowChildren } = require('../native');
@@ -476,7 +478,7 @@ function activateTabInContext(context, id, options = {}) {
         const omniboxGen = context.omniboxFocusGen;
         setImmediate(() => {
             if (context.omniboxFocusGen !== omniboxGen) return;
-            sendOmniboxFocusToShell(context, id, true, false);
+            sendOmniboxFocusToShell(context, id, false, false);
         });
     }
 
@@ -1023,7 +1025,7 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
         });
     }
 
-    if (!shouldActivate) {
+    if (!shouldActivate && !options.prewarm) {
         addTabContentChildView(context, view);
         view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
     }
@@ -1092,8 +1094,19 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
         } catch (_) { }
     });
 
+    let userInteractedWithTab = false;
     applyIdentityToWebContents(view.webContents);
     view.webContents.on('focus', () => {
+        if (options.prewarm && !view._invisurfPromoted) {
+            if (context.window && !context.window.isDestroyed() && context.window.webContents && !context.window.webContents.isDestroyed()) {
+                context.window.webContents.focus();
+            }
+            return;
+        }
+        if (!userInteractedWithTab && context.activeTabId === id && isBlankTab(view.webContents?.getURL())) {
+            sendOmniboxFocusToShell(context, id, false, false);
+            return;
+        }
         try {
             const splitTabManager = require('./splitTabManager');
             const pair = splitTabManager.getSplitPairByTabId(context, id);
@@ -1321,6 +1334,9 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
     let lastFingerLiftTime = 0;
     let lastGestureBeginTime = 0;
     view.webContents.on('input-event', (_, input) => {
+        if (input.type === 'mouseDown' || input.type === 'mouseUp' || input.type === 'gestureTap') {
+            userInteractedWithTab = true;
+        }
         if (input.type === 'gestureScrollBegin') {
             const now = Date.now();
             if (now - lastGestureBeginTime < 50) return;
@@ -1467,7 +1483,7 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
 
         if (context.activeTabId !== id) return;
 
-        if (shouldReassertOmniboxAfterPageLoad(loadedUrl)) {
+        if (shouldReassertOmniboxAfterPageLoad(loadedUrl) || isBlankTab(loadedUrl)) {
             setImmediate(() => {
                 if (context.activeTabId !== id) return;
                 sendOmniboxFocusToShell(context, id, false, false);
