@@ -81,6 +81,8 @@
   height: 100%;
   display: flex;
   align-items: center;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .omnibox-action-btn {
@@ -107,6 +109,7 @@
 }
 
 .omnibox-suffix {
+  margin-left: 2px;
   margin-right: 4px;
 }
 
@@ -245,6 +248,7 @@
   inset: 0;
   display: flex;
   align-items: center;
+  box-sizing: border-box;
   padding: 0 12px 0 6px;
   font-size: 14px;
   color: var(--chrome-url-ghost, rgba(255, 255, 255, 0.45));
@@ -260,6 +264,7 @@
   inset: 0;
   display: flex;
   align-items: center;
+  box-sizing: border-box;
   padding: 0 12px 0 6px;
   font-size: 14px;
   font-family: inherit;

@@ -143,10 +143,7 @@ export function renderSiteInfo(payload) {
         DOM.panel.appendChild(divider);
 
         const scrollArea = document.createElement('div');
-        scrollArea.style.flex = '1';
-        scrollArea.style.overflowY = 'auto';
-        scrollArea.style.overflowX = 'hidden';
-        scrollArea.style.padding = '8px 0';
+        scrollArea.className = 'co-site-perm-scroll';
         DOM.panel.appendChild(scrollArea);
 
         const loading = document.createElement('div');
@@ -158,27 +155,21 @@ export function renderSiteInfo(payload) {
         scrollArea.appendChild(loading);
 
         const footer = document.createElement('div');
-        footer.style.padding = '10px 16px';
-        footer.style.display = 'flex';
-        footer.style.alignItems = 'center';
-        footer.style.justifyContent = 'space-between';
-        footer.style.borderTop = '1px solid var(--chrome-tab-separator, #dadce0)';
-        footer.style.backgroundColor = 'var(--chrome-card-bg, #f8f9fa)';
-        footer.style.borderBottomLeftRadius = '8px';
-        footer.style.borderBottomRightRadius = '8px';
+        footer.className = 'co-site-perm-footer';
 
         const resetBtn = document.createElement('button');
-        resetBtn.textContent = 'Reset permissions';
-        resetBtn.style.background = 'none';
-        resetBtn.style.border = 'none';
-        resetBtn.style.color = 'var(--chrome-accent, #1a73e8)';
-        resetBtn.style.fontSize = '12px';
-        resetBtn.style.fontWeight = '500';
-        resetBtn.style.cursor = 'pointer';
-        resetBtn.style.padding = '4px 8px';
-        resetBtn.style.borderRadius = '4px';
-        resetBtn.onmouseenter = () => resetBtn.style.backgroundColor = 'var(--chrome-hover-bg, #e8f0fe)';
-        resetBtn.onmouseleave = () => resetBtn.style.backgroundColor = 'transparent';
+        resetBtn.type = 'button';
+        resetBtn.className = 'co-site-perm-reset-btn';
+
+        const resetIcon = document.createElement('span');
+        resetIcon.className = 'co-site-perm-reset-icon';
+        resetIcon.appendChild(AssetMaskIcon('assets/images/rotate-right.svg', 13));
+        resetBtn.appendChild(resetIcon);
+
+        const resetText = document.createElement('span');
+        resetText.textContent = 'Reset permissions';
+        resetBtn.appendChild(resetText);
+
         resetBtn.onclick = async () => {
             if (window.permissionAPI?.resetOrigin) {
                 await window.permissionAPI.resetOrigin(targetOrigin);
@@ -190,15 +181,9 @@ export function renderSiteInfo(payload) {
         };
 
         const doneBtn = document.createElement('button');
+        doneBtn.type = 'button';
+        doneBtn.className = 'co-site-perm-done-btn';
         doneBtn.textContent = 'Done';
-        doneBtn.style.padding = '5px 14px';
-        doneBtn.style.background = 'var(--chrome-hover-bg, #f1f3f4)';
-        doneBtn.style.border = 'none';
-        doneBtn.style.borderRadius = '14px';
-        doneBtn.style.color = 'var(--chrome-fg, #202124)';
-        doneBtn.style.fontSize = '12px';
-        doneBtn.style.fontWeight = '500';
-        doneBtn.style.cursor = 'pointer';
         doneBtn.onclick = function () { hideAll({ hideLens: false }); };
 
         footer.appendChild(resetBtn);
@@ -225,18 +210,10 @@ export function renderSiteInfo(payload) {
 
             for (const perm of perms) {
                 const row = document.createElement('div');
-                row.style.display = 'flex';
-                row.style.alignItems = 'center';
-                row.style.justifyContent = 'space-between';
-                row.style.padding = '8px 16px';
-                row.style.gap = '12px';
+                row.className = 'co-site-perm-row';
 
                 const leftGroup = document.createElement('div');
-                leftGroup.style.display = 'flex';
-                leftGroup.style.alignItems = 'center';
-                leftGroup.style.gap = '12px';
-                leftGroup.style.flex = '1';
-                leftGroup.style.minWidth = '0';
+                leftGroup.className = 'co-site-perm-left';
 
                 let iconFile = 'shield.svg';
                 if (perm.name === 'camera') iconFile = 'camera.svg';
@@ -246,29 +223,22 @@ export function renderSiteInfo(payload) {
                 else if (perm.name.includes('clipboard')) iconFile = 'clipboard.svg';
 
                 const iconBox = document.createElement('div');
-                iconBox.style.color = 'var(--chrome-secondary-fg, #5f6368)';
-                iconBox.style.display = 'flex';
-                iconBox.style.alignItems = 'center';
-                iconBox.style.flexShrink = '0';
+                iconBox.className = 'co-site-perm-icon';
                 iconBox.appendChild(AssetMaskIcon(`assets/images/${iconFile}`, 16));
 
                 const label = document.createElement('div');
-                label.style.fontSize = '13px';
-                label.style.fontWeight = '500';
-                label.style.color = 'var(--chrome-fg, #202124)';
+                label.className = 'co-site-perm-label';
                 label.textContent = perm.label || perm.name;
 
                 leftGroup.appendChild(iconBox);
                 leftGroup.appendChild(label);
 
+                const selectWrap = document.createElement('div');
+                selectWrap.className = 'co-site-perm-select-wrap';
+
                 const select = document.createElement('select');
-                select.style.padding = '4px 8px';
-                select.style.borderRadius = '4px';
-                select.style.border = '1px solid var(--chrome-tab-separator, #dadce0)';
-                select.style.backgroundColor = 'var(--chrome-bg, #ffffff)';
-                select.style.color = 'var(--chrome-fg, #202124)';
-                select.style.fontSize = '12px';
-                select.style.cursor = 'pointer';
+                select.className = 'co-site-perm-select';
+                select.setAttribute('aria-label', `${perm.label || perm.name} permission`);
 
                 const optAsk = document.createElement('option');
                 optAsk.value = 'prompt';
@@ -290,6 +260,11 @@ export function renderSiteInfo(payload) {
                     ? 'allow'
                     : (perm.state === 'deny' ? 'deny' : 'prompt');
 
+                const chevron = document.createElement('div');
+                chevron.className = 'co-site-perm-chevron';
+                chevron.setAttribute('aria-hidden', 'true');
+                chevron.innerHTML = '<svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
                 select.onchange = async () => {
                     const newState = select.value;
                     if (window.permissionAPI?.setOriginState) {
@@ -299,8 +274,11 @@ export function renderSiteInfo(payload) {
                     }
                 };
 
+                selectWrap.appendChild(select);
+                selectWrap.appendChild(chevron);
+
                 row.appendChild(leftGroup);
-                row.appendChild(select);
+                row.appendChild(selectWrap);
                 scrollArea.appendChild(row);
             }
         } catch (err) {
