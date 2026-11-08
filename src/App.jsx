@@ -80,26 +80,30 @@ function AppShell() {
   const isSidePanelOpen = !!sidePanelState.isOpen;
   const sidePanelWidth = sidePanelState.width || 360;
 
+  const screenShareState = useSelector(s => s.browser.screenShare || {});
+  const isTabSharing = Boolean(screenShareState.active && screenShareState.sourceKind === 'tab');
+
   useEffect(() => {
     const root = document.documentElement;
+    const bannerOffset = isTabSharing ? 38 : 0;
     if (isSidePanelOpen) {
       root.style.setProperty('--side-panel-width', `${sidePanelWidth}px`);
       root.style.setProperty('--side-panel-open', '1');
-      root.style.setProperty('--tab-content-top', '126px');
+      root.style.setProperty('--tab-content-top', `${126 + bannerOffset}px`);
       root.style.setProperty('--tab-content-left', '8px');
       root.style.setProperty('--tab-content-width', `calc(100vw - ${sidePanelWidth}px - 14px)`);
-      root.style.setProperty('--tab-content-height', 'calc(100vh - 134px)');
+      root.style.setProperty('--tab-content-height', `calc(100vh - ${134 + bannerOffset}px)`);
       root.style.setProperty('--tab-content-radius', '14px');
     } else {
       root.style.setProperty('--side-panel-width', '0px');
       root.style.setProperty('--side-panel-open', '0');
-      root.style.setProperty('--tab-content-top', '122px');
+      root.style.setProperty('--tab-content-top', `${122 + bannerOffset}px`);
       root.style.setProperty('--tab-content-left', '0px');
       root.style.setProperty('--tab-content-width', '100vw');
-      root.style.setProperty('--tab-content-height', 'calc(100vh - 122px)');
+      root.style.setProperty('--tab-content-height', `calc(100vh - ${122 + bannerOffset}px)`);
       root.style.setProperty('--tab-content-radius', '0px');
     }
-  }, [isSidePanelOpen, sidePanelWidth]);
+  }, [isSidePanelOpen, sidePanelWidth, isTabSharing]);
 
   // Always-fresh ref so event-handler closures never capture stale state
   const stateRef = useRef({});

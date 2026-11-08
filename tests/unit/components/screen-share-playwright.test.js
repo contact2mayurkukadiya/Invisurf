@@ -221,48 +221,62 @@ describe('Screen Share Picker & Banner Visual Verification (Playwright)', () => 
       </head>
       <body>
         <div>
-          <div class="case-label">Case 1: User is on Meeting Tab (or Shared Tab)</div>
-          <div class="screen-share-banner-wrapper">
-            <div class="screen-share-banner-pill">
-              <div class="screen-share-banner-icon">
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-                  <line x1="8" y1="21" x2="16" y2="21" />
-                  <line x1="12" y1="17" x2="12" y2="21" />
-                  <polyline points="10 9 14 9 14 13" />
-                  <line x1="14" y1="9" x2="9" y2="14" />
-                </svg>
-              </div>
-              <div class="screen-share-banner-text">
-                <span>Sharing <span class="screen-share-host">chatgpt.com</span> to this tab</span>
-              </div>
-              <div class="screen-share-banner-actions">
-                <button type="button" class="screen-share-stop-btn">Stop sharing</button>
-              </div>
+          <div class="case-label">Case 1: User is on Meeting Tab (meet.google.com) - matches screenshot 1</div>
+          <div class="screen-share-banner-bar screen-share-banner-wrapper">
+            <div class="screen-share-banner-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.11-.9-2-2-2H4c-1.11 0-2 .89-2 2v10c0 1.1.89 2 2 2H0v2h24v-2h-4zm-7-3.53v-2.19c-2.78 0-4.61.85-6 2.72.56-2.67 2.11-5.33 6-5.87V7l4 3.73-4 3.74zM4 6h16v10H4V6z" />
+              </svg>
+            </div>
+            <div class="screen-share-banner-content">
+              <span class="screen-share-text">Sharing</span>
+              <button type="button" class="screen-share-chip">www.markdowntopdf.com</button>
+              <span class="screen-share-text">to this tab</span>
+            </div>
+            <div class="screen-share-divider"></div>
+            <div class="screen-share-banner-actions">
+              <button type="button" class="screen-share-stop-btn">Stop sharing</button>
             </div>
           </div>
         </div>
 
         <div>
-          <div class="case-label">Case 2: User navigated to another tab (zbotic.in)</div>
-          <div class="screen-share-banner-wrapper">
-            <div class="screen-share-banner-pill">
-              <div class="screen-share-banner-icon">
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-                  <line x1="8" y1="21" x2="16" y2="21" />
-                  <line x1="12" y1="17" x2="12" y2="21" />
-                  <polyline points="10 9 14 9 14 13" />
-                  <line x1="14" y1="9" x2="9" y2="14" />
-                </svg>
-              </div>
-              <div class="screen-share-banner-text">
-                <span>Sharing <span class="screen-share-host">chatgpt.com</span> to <span class="screen-share-host">meet.google.com</span></span>
-              </div>
-              <div class="screen-share-banner-actions">
-                <button type="button" class="screen-share-switch-btn">Share this tab instead</button>
-                <button type="button" class="screen-share-stop-btn">Stop sharing</button>
-              </div>
+          <div class="case-label">Case 2: User navigated to another tab (zbotic.in) - matches screenshot 2 ("Share this tab instead")</div>
+          <div class="screen-share-banner-bar screen-share-banner-wrapper">
+            <div class="screen-share-banner-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.11-.9-2-2-2H4c-1.11 0-2 .89-2 2v10c0 1.1.89 2 2 2H0v2h24v-2h-4zm-7-3.53v-2.19c-2.78 0-4.61.85-6 2.72.56-2.67 2.11-5.33 6-5.87V7l4 3.73-4 3.74zM4 6h16v10H4V6z" />
+              </svg>
+            </div>
+            <div class="screen-share-banner-content">
+              <span class="screen-share-text">Sharing</span>
+              <button type="button" class="screen-share-chip">www.markdowntopdf.com</button>
+              <span class="screen-share-text">to</span>
+              <button type="button" class="screen-share-chip">meet.google.com</button>
+            </div>
+            <div class="screen-share-divider"></div>
+            <div class="screen-share-banner-actions">
+              <button type="button" class="screen-share-switch-btn">Share this tab instead</button>
+              <button type="button" class="screen-share-stop-btn">Stop sharing</button>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="case-label">Case 3: User is on Shared Tab (www.markdowntopdf.com)</div>
+          <div class="screen-share-banner-bar screen-share-banner-wrapper">
+            <div class="screen-share-banner-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.11-.9-2-2-2H4c-1.11 0-2 .89-2 2v10c0 1.1.89 2 2 2H0v2h24v-2h-4zm-7-3.53v-2.19c-2.78 0-4.61.85-6 2.72.56-2.67 2.11-5.33 6-5.87V7l4 3.73-4 3.74zM4 6h16v10H4V6z" />
+              </svg>
+            </div>
+            <div class="screen-share-banner-content">
+              <span class="screen-share-text">Sharing this tab to</span>
+              <button type="button" class="screen-share-chip">meet.google.com</button>
+            </div>
+            <div class="screen-share-divider"></div>
+            <div class="screen-share-banner-actions">
+              <button type="button" class="screen-share-stop-btn">Stop sharing</button>
             </div>
           </div>
         </div>
@@ -278,7 +292,7 @@ describe('Screen Share Picker & Banner Visual Verification (Playwright)', () => 
     });
 
     const stopBtns = page.locator('.screen-share-stop-btn');
-    assert.strictEqual(await stopBtns.count(), 2);
+    assert.strictEqual(await stopBtns.count(), 3);
     const switchBtn = page.locator('.screen-share-switch-btn');
     assert.strictEqual(await switchBtn.count(), 1);
 
@@ -334,7 +348,7 @@ describe('Screen Share Picker & Banner Visual Verification (Playwright)', () => 
         throw new DOMException('Invalid capture constraints', 'AbortError');
       };
 
-      navigator.mediaDevices.getDisplayMedia = async function(...args) {
+      navigator.mediaDevices.getDisplayMedia = async function (...args) {
         try {
           return await origGetDisplayMedia(...args);
         } catch (err) {

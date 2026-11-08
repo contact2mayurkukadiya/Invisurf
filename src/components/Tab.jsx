@@ -15,6 +15,7 @@ export default function Tab({
   pinnedTabCount = 0,
   tabCount = 1,
   onDetachTab,
+  captureRole = null,
 }) {
   const { url, title, favicon, isNewTab, isStealth, isLoading, isPinned } = tab || {};
   const invsurfLogoFavicon = useInvsurfLogoFaviconUrl();
@@ -76,6 +77,7 @@ export default function Tab({
     isStealth ? 'stealth-tab' : '',
     isPinned ? 'tab--pinned' : '',
     `tab--mode-${displayMode}`,
+    captureRole ? 'tab--has-capture-indicator' : '',
   ].filter(Boolean).join(' ');
 
   return (
@@ -102,6 +104,24 @@ export default function Tab({
       <div className="tab-title">
         {title || 'New Tab'}
       </div>
+
+      {/* Screen Share / Tab Capture Indicator */}
+      {captureRole && (
+        <div
+          className={`tab-capture-indicator tab-capture-indicator--${captureRole}`}
+          title={captureRole === 'captured' ? 'This tab is being shared' : 'This tab is sharing a screen'}
+          aria-label={captureRole === 'captured' ? 'Sharing tab' : 'Meeting sharing screen'}
+        >
+          {captureRole === 'captured' ? (
+            <span className="tab-capture-dot" />
+          ) : (
+            <svg className="tab-capture-cast-icon" viewBox="0 0 16 16" width="13" height="13" fill="currentColor">
+              <path d="M1.5 2.5A1.5 1.5 0 0 0 0 4v8a1.5 1.5 0 0 0 1.5 1.5h13A1.5 1.5 0 0 0 16 12V4a1.5 1.5 0 0 0-1.5-1.5h-13zM1 4a.5.5 0 0 1 .5-.5h13a.5.5 0 0 1 .5.5v8a.5.5 0 0 1-.5.5h-13a.5.5 0 0 1-.5-.5V4z"/>
+              <path d="M4.5 10.5a.5.5 0 0 1 .5-.5h6a.5.5 0 0 1 0 1H5a.5.5 0 0 1-.5-.5z"/>
+            </svg>
+          )}
+        </div>
+      )}
 
       {/* Close button */}
       <div className="close-btn" onClick={handleClose}>

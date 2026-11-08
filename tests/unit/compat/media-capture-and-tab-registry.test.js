@@ -871,4 +871,73 @@ describe('MediaCapture & TabRegistry Sleeping Tabs & Tab Sharing Unit Tests', ()
     assert.strictEqual(resizeCalledWith.height, 900, 'Height should strictly preserve 16:10 aspect ratio (900px), not pinched to 16:9');
     assert.strictEqual(resizeCalledWith.quality, 'better');
   });
+
+  test('stopScreenShare delivers stopCode and stop-stream IPC to requesting webContents so tracks are stopped', async () => {
+    const mgr = getMediaCaptureManager();
+    let jsExecuted = '';
+    let ipcChannelSent = '';
+
+    const mockRequestingWc = {
+      id: 991,
+      isDestroyed: () => false,
+      executeJavaScript: async (code) => {
+        jsExecuted = code;
+        return true;
+      },
+      send: (channel) => {
+        ipcChannelSent = channel;
+      },
+    };
+
+    mgr.activeScreenShare = {
+      active: true,
+      sourceKind: 'tab',
+      sharedTabId: 'tab-target',
+      requestingWcId: 991,
+      requestingFrame: {
+        isDestroyed: () => false,
+        executeJavaScript: async (code) => {
+          jsExecuted = code;
+        },
+        send: (channel) => {
+          ipcChannelSent = channel;
+        },
+      },
+    };
+
+    mgr.stopScreenShare();
+
+    assert.ok(jsExecuted.includes('__invisurf_stop_display_stream'), 'Must dispatch __invisurf_stop_display_stream on stop');
+    assert.ok(jsExecuted.includes('.getTracks().forEach(t => { try { t.stop();'), 'Must invoke t.stop() on active stream tracks');
+    assert.ok(jsExecuted.includes("dispatchEvent(evt)"), 'Must dispatch ended event on track to trigger Google Meet onended teardown');
+    assert.strictEqual(ipcChannelSent, 'screen-share:stop-stream', 'Must send screen-share:stop-stream IPC channel');
+  });
+
+  test('preload.js ensures display track termination dispatches ended event and invokes onended so Google Meet cleanly exits presentation', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const preloadCode = fs.readFileSync(path.resolve(__dirname, '../../../preload.js'), 'utf8');
+
+    // 1. Verify terminateDisplayTrack dispatches ended event
+    assert.ok(preloadCode.includes("const endedEvt = new Event('ended')"), 'Must create ended event');
+    assert.ok(preloadCode.includes("track.dispatchEvent(endedEvt)"), 'Must dispatch ended event on track');
+    assert.ok(preloadCode.includes("track.onended(endedEvt)"), 'Must invoke track.onended handler if defined');
+
+    // 2. Verify MediaStreamTrack.prototype.stop hook dispatches ended for activeDisplayTracks
+    assert.ok(preloadCode.includes("MediaStreamTrack.prototype.stop"), 'Must hook MediaStreamTrack.prototype.stop');
+    assert.ok(preloadCode.includes("activeDisplayTracks.has(this)"), 'Must check activeDisplayTracks');
+
+    // 3. Verify MediaStreamTrack.prototype.clone tracks cloned tracks
+    assert.ok(preloadCode.includes("MediaStreamTrack.prototype.clone"), 'Must hook MediaStreamTrack.prototype.clone');
+    assert.ok(preloadCode.includes("activeDisplayTracks.add(cloned)"), 'Must add cloned tracks to activeDisplayTracks');
+
+    // 4. Verify __invisurf_stop_display_stream terminates all activeDisplayTracks and legacyMeetingTracks
+    assert.ok(preloadCode.includes("for (const track of Array.from(activeDisplayTracks))"), 'Must terminate all active display tracks on stop');
+    assert.ok(preloadCode.includes("for (const track of Array.from(legacyMeetingTracks))"), 'Must terminate all legacy meeting tracks on stop');
+
+    // 5. Verify seamless tab switching moves tracks to legacyMeetingTracks without triggering premature ended event
+    assert.ok(preloadCode.includes("legacyMeetingTracks.add(track)"), 'Must preserve meeting tracks in legacyMeetingTracks during switch');
+    assert.ok(preloadCode.includes("origStop.call(t)"), 'Must stop old tracks natively without dispatching ended event during switch');
+    assert.ok(preloadCode.includes("sender.replaceTrack(newVideoTrack)"), 'Must swap WebRTC sender track seamlessly');
+  });
 });

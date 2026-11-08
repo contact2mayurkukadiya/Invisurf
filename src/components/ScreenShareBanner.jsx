@@ -1,120 +1,175 @@
 import React from 'react';
-import { useSelector } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
+import { setCurrentTab } from '../store/browserSlice';
 import './ScreenShareBanner.css';
 
 /**
- * Screen Sharing Banner displayed directly beneath the BookmarkBar
- * Adapts to user's chosen theme and matches Chrome's presentation banner UX.
+ * Screen Sharing Banner displayed directly beneath the BookmarkBar.
+ * Accurately matches Chrome's native presentation banner UI and styling.
  */
 export default function ScreenShareBanner({ currentTabId }) {
+  const dispatch = useDispatch();
   const screenShare = useSelector((s) => s.browser.screenShare);
+  const tabs = useSelector((s) => s.browser.tabs);
 
-  if (!screenShare || !screenShare.active) {
+  // Production-grade UX: Tab presentation banner is strictly shown only when tabs are shared
+  if (!screenShare || !screenShare.active || screenShare.sourceKind !== 'tab') {
     return null;
   }
 
   const {
-    sourceKind = 'tab',
     sharedTabId,
-    sharedHost = 'tab',
+    sharedHost = '',
+    sharedTitle = '',
     requestingTabId,
-    requestingHost = 'Meeting',
+    requestingHost = '',
+    surfaceSwitching = 'include',
+    state: shareState = 'idle',
   } = screenShare;
 
-  const isMeetingTab = currentTabId === requestingTabId;
-  const isSharedTab = currentTabId === sharedTabId;
+  const normalizeTabId = (id) => (id !== null && id !== undefined ? String(id).replace(/^tab:/, '') : null);
+  const normCurrent = normalizeTabId(currentTabId);
+  const normShared = normalizeTabId(sharedTabId);
+  const normRequesting = normalizeTabId(requestingTabId);
 
-  const handleStopSharing = () => {
+  const isMeetingTab = Boolean(normCurrent && normRequesting && normCurrent === normRequesting);
+  const isSharedTab = Boolean(normCurrent && normShared && normCurrent === normShared);
+
+  const currentTab = tabs?.[currentTabId];
+  const currentUrl = (currentTab?.url || '').trim().toLowerCase();
+  const isRestrictedTab =
+    !currentUrl ||
+    currentUrl.startsWith('invisurf:') ||
+    currentUrl.startsWith('chrome:') ||
+    currentUrl.startsWith('about:') ||
+    currentUrl.startsWith('devtools:') ||
+    currentUrl.startsWith('data:') ||
+    Boolean(currentTab?.isNewTab);
+
+  const isSwitching = shareState === 'switching';
+  const showSwitchButton =
+    !isSharedTab &&
+    !isMeetingTab &&
+    !isRestrictedTab &&
+    surfaceSwitching !== 'exclude';
+
+  const handleStopSharing = (e) => {
+    e?.preventDefault();
+    e?.stopPropagation();
     if (window.electronAPI?.stopScreenShare) {
       window.electronAPI.stopScreenShare();
     }
   };
 
-  const handleShareThisTabInstead = () => {
+  const handleShareThisTabInstead = (e) => {
+    e?.preventDefault();
+    e?.stopPropagation();
+    if (isSwitching) return;
     if (window.electronAPI?.switchScreenShareTab && currentTabId) {
       window.electronAPI.switchScreenShareTab(currentTabId);
     }
   };
 
-  const handleJumpToTab = (targetId) => {
-    if (window.electronAPI?.switchTab && targetId) {
-      window.electronAPI.switchTab(targetId);
+  const handleJumpToTab = (targetId, e) => {
+    e?.preventDefault();
+    e?.stopPropagation();
+    if (targetId) {
+      dispatch(setCurrentTab(targetId));
+      if (window.electronAPI?.switchTab) {
+        window.electronAPI.switchTab(targetId);
+      }
     }
   };
 
+  const displaySharedHost = sharedHost || 'tab';
+  const displayRequestingHost = requestingHost || 'meet.google.com';
+
   return (
-    <div className="screen-share-banner-wrapper">
-      <div className="screen-share-banner-pill">
-        {/* Screen / Cast Presentation Icon */}
-        <div className="screen-share-banner-icon">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-            <line x1="8" y1="21" x2="16" y2="21" />
-            <line x1="12" y1="17" x2="12" y2="21" />
-            <polyline points="10 9 14 9 14 13" />
-            <line x1="14" y1="9" x2="9" y2="14" />
-          </svg>
-        </div>
+    <div className="screen-share-banner-bar screen-share-banner-wrapper">
+      {/* Chrome Screen Share Presentation Icon */}
+      <div className="screen-share-banner-icon" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.11-.9-2-2-2H4c-1.11 0-2 .89-2 2v10c0 1.1.89 2 2 2H0v2h24v-2h-4zm-7-3.53v-2.19c-2.78 0-4.61.85-6 2.72.56-2.67 2.11-5.33 6-5.87V7l4 3.73-4 3.74zM4 6h16v10H4V6z" />
+        </svg>
+      </div>
 
-        {/* Dynamic Context Message */}
-        <div className="screen-share-banner-text">
-          {sourceKind !== 'tab' ? (
-            <span>Sharing your screen to <span className="screen-share-host">{requestingHost}</span></span>
-          ) : isMeetingTab ? (
-            <span>Sharing <span className="screen-share-host">{sharedHost}</span> to this tab</span>
-          ) : isSharedTab ? (
-            <span>Sharing this tab to <span className="screen-share-host">{requestingHost}</span></span>
-          ) : (
-            <span>Sharing <span className="screen-share-host">{sharedHost}</span> to <span className="screen-share-host">{requestingHost}</span></span>
-          )}
-        </div>
-
-        {/* Action Buttons */}
-        <div className="screen-share-banner-actions">
-          {sourceKind === 'tab' && !isSharedTab && !isMeetingTab && (
+      {/* Dynamic Context Message Matching User Screenshots */}
+      <div className="screen-share-banner-content">
+        {isMeetingTab ? (
+          <>
+            <span className="screen-share-text">Sharing</span>
             <button
               type="button"
-              className="screen-share-switch-btn"
-              onClick={handleShareThisTabInstead}
-              title="Share this tab to meeting instead"
+              className="screen-share-chip"
+              onClick={(e) => handleJumpToTab(sharedTabId, e)}
+              title={sharedTitle ? `Jump to ${sharedTitle} (${displaySharedHost})` : `Jump to ${displaySharedHost}`}
             >
-              Share this tab instead
+              {displaySharedHost}
             </button>
-          )}
-
-          {sourceKind === 'tab' && isSharedTab && requestingTabId && (
+            <span className="screen-share-text">to this tab</span>
+          </>
+        ) : isSharedTab ? (
+          <>
+            <span className="screen-share-text">Sharing this tab to</span>
             <button
               type="button"
-              className="screen-share-jump-btn"
-              onClick={() => handleJumpToTab(requestingTabId)}
-              title={`View tab: ${requestingHost}`}
+              className="screen-share-chip"
+              onClick={(e) => handleJumpToTab(requestingTabId, e)}
+              title={`Jump to ${displayRequestingHost}`}
             >
-              View tab: {requestingHost}
+              {displayRequestingHost}
             </button>
-          )}
-
-          {sourceKind === 'tab' && isMeetingTab && sharedTabId && (
+          </>
+        ) : (
+          <>
+            <span className="screen-share-text">Sharing</span>
             <button
               type="button"
-              className="screen-share-jump-btn"
-              onClick={() => handleJumpToTab(sharedTabId)}
-              title={`View tab: ${sharedHost}`}
+              className="screen-share-chip"
+              onClick={(e) => handleJumpToTab(sharedTabId, e)}
+              title={sharedTitle ? `Jump to ${sharedTitle} (${displaySharedHost})` : `Jump to ${displaySharedHost}`}
             >
-              View tab: {sharedHost}
+              {displaySharedHost}
             </button>
-          )}
+            <span className="screen-share-text">to</span>
+            <button
+              type="button"
+              className="screen-share-chip"
+              onClick={(e) => handleJumpToTab(requestingTabId, e)}
+              title={`Jump to ${displayRequestingHost}`}
+            >
+              {displayRequestingHost}
+            </button>
+          </>
+        )}
+      </div>
 
+      {/* Subtle Vertical Divider */}
+      <div className="screen-share-divider" aria-hidden="true" />
+
+      {/* Interactive Action Buttons */}
+      <div className="screen-share-banner-actions">
+        {showSwitchButton && (
           <button
             type="button"
-            className="screen-share-stop-btn"
-            onClick={handleStopSharing}
-            title="Stop sharing"
+            className={`screen-share-switch-btn${isSwitching ? ' screen-share-switch-btn--switching' : ''}`}
+            onClick={handleShareThisTabInstead}
+            disabled={isSwitching}
+            title={isSwitching ? 'Switching tab sharing...' : 'Share this tab instead'}
           >
-            Stop sharing
+            {isSwitching ? 'Switching...' : 'Share this tab instead'}
           </button>
-        </div>
+        )}
+
+        <button
+          type="button"
+          className="screen-share-stop-btn"
+          onClick={handleStopSharing}
+          title="Stop sharing"
+        >
+          Stop sharing
+        </button>
       </div>
     </div>
   );
 }
-

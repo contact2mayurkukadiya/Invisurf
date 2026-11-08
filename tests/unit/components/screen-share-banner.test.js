@@ -20,6 +20,8 @@ describe('ScreenShareBanner Component & State Unit Tests', () => {
       sharedTitle: '',
       requestingTabId: null,
       requestingHost: '',
+      surfaceSwitching: 'include',
+      state: 'idle',
     });
 
     const activePayload = {
@@ -51,7 +53,7 @@ describe('ScreenShareBanner Component & State Unit Tests', () => {
     const content = fs.readFileSync(bannerPath, 'utf8');
 
     assert.ok(content.includes('screen-share-banner-wrapper'), 'Must render wrapper class');
-    assert.ok(content.includes('screen-share-banner-pill'), 'Must render floating pill');
+    assert.ok(content.includes('screen-share-chip') || content.includes('screen-share-banner-pill'), 'Must render chip/pill elements');
     assert.ok(content.includes('isMeetingTab'), 'Must detect if currentTab is meeting tab');
     assert.ok(content.includes('isSharedTab'), 'Must detect if currentTab is the shared tab');
     assert.ok(content.includes('Sharing this tab to'), 'Must render "Sharing this tab to" when on shared tab');
@@ -93,6 +95,65 @@ describe('ScreenShareBanner Component & State Unit Tests', () => {
     assert.ok(content.includes('Share with system audio'), 'Must support system audio label');
     assert.ok(content.includes('Share with Audio'), 'Must dynamically update Share button text');
     assert.ok(content.includes('categoriesMeta'), 'Must support categories navigation');
+  });
+
+  test('tab bounds shift down by 38px during screen sharing without leaving gap at window bottom', () => {
+    const { getActiveTabContentBounds } = require('../../../main/windows/lensManager');
+    const { UI_HEIGHT } = require('../../../main/constants/defaults');
+
+    const mockWin = {
+      isDestroyed: () => false,
+      getContentBounds: () => ({ width: 1200, height: 800 }),
+    };
+
+    // 1. Normal state: y = UI_HEIGHT, height = 800 - UI_HEIGHT, bottom touches window bottom
+    const normalCtx = {
+      window: mockWin,
+      activeTabId: 'tab-1',
+      isScreenSharingActive: false,
+    };
+    const normalBounds = getActiveTabContentBounds(normalCtx, 'tab-1');
+    assert.strictEqual(normalBounds.y, UI_HEIGHT, 'Normal y must be UI_HEIGHT');
+    assert.strictEqual(normalBounds.height, 800 - UI_HEIGHT, 'Normal height must be window height - UI_HEIGHT');
+    assert.strictEqual(normalBounds.y + normalBounds.height, 800, 'Normal bounds must reach bottom of window');
+
+    // 2. Screen sharing active: y = UI_HEIGHT + 38, height = 800 - (UI_HEIGHT + 38), bottom touches window bottom
+    const sharingCtx = {
+      window: mockWin,
+      activeTabId: 'tab-1',
+      isScreenSharingActive: true,
+    };
+    const sharingBounds = getActiveTabContentBounds(sharingCtx, 'tab-1');
+    assert.strictEqual(sharingBounds.y, UI_HEIGHT + 38, 'Sharing y must shift down by 38px for banner');
+    assert.strictEqual(sharingBounds.height, 800 - (UI_HEIGHT + 38), 'Sharing height must be window height - (UI_HEIGHT + 38)');
+    assert.strictEqual(sharingBounds.y + sharingBounds.height, 800, 'Sharing bounds must reach exact bottom of window without white gap');
+  });
+
+  test('Tab.jsx and TabBar.jsx wire captureRole indicators and styles', () => {
+    const tabJsx = fs.readFileSync(path.resolve(__dirname, '../../../src/components/Tab.jsx'), 'utf8');
+    assert.ok(tabJsx.includes('captureRole'), 'Tab.jsx must accept captureRole prop');
+    assert.ok(tabJsx.includes('tab-capture-indicator'), 'Tab.jsx must render tab-capture-indicator');
+    assert.ok(tabJsx.includes('tab-capture-dot'), 'Tab.jsx must render pulsing capture dot');
+    assert.ok(tabJsx.includes('tab-capture-cast-icon'), 'Tab.jsx must render cast icon for capturer');
+
+    const tabBarJsx = fs.readFileSync(path.resolve(__dirname, '../../../src/components/TabBar.jsx'), 'utf8');
+    assert.ok(tabBarJsx.includes('getCaptureRole'), 'TabBar.jsx must compute getCaptureRole');
+    assert.ok(tabBarJsx.includes('captureRole={getCaptureRole(id)}'), 'TabBar.jsx must pass captureRole to Tab');
+
+    const indexCss = fs.readFileSync(path.resolve(__dirname, '../../../src/index.css'), 'utf8');
+    assert.ok(indexCss.includes('.tab-capture-indicator'), 'index.css must define tab-capture-indicator');
+    assert.ok(indexCss.includes('.tab-capture-dot'), 'index.css must define tab-capture-dot');
+    assert.ok(indexCss.includes('@keyframes tabCapturePulse'), 'index.css must define tabCapturePulse animation');
+  });
+
+  test('ScreenShareBanner enforces surfaceSwitching, switching guard, and restricted tabs', () => {
+    const bannerPath = path.resolve(__dirname, '../../../src/components/ScreenShareBanner.jsx');
+    const content = fs.readFileSync(bannerPath, 'utf8');
+
+    assert.ok(content.includes('surfaceSwitching !== \'exclude\''), 'Must hide switch button when surfaceSwitching === exclude');
+    assert.ok(content.includes('isSwitching'), 'Must guard against clicks during switching state');
+    assert.ok(content.includes('isRestrictedTab'), 'Must disallow switching to restricted internal tabs');
+    assert.ok(content.includes('disabled={isSwitching}'), 'Must disable switch button when switching');
   });
 });
 

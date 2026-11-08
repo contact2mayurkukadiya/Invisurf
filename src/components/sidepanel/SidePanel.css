@@ -56,6 +56,10 @@ html[data-forced-appearance="dark"] .web-content-card-frame,
   transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+body:has(.screen-share-banner-wrapper) .side-panel-container {
+  top: 160px;
+}
+
 /* Left resize splitter handle in the center gap between left and right card */
 .side-panel-resizer {
   position: absolute;

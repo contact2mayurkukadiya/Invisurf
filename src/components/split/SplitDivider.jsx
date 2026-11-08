@@ -11,6 +11,7 @@ export default function SplitDivider() {
   const tabs = useSelector((s) => s.browser.tabs);
   const splitGroups = useSelector((s) => s.browser.splitGroups);
   const sidePanel = useSelector((s) => s.browser.sidePanel);
+  const screenShare = useSelector((s) => s.browser.screenShare);
 
   const currentTab = currentTabId ? tabs[currentTabId] : null;
   const splitPair = Object.values(splitGroups || {}).find(
@@ -40,7 +41,9 @@ export default function SplitDivider() {
   const effectiveRatio = isDragging && dragRatio !== null ? dragRatio : (splitPair.ratio || 0.5);
   const sidePanelWidth = sidePanel?.isOpen ? (sidePanel.width || 360) : 0;
   const availableWidth = Math.max(300, window.innerWidth - sidePanelWidth);
-  const availableHeight = Math.max(200, window.innerHeight - 122); // UI_HEIGHT = 122px
+  const isTabSharing = Boolean(screenShare?.active && screenShare?.sourceKind === 'tab');
+  const uiHeight = 122 + (isTabSharing ? 38 : 0);
+  const availableHeight = Math.max(200, window.innerHeight - uiHeight); // UI_HEIGHT (122px) + screen sharing banner (38px)
 
   // Exact card metrics matching splitTabManager.js layout
   const leftMargin = 8;

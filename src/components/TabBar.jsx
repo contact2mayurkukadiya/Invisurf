@@ -43,6 +43,7 @@ export default function TabBar({
   const tabs = useSelector(s => s.browser.tabs);
   const currentTabId = useSelector(s => s.browser.currentTabId);
   const splitGroups = useSelector(s => s.browser.splitGroups);
+  const screenShare = useSelector(s => s.browser.screenShare);
 
   const [isStuckToRight, setIsStuckToRight] = useState(false);
   const [tabWidth, setTabWidth] = useState(240);
@@ -164,6 +165,20 @@ export default function TabBar({
     }
     return false;
   }, [lastTabId, currentTabId, splitGroups]);
+
+  const getCaptureRole = useCallback((tabId) => {
+    if (!screenShare?.active || screenShare?.sourceKind !== 'tab') return null;
+    const normId = String(tabId).replace(/^tab:/, '');
+    const normShared = screenShare.sharedTabId !== null && screenShare.sharedTabId !== undefined
+      ? String(screenShare.sharedTabId).replace(/^tab:/, '')
+      : null;
+    const normCapturer = screenShare.requestingTabId !== null && screenShare.requestingTabId !== undefined
+      ? String(screenShare.requestingTabId).replace(/^tab:/, '')
+      : null;
+    if (normShared && normId === normShared) return 'captured';
+    if (normCapturer && normId === normCapturer) return 'capturer';
+    return null;
+  }, [screenShare]);
 
   const handleTabHoverEnter = useCallback((id, tabEl) => {
     setLastTabHovered(id === lastTabId);
@@ -362,6 +377,7 @@ export default function TabBar({
                 onHoverLeave={handleTabHoverLeave}
                 onHideTooltip={hideTooltip}
                 onContextMenu={onTabStripContextMenu ? (e) => onTabStripContextMenu(e, id) : undefined}
+                captureRole={getCaptureRole(id)}
               />
             );
           })}

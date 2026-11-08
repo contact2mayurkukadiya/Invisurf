@@ -9,6 +9,10 @@
   user-select: none;
 }
 
+body:has(.screen-share-banner-wrapper) .split-overlay-container {
+  top: 160px;
+}
+
 .split-overlay-container--dragging {
   cursor: col-resize;
   pointer-events: auto;

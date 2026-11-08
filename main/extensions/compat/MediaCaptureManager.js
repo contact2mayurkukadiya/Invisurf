@@ -27,6 +27,71 @@ function isLoopbackAudioSupported() {
     return false;
 }
 
+class SharingSession {
+    constructor({
+        id,
+        capturerTabId = null,
+        capturerOrigin = '',
+        capturedTabId = null,
+        surfaceSwitching = 'include',
+        shareAudio = false,
+        requestingWcId = null,
+        targetWcId = null,
+    } = {}) {
+        this.id = id || `share-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+        this.capturerTabId = capturerTabId;
+        this.capturerOrigin = capturerOrigin;
+        this.capturedTabId = capturedTabId;
+        this.surfaceSwitching = surfaceSwitching === 'exclude' ? 'exclude' : 'include';
+        this.shareAudio = Boolean(shareAudio);
+        this.state = 'active'; // 'active' | 'switching' | 'idle'
+        this.requestingWcId = requestingWcId;
+        this.targetWcId = targetWcId;
+        this.sharedHost = '';
+        this.sharedTitle = '';
+        this.startedAt = Date.now();
+    }
+
+    roleOf(tabId) {
+        if (!tabId) return 'other';
+        const norm = String(tabId).replace(/^tab:/, '');
+        const normCaptured = String(this.capturedTabId || '').replace(/^tab:/, '');
+        const normCapturer = String(this.capturerTabId || '').replace(/^tab:/, '');
+        if (norm === normCaptured) return 'captured';
+        if (norm === normCapturer) return 'capturer';
+        return 'other';
+    }
+
+    bannerFor(tabId) {
+        const role = this.roleOf(tabId);
+        if (role === 'captured') {
+            return {
+                role: 'captured',
+                text: `Sharing this tab to ${this.capturerOrigin || 'meeting'}`,
+                buttons: ['stop'],
+            };
+        }
+        if (role === 'capturer') {
+            return {
+                role: 'capturer',
+                text: `Sharing ${this.sharedTitle || this.sharedHost || 'tab'} to this tab`,
+                buttons: ['stop'],
+            };
+        }
+        const buttons = this.surfaceSwitching === 'exclude' ? ['stop'] : ['switch', 'stop'];
+        return {
+            role: 'other',
+            text: `Sharing ${this.sharedTitle || this.sharedHost || 'tab'} to ${this.capturerOrigin || 'meeting'}`,
+            buttons,
+        };
+    }
+}
+
+function sanitizeCaptureTitle(str) {
+    if (!str || typeof str !== 'string') return '';
+    return str.replace(/[\u0000-\u001F\u007F-\u009F\u202A-\u202E\u2066-\u2069]/g, '').trim();
+}
+
 class MediaCaptureManager extends EventEmitter {
     constructor() {
         super();
@@ -38,6 +103,15 @@ class MediaCaptureManager extends EventEmitter {
         this._singleActiveScreenShare = null;
         this.activeScreenShares = new Map(); // requestingWcId -> screenShareSession
         this.pendingDirectTabShares = new Map(); // requestingWcId -> { targetFrame, shareAudio }
+        this.pendingDisplayMediaOptions = new Map(); // requestingWcId -> { surfaceSwitching, registeredAt }
+    }
+
+    setPendingDisplayMediaOptions(wcId, options = {}) {
+        if (!wcId) return;
+        this.pendingDisplayMediaOptions.set(wcId, {
+            surfaceSwitching: options.surfaceSwitching === 'exclude' ? 'exclude' : 'include',
+            registeredAt: Date.now(),
+        });
     }
 
     get activeScreenShare() {
@@ -346,12 +420,22 @@ class MediaCaptureManager extends EventEmitter {
                 const stringTabId = resolved?.stringTabId || (typeof targetId === 'string' ? targetId : State.webContentsIdToTabId.get(Number(targetId)));
 
                 if (stringTabId) {
-                    // Activate or wake the tab so it is attached to the view hierarchy and rendering frames
-                    try {
-                        tabManager.activateOrWakeTab(stringTabId);
-                        resolved = getTabRegistry().resolveTab(stringTabId);
-                    } catch (err) {
-                        console.warn('[MediaCaptureManager] activateOrWakeTab error:', err);
+                    const winId = State.tabIdToWindowId.get(stringTabId);
+                    const context = winId ? State.windowContextsById.get(winId) : null;
+                    if (context?.sleepingTabs?.[stringTabId]) {
+                        // Wake sleeping tab so webContents and WebFrameMain are instantiated without detaching requester
+                        try {
+                            const sleep = context.sleepingTabs[stringTabId];
+                            const { resolveTabLoadUrl } = require('../../utils/navigation');
+                            const resolvedUrl = resolveTabLoadUrl(sleep.url);
+                            delete context.sleepingTabs[stringTabId];
+                            tabManager.createTab(context, stringTabId, resolvedUrl, !!context.stealthWindow, {
+                                navigationHistory: sleep.history || null,
+                            });
+                            resolved = getTabRegistry().resolveTab(stringTabId);
+                        } catch (err) {
+                            console.warn('[MediaCaptureManager] wake sleeping tab error:', err);
+                        }
                     }
                 }
 
@@ -370,11 +454,14 @@ class MediaCaptureManager extends EventEmitter {
                         sourceKind: 'tab',
                         sharedTabId: stringTabId || targetId,
                         sharedHost: sharedHost || 'Shared Tab',
-                        sharedTitle,
+                        sharedTitle: sanitizeCaptureTitle(sharedTitle),
                         requestingTabId: pending.requestingTabId || null,
                         requestingHost: pending.requesterHost || 'Meeting',
                         requestingWcId: pending.requestingWc?.id || null,
+                        requestingFrame: pending.requestingFrame || null,
                         targetWcId: targetWc.id,
+                        surfaceSwitching: pending.surfaceSwitching || 'include',
+                        state: 'active',
                         shareAudio: !!shareAudio,
                         startedAt: Date.now(),
                     };
@@ -474,6 +561,7 @@ class MediaCaptureManager extends EventEmitter {
                 requestingTabId: pending.requestingTabId || null,
                 requestingHost: pending.requesterHost || 'Meeting',
                 requestingWcId: pending.requestingWc?.id || null,
+                requestingFrame: pending.requestingFrame || null,
                 shareAudio: !!shareAudio,
                 startedAt: Date.now(),
             };
@@ -744,7 +832,7 @@ class MediaCaptureManager extends EventEmitter {
                 const batch = openTabs.slice(i, i + BATCH_SIZE);
                 const batchPromises = batch.map(async (t) => {
                     let thumbnail = '';
-                    const tabIdentifier = t.id || t.stringTabId;
+                    const tabIdentifier = t.stringTabId || String(t.id);
                     const resolved = getTabRegistry().resolveTab(tabIdentifier);
 
                     if (resolved?.view) {
@@ -905,11 +993,48 @@ class MediaCaptureManager extends EventEmitter {
         let requestingTabId = null;
         try {
             const electron = require('electron');
-            if (!requestingWc && request.frame && typeof electron.webContents?.fromFrame === 'function') {
-                requestingWc = electron.webContents.fromFrame(request.frame);
+            if (!requestingWc && request.frame) {
+                if (typeof electron.webContents?.fromFrame === 'function') {
+                    requestingWc = electron.webContents.fromFrame(request.frame);
+                    if (!requestingWc && request.frame.top) {
+                        requestingWc = electron.webContents.fromFrame(request.frame.top);
+                    }
+                }
+                if (!requestingWc && electron.webContents?.getAllWebContents) {
+                    const targetToken = request.frame.frameToken;
+                    const targetProcessId = request.frame.processId;
+                    const targetRoutingId = request.frame.routingId;
+                    for (const wc of electron.webContents.getAllWebContents()) {
+                        if (!wc.isDestroyed()) {
+                            const mf = wc.mainFrame;
+                            if (mf && (
+                                (targetToken && mf.frameToken === targetToken) ||
+                                (targetProcessId && mf.processId === targetProcessId && mf.routingId === targetRoutingId)
+                            )) {
+                                requestingWc = wc;
+                                break;
+                            }
+                        }
+                    }
+                }
             }
-            if (requestingWc) {
+
+            if (requestingWc && !requestingTabId) {
                 requestingTabId = State.webContentsIdToTabId?.get(requestingWc.id) || null;
+                if (!requestingTabId && State.windowContextsById) {
+                    for (const [winId, ctx] of State.windowContextsById.entries()) {
+                        if (ctx?.tabs) {
+                            for (const [tid, view] of Object.entries(ctx.tabs)) {
+                                if (view?.webContents?.id === requestingWc.id) {
+                                    requestingTabId = tid;
+                                    State.webContentsIdToTabId?.set(requestingWc.id, tid);
+                                    break;
+                                }
+                            }
+                        }
+                        if (requestingTabId) break;
+                    }
+                }
             }
         } catch (_) { }
 
@@ -969,7 +1094,7 @@ class MediaCaptureManager extends EventEmitter {
 
         const tabSources = await this._gatherTabSources();
 
-        const context = this._resolveContext();
+        const context = this._resolveContext(requestingWc ? { senderWebContents: requestingWc } : {});
 
         if (!context?.window || context.window.isDestroyed()) {
             if (rawDesktopSources.length > 0) {
@@ -1024,6 +1149,10 @@ class MediaCaptureManager extends EventEmitter {
             };
         }
 
+        const reqWcId = requestingWc?.id;
+        const pendingOpt = reqWcId ? this.pendingDisplayMediaOptions.get(reqWcId) : null;
+        const surfaceSwitching = (request && request.surfaceSwitching) || pendingOpt?.surfaceSwitching || 'include';
+
         const overlayManager = require('../../windows/overlayManager');
         this.pendingPickerRequests.set(requestId, {
             requestId,
@@ -1034,7 +1163,9 @@ class MediaCaptureManager extends EventEmitter {
             isDisplayMedia: true,
             requesterHost: requesterName,
             requestingWc,
+            requestingFrame: request.frame || null,
             requestingTabId,
+            surfaceSwitching,
             cleanupRequestingDestroyed,
             cleanupWindowClosed,
         });
@@ -1070,6 +1201,9 @@ class MediaCaptureManager extends EventEmitter {
         }
 
         for (const session of targets) {
+            if (session === this._singleActiveScreenShare) {
+                this._singleActiveScreenShare = null;
+            }
             if (session.cleanupTarget && session.targetWc && !session.targetWc.isDestroyed()) {
                 try {
                     session.targetWc.removeListener('destroyed', session.cleanupTarget);
@@ -1089,6 +1223,26 @@ class MediaCaptureManager extends EventEmitter {
                 this._restoreDrmForWindow(session.suspendedDrmWinId, session.drmStreamId);
             }
             const requestingWcId = session.requestingWcId;
+            const requestingFrame = session.requestingFrame;
+
+            const stopCode = `
+                try {
+                    window.dispatchEvent(new CustomEvent('__invisurf_stop_display_stream'));
+                    if (window.__invisurfActiveDisplayStream) {
+                        window.__invisurfActiveDisplayStream.getTracks().forEach(t => { try { t.stop(); const evt = new Event('ended'); t.dispatchEvent(evt); if (typeof t.onended === 'function') t.onended(evt); } catch(_) {} });
+                    }
+                } catch (_) {}
+            `;
+
+            if (requestingFrame && !requestingFrame.isDestroyed()) {
+                try {
+                    requestingFrame.executeJavaScript(stopCode).catch(() => {});
+                    if (typeof requestingFrame.send === 'function') {
+                        requestingFrame.send('screen-share:stop-stream');
+                    }
+                } catch (_) {}
+            }
+
             if (requestingWcId) {
                 const pendingDirect = this.pendingDirectTabShares.get(requestingWcId);
                 if (pendingDirect?.timeoutId) clearTimeout(pendingDirect.timeoutId);
@@ -1098,24 +1252,36 @@ class MediaCaptureManager extends EventEmitter {
                     const { webContents } = require('electron');
                     const wc = webContents.fromId(requestingWcId);
                     if (wc && !wc.isDestroyed()) {
-                        // Dispatch event to main-world listener, and also fallback to legacy global if present
-                        wc.executeJavaScript(`
-                            try {
-                                window.dispatchEvent(new CustomEvent('__invisurf_stop_display_stream'));
-                                if (window.__invisurfActiveDisplayStream) {
-                                    window.__invisurfActiveDisplayStream.getTracks().forEach(t => { try { t.stop(); } catch(_) {} });
-                                }
-                            } catch (_) {}
-                        `).catch(() => { });
+                        wc.executeJavaScript(stopCode).catch(() => {});
+                        wc.send('screen-share:stop-stream');
                     }
                 } catch (_) { }
             }
+
+            // Fallback broadcast stop-stream over IPC and executeJavaScript to all alive webContents
+            try {
+                const { webContents } = require('electron');
+                if (typeof webContents.getAllWebContents === 'function') {
+                    for (const wc of webContents.getAllWebContents()) {
+                        if (!wc.isDestroyed() && wc.id !== session.targetWcId) {
+                            try {
+                                wc.send('screen-share:stop-stream');
+                                wc.executeJavaScript(stopCode).catch(() => {});
+                            } catch (_) {}
+                        }
+                    }
+                }
+            } catch (_) {}
             if (session.requestingWcId) {
                 this.activeScreenShares.delete(session.requestingWcId);
             }
         }
 
-        this._singleActiveScreenShare = null;
+        if (!targetWcIdOrTabId || this.activeScreenShares.size === 0) {
+            this.activeScreenShares.clear();
+            this._singleActiveScreenShare = null;
+        }
+
         this._broadcastScreenShareStatus();
     }
 
@@ -1124,6 +1290,13 @@ class MediaCaptureManager extends EventEmitter {
      */
     switchSharedTab(newTabId) {
         if (!this.activeScreenShare || !newTabId) return;
+        // Guard: ignore second switch click while state is switching
+        if (this.activeScreenShare.state === 'switching') {
+            return;
+        }
+        this.activeScreenShare.state = 'switching';
+        this._broadcastScreenShareStatus();
+
         const tabManager = require('../../windows/tabManager');
         let resolved = getTabRegistry().resolveTab(newTabId);
         const stringTabId = resolved?.stringTabId || (typeof newTabId === 'string' ? newTabId : State.webContentsIdToTabId?.get(Number(newTabId)));
@@ -1134,6 +1307,13 @@ class MediaCaptureManager extends EventEmitter {
             } catch (_) { }
         }
         const targetWc = resolved?.view?.webContents || resolved?.webContents;
+        if (!targetWc || targetWc.isDestroyed() || !targetWc.mainFrame) {
+            // Target not available: revert state and keep existing capture
+            this.activeScreenShare.state = 'active';
+            this._broadcastScreenShareStatus();
+            return;
+        }
+
         let sharedHost = '';
         try {
             const u = resolved?.url || targetWc?.getURL() || '';
@@ -1142,7 +1322,7 @@ class MediaCaptureManager extends EventEmitter {
 
         this.activeScreenShare.sharedTabId = stringTabId || newTabId;
         this.activeScreenShare.sharedHost = sharedHost || this.activeScreenShare.sharedHost;
-        this.activeScreenShare.sharedTitle = resolved?.title || (typeof targetWc?.getTitle === 'function' ? targetWc.getTitle() : '') || this.activeScreenShare.sharedTitle;
+        this.activeScreenShare.sharedTitle = sanitizeCaptureTitle(resolved?.title || (typeof targetWc?.getTitle === 'function' ? targetWc.getTitle() : '') || this.activeScreenShare.sharedHost);
         if (this.activeScreenShare.targetWc && !this.activeScreenShare.targetWc.isDestroyed()) {
             try {
                 if (this.activeScreenShare.cleanupTarget) {
@@ -1174,14 +1354,14 @@ class MediaCaptureManager extends EventEmitter {
                         if (newUrl) {
                             this.activeScreenShare.sharedHost = new URL(newUrl).host || newUrl;
                         }
-                        this.activeScreenShare.sharedTitle = (typeof targetWc.getTitle === 'function' ? targetWc.getTitle() : '') || this.activeScreenShare.sharedHost;
+                        this.activeScreenShare.sharedTitle = sanitizeCaptureTitle((typeof targetWc.getTitle === 'function' ? targetWc.getTitle() : '') || this.activeScreenShare.sharedHost);
                         this._broadcastScreenShareStatus();
                     } catch (_) { }
                 }
             };
             const handleTitleUpdated = (_event, newTitle) => {
                 if (this.activeScreenShare?.targetWcId === targetWc.id) {
-                    this.activeScreenShare.sharedTitle = newTitle || this.activeScreenShare.sharedTitle;
+                    this.activeScreenShare.sharedTitle = sanitizeCaptureTitle(newTitle || this.activeScreenShare.sharedTitle);
                     this._broadcastScreenShareStatus();
                 }
             };
@@ -1228,62 +1408,102 @@ class MediaCaptureManager extends EventEmitter {
                         });
                     }
 
-                    reqWc.send('screen-share:do-switch-tab', {
+                    const switchPayload = {
                         newTabId: stringTabId || newTabId,
                         title: this.activeScreenShare.sharedTitle,
                         host: this.activeScreenShare.sharedHost,
                         hasAudio: !!this.activeScreenShare.shareAudio,
-                    });
-                    reqWc.send('screen-share:tab-switched', {
-                        newTabId: stringTabId || newTabId,
-                        title: this.activeScreenShare.sharedTitle,
-                        host: this.activeScreenShare.sharedHost,
-                    });
-                }
-            } catch (_) { }
-        }
-        this._broadcastScreenShareStatus();
-    }
+                    };
 
-    /**
-     * Broadcasts the active screen share status to UI components and resizes active content view.
-     */
-    _broadcastScreenShareStatus() {
-        const payload = this.activeScreenShare || { active: false };
-        this.emit('screen-share-status-changed', payload);
+                    reqWc.send('screen-share:do-switch-tab', switchPayload);
+                    reqWc.send('screen-share:tab-switched', switchPayload);
 
-        // Update context bounds and layout
-        const context = this._resolveContext();
-        if (context) {
-            context.isScreenSharingActive = !!payload.active;
-            try {
-                const tabManager = require('../../windows/tabManager');
-                tabManager.layoutActiveTabView(context);
-            } catch (_) { }
-        }
-
-        // Clean up any remaining window contexts when screen sharing completely ends
-        if (!payload.active && State.windowContextsById?.size > 0) {
-            try {
-                const tabManager = require('../../windows/tabManager');
-                for (const ctx of State.windowContextsById.values()) {
-                    if (ctx.isScreenSharingActive) {
-                        ctx.isScreenSharingActive = false;
-                        tabManager.layoutActiveTabView(ctx);
+                    if (this.activeScreenShare.requestingFrame && !this.activeScreenShare.requestingFrame.isDestroyed()) {
+                        if (typeof this.activeScreenShare.requestingFrame.send === 'function') {
+                            this.activeScreenShare.requestingFrame.send('screen-share:do-switch-tab', switchPayload);
+                        }
                     }
                 }
             } catch (_) { }
         }
 
-        // Send to renderer windows
+        this.activeScreenShare.state = 'active';
+        this._broadcastScreenShareStatus();
+    }
+
+    /**
+     * Produces a clean, JSON-serializable representation of the active screen share status
+     * for safe transmission over Electron IPC without structured clone serialization errors.
+     */
+    _serializeScreenShareStatus() {
+        if (!this.activeScreenShare || !this.activeScreenShare.active) {
+            return {
+                active: false,
+                sourceKind: 'tab',
+                sharedTabId: null,
+                sharedHost: '',
+                sharedTitle: '',
+                requestingTabId: null,
+                requestingHost: '',
+                surfaceSwitching: 'include',
+                state: 'idle',
+            };
+        }
+        return {
+            active: true,
+            sourceKind: this.activeScreenShare.sourceKind || 'tab',
+            sharedTabId: this.activeScreenShare.sharedTabId || null,
+            sharedHost: this.activeScreenShare.sharedHost || '',
+            sharedTitle: sanitizeCaptureTitle(this.activeScreenShare.sharedTitle || ''),
+            requestingTabId: this.activeScreenShare.requestingTabId || null,
+            requestingHost: this.activeScreenShare.requestingHost || '',
+            surfaceSwitching: this.activeScreenShare.surfaceSwitching || 'include',
+            state: this.activeScreenShare.state || 'active',
+            shareAudio: !!this.activeScreenShare.shareAudio,
+            startedAt: this.activeScreenShare.startedAt || Date.now(),
+        };
+    }
+
+    /**
+     * Broadcasts the active screen share status to UI components and resizes active content view.
+     * Note: Tab presentation banner is strictly shown only when tabs are shared (sourceKind === 'tab').
+     */
+    _broadcastScreenShareStatus() {
+        const serialized = this._serializeScreenShareStatus();
+        const isTabSharing = Boolean(serialized.active && serialized.sourceKind === 'tab');
+        this.emit('screen-share-status-changed', serialized);
+
+        // Update context bounds and layout across all active shell windows
+        if (State.windowContextsById?.size > 0) {
+            try {
+                const tabManager = require('../../windows/tabManager');
+                for (const ctx of State.windowContextsById.values()) {
+                    ctx.isScreenSharingActive = isTabSharing;
+                    tabManager.layoutActiveTabView(ctx);
+                }
+            } catch (_) { }
+        } else {
+            const context = this._resolveContext();
+            if (context) {
+                context.isScreenSharingActive = isTabSharing;
+                try {
+                    const tabManager = require('../../windows/tabManager');
+                    tabManager.layoutActiveTabView(context);
+                } catch (_) { }
+            }
+        }
+
+        // Send clean serializable payload to renderer windows
         try {
             const { BrowserWindow } = require('electron');
             BrowserWindow.getAllWindows().forEach((win) => {
                 if (!win.isDestroyed()) {
-                    win.webContents.send('screen-share-status-changed', payload);
+                    win.webContents.send('screen-share-status-changed', serialized);
                 }
             });
-        } catch (_) { }
+        } catch (err) {
+            console.error('[MediaCaptureManager] broadcast error:', err);
+        }
     }
 
     _broadcastCaptureStatus(tabId, status) {
@@ -1310,5 +1530,7 @@ function getMediaCaptureManager() {
 
 module.exports = {
     MediaCaptureManager,
+    SharingSession,
+    sanitizeCaptureTitle,
     getMediaCaptureManager,
 };

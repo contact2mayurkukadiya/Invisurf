@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tab Sharing & Share-Instead Verification Demo</title>
+  <style>
+    :root {
+      --bg: #f8f9fa;
+      --card-bg: #ffffff;
+      --border: #dadce0;
+      --text: #202124;
+      --text-muted: #5f6368;
+      --accent: #1a73e8;
+      --danger: #d93025;
+      --success: #188038;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 32px 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .container {
+      max-width: 840px;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    h1 {
+      margin: 0 0 8px 0;
+      font-size: 22px;
+      font-weight: 600;
+    }
+    p {
+      margin: 0 0 16px 0;
+      color: var(--text-muted);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    button {
+      padding: 8px 18px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      transition: all 0.15s ease;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #ffffff;
+    }
+    .btn-primary:hover {
+      filter: brightness(1.1);
+    }
+    .btn-danger {
+      background: var(--danger);
+      color: #ffffff;
+    }
+    .btn-danger:hover {
+      filter: brightness(1.1);
+    }
+    .toggle-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      margin-left: auto;
+    }
+    select {
+      padding: 6px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      font-size: 14px;
+      background: #ffffff;
+    }
+    .video-container {
+      position: relative;
+      width: 100%;
+      height: 420px;
+      background: #121316;
+      border-radius: 8px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+    }
+    .stat-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+    }
+    .stat-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .stat-value {
+      font-size: 16px;
+      font-weight: 600;
+      font-family: ui-monospace, SFMono-Regular, monospace;
+      color: var(--text);
+    }
+    .stat-value.live {
+      color: var(--success);
+    }
+    .stat-value.ended {
+      color: var(--danger);
+    }
+    pre {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 12px;
+      overflow-x: auto;
+      margin: 0;
+      font-family: ui-monospace, SFMono-Regular, monospace;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h1>Tab Sharing & Share-Instead Verification</h1>
+      <p>Use this reference test page to verify live tab presentation, seamless retargeting with "Share this tab instead", zero ended events on stream swap, and surfaceSwitching exclusion.</p>
+      
+      <div class="controls">
+        <button id="btnStart" class="btn-primary" type="button">Start sharing</button>
+        <button id="btnStop" class="btn-danger" type="button" disabled>Stop from page</button>
+
+        <div class="toggle-group">
+          <label for="surfaceSwitchingSelect"><strong>surfaceSwitching:</strong></label>
+          <select id="surfaceSwitchingSelect">
+            <option value="include" selected>include (show "Share this tab instead")</option>
+            <option value="exclude">exclude (hide switch button)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="padding: 12px;">
+      <div class="video-container">
+        <video id="previewVideo" autoplay playsinline muted></video>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="stats-grid">
+        <div class="stat-box">
+          <div class="stat-label">Track readyState</div>
+          <div id="statState" class="stat-value">-</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">ended events count</div>
+          <div id="statEndedCount" class="stat-value">0</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Switches observed</div>
+          <div id="statSwitchCount" class="stat-value">0</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Track Label</div>
+          <div id="statLabel" class="stat-value" style="font-size: 13px; word-break: break-all;">-</div>
+        </div>
+      </div>
+
+      <div style="margin-top: 16px;">
+        <div class="stat-label" style="margin-bottom: 6px;">track.getSettings()</div>
+        <pre id="settingsJson">{}</pre>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let activeStream = null;
+    let activeVideoTrack = null;
+    let endedCount = 0;
+    let switchCount = 0;
+
+    const btnStart = document.getElementById('btnStart');
+    const btnStop = document.getElementById('btnStop');
+    const selectSwitching = document.getElementById('surfaceSwitchingSelect');
+    const video = document.getElementById('previewVideo');
+    const statState = document.getElementById('statState');
+    const statEndedCount = document.getElementById('statEndedCount');
+    const statSwitchCount = document.getElementById('statSwitchCount');
+    const statLabel = document.getElementById('statLabel');
+    const settingsJson = document.getElementById('settingsJson');
+
+    function updateStats() {
+      if (!activeVideoTrack) {
+        statState.textContent = 'none';
+        statState.className = 'stat-value';
+        statLabel.textContent = '-';
+        settingsJson.textContent = '{}';
+        return;
+      }
+
+      statState.textContent = activeVideoTrack.readyState;
+      statState.className = 'stat-value ' + (activeVideoTrack.readyState === 'live' ? 'live' : 'ended');
+      statLabel.textContent = activeVideoTrack.label || 'DisplayMediaVideoTrack';
+      try {
+        const s = activeVideoTrack.getSettings ? activeVideoTrack.getSettings() : {};
+        settingsJson.textContent = JSON.stringify(s, null, 2);
+      } catch (_) {
+        settingsJson.textContent = '{}';
+      }
+    }
+
+    btnStart.addEventListener('click', async () => {
+      try {
+        const surfaceSwitching = selectSwitching.value;
+        const stream = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: false,
+          surfaceSwitching: surfaceSwitching,
+        });
+
+        activeStream = stream;
+        video.srcObject = stream;
+        video.play().catch(() => {});
+
+        const tracks = stream.getVideoTracks();
+        if (tracks.length > 0) {
+          activeVideoTrack = tracks[0];
+          activeVideoTrack.addEventListener('ended', () => {
+            endedCount++;
+            statEndedCount.textContent = String(endedCount);
+            updateStats();
+          });
+        }
+
+        btnStart.disabled = true;
+        btnStop.disabled = false;
+        selectSwitching.disabled = true;
+        updateStats();
+
+        // Periodically refresh track settings (e.g. resolution changes on switch)
+        const statsInterval = setInterval(() => {
+          if (!activeVideoTrack || activeVideoTrack.readyState === 'ended') {
+            clearInterval(statsInterval);
+            btnStart.disabled = false;
+            btnStop.disabled = true;
+            selectSwitching.disabled = false;
+          }
+          updateStats();
+        }, 800);
+
+      } catch (err) {
+        console.warn('getDisplayMedia cancelled or failed:', err);
+      }
+    });
+
+    btnStop.addEventListener('click', () => {
+      if (activeVideoTrack) {
+        activeVideoTrack.stop();
+      }
+      if (activeStream) {
+        activeStream.getTracks().forEach(t => { try { t.stop(); } catch(_) {} });
+      }
+      updateStats();
+      btnStart.disabled = false;
+      btnStop.disabled = true;
+      selectSwitching.disabled = false;
+    });
+
+    window.addEventListener('__invisurf_display_stream_swapped', (e) => {
+      switchCount++;
+      statSwitchCount.textContent = String(switchCount);
+      updateStats();
+    });
+  </script>
+</body>
+</html>

@@ -141,7 +141,8 @@ function layoutSidePanel(context) {
         if (sideWidth > 0 && state.customUrl && !context.isSidePanelWebContentViewTemporarilyHidden) {
             const { width, height } = context.window.getContentBounds();
             const panelX = Math.max(0, width - sideWidth + 6);
-            const panelY = UI_HEIGHT + 38;
+            const topUi = UI_HEIGHT + (context.isScreenSharingActive ? 38 : 0);
+            const panelY = topUi + 38;
             const panelW = Math.max(0, sideWidth - 14);
             const panelH = Math.max(0, height - panelY - 8);
             state.webContentView.setBounds({

@@ -239,7 +239,8 @@ function computeLensChromeOverlayBounds(context, tabId = context?.activeTabId) {
     const { width, height } = context.window.getContentBounds();
     const metrics = getLensLayoutMetrics(context, tabId);
     if (!metrics || metrics.sidebarWidth <= 0) {
-        return { x: 0, y: UI_HEIGHT, width, height: Math.max(0, height - UI_HEIGHT) };
+        const topY = metrics?.contentTop ?? (UI_HEIGHT + (context.isScreenSharingActive ? 38 : 0));
+        return { x: 0, y: topY, width, height: Math.max(0, height - topY) };
     }
     return {
         x: 0,
@@ -261,7 +262,7 @@ function getActiveTabContentBounds(context, tabId = context?.activeTabId) {
     }
     return {
         x: 0,
-        y: metrics.fs ? 0 : UI_HEIGHT,
+        y: metrics.contentTop,
         width: metrics.width,
         height: metrics.contentHeight,
     };

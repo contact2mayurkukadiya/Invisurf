@@ -1,24 +1,61 @@
-.screen-share-banner-wrapper {
+/* ── Screen Sharing Presentation Banner (Chrome Native Style) ─────────────── */
+
+:root {
+  --screen-share-banner-bg: color-mix(in srgb, var(--chrome-accent, #92475a) 7%, var(--chrome-nav-bg, #ffffff));
+  --screen-share-chip-bg: color-mix(in srgb, var(--chrome-accent, #92475a) 14%, var(--chrome-nav-bg, #ffffff));
+  --screen-share-chip-hover: color-mix(in srgb, var(--chrome-accent, #92475a) 22%, var(--chrome-nav-bg, #ffffff));
+  --screen-share-switch-btn-bg: color-mix(in srgb, var(--chrome-accent, #92475a) 22%, var(--chrome-nav-bg, #ffffff));
+  --screen-share-switch-btn-hover: color-mix(in srgb, var(--chrome-accent, #92475a) 30%, var(--chrome-nav-bg, #ffffff));
+  --screen-share-stop-btn-bg: var(--chrome-accent, #92475a);
+  --screen-share-stop-btn-hover: color-mix(in srgb, var(--chrome-accent, #92475a) 85%, #000000);
+  --screen-share-stop-btn-fg: #ffffff;
+  --screen-share-divider: var(--chrome-tab-separator, rgba(0, 0, 0, 0.14));
+}
+
+html[data-forced-appearance="dark"],
+[data-theme="dark"] {
+  --screen-share-banner-bg: color-mix(in srgb, var(--chrome-accent, #b3566d) 12%, var(--chrome-nav-bg, #253035));
+  --screen-share-chip-bg: color-mix(in srgb, var(--chrome-accent, #b3566d) 24%, var(--chrome-nav-bg, #253035));
+  --screen-share-chip-hover: color-mix(in srgb, var(--chrome-accent, #b3566d) 32%, var(--chrome-nav-bg, #253035));
+  --screen-share-switch-btn-bg: color-mix(in srgb, var(--chrome-accent, #b3566d) 30%, var(--chrome-nav-bg, #253035));
+  --screen-share-switch-btn-hover: color-mix(in srgb, var(--chrome-accent, #b3566d) 40%, var(--chrome-nav-bg, #253035));
+  --screen-share-stop-btn-bg: var(--chrome-accent, #b3566d);
+  --screen-share-stop-btn-hover: color-mix(in srgb, var(--chrome-accent, #b3566d) 85%, #ffffff);
+  --screen-share-stop-btn-fg: #ffffff;
+  --screen-share-divider: var(--chrome-tab-separator, rgba(255, 255, 255, 0.16));
+}
+
+.screen-share-banner-bar {
   height: 38px;
   min-height: 38px;
   max-height: 38px;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 0 16px;
   width: 100%;
   box-sizing: border-box;
-  background-color: var(--chrome-nav-bg, #ffffff);
+  background-color: var(--screen-share-banner-bg);
   border-bottom: 1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.08));
   user-select: none;
   z-index: 99;
   flex-shrink: 0;
+  gap: 8px;
+  -webkit-app-region: no-drag !important;
+  pointer-events: auto !important;
+  font-family: 'InviSurfUIFont', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   animation: screenShareBannerSlideDown 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.screen-share-banner-bar * {
+  -webkit-app-region: no-drag !important;
+  pointer-events: auto !important;
 }
 
 @keyframes screenShareBannerSlideDown {
   from {
     opacity: 0;
-    transform: translateY(-6px);
+    transform: translateY(-4px);
   }
   to {
     opacity: 1;
@@ -26,35 +63,63 @@
   }
 }
 
-.screen-share-banner-pill {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 4px 14px 4px 12px;
-  border-radius: 20px;
-  background-color: color-mix(in srgb, var(--chrome-accent, #80333d) 12%, var(--chrome-nav-bg, #ffffff));
-  border: 1px solid color-mix(in srgb, var(--chrome-accent, #80333d) 25%, transparent);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
-}
-
 .screen-share-banner-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--chrome-fg, #202124);
-  opacity: 0.85;
+  color: var(--chrome-fg, #2b2124);
+  opacity: 0.88;
+  margin-right: 4px;
+  flex-shrink: 0;
 }
 
-.screen-share-banner-text {
+.screen-share-banner-content {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+
+.screen-share-text {
   font-size: 13px;
-  font-weight: 500;
-  color: var(--chrome-fg, #202124);
+  font-weight: 400;
+  color: var(--chrome-fg, #2b2124);
   white-space: nowrap;
+  line-height: 1;
 }
 
-.screen-share-host {
-  font-weight: 600;
-  color: var(--chrome-fg, #202124);
+.screen-share-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--chrome-fg, #2b2124);
+  background-color: var(--screen-share-chip-bg);
+  padding: 2.5px 10px;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  line-height: 1.2;
+  white-space: nowrap;
+  transition: background-color 0.15s ease, transform 0.1s ease;
+}
+
+.screen-share-chip:hover {
+  background-color: var(--screen-share-chip-hover);
+}
+
+.screen-share-chip:active {
+  transform: scale(0.98);
+}
+
+.screen-share-divider {
+  width: 1px;
+  height: 16px;
+  background-color: var(--screen-share-divider);
+  margin: 0 4px 0 2px;
+  flex-shrink: 0;
 }
 
 .screen-share-banner-actions {
@@ -63,40 +128,64 @@
   gap: 8px;
 }
 
-.screen-share-switch-btn,
-.screen-share-jump-btn {
+.screen-share-switch-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--chrome-fg, #2b2124);
+  background-color: var(--screen-share-switch-btn-bg);
   padding: 4px 14px;
-  border-radius: 14px;
-  font-size: 12px;
-  font-weight: 600;
-  background-color: color-mix(in srgb, var(--chrome-accent, #80333d) 18%, var(--chrome-nav-bg, #ffffff));
-  color: var(--chrome-accent, #80333d);
-  border: 1px solid color-mix(in srgb, var(--chrome-accent, #80333d) 30%, transparent);
+  border-radius: 9999px;
+  border: none;
   cursor: pointer;
-  transition: all 0.15s ease;
+  line-height: 1.2;
   white-space: nowrap;
+  transition: background-color 0.15s ease, filter 0.15s ease, transform 0.1s ease;
 }
 
-.screen-share-switch-btn:hover,
-.screen-share-jump-btn:hover {
-  filter: brightness(0.96);
+.screen-share-switch-btn:hover {
+  background-color: var(--screen-share-switch-btn-hover);
+  filter: brightness(0.97);
+}
+
+.screen-share-switch-btn:active {
+  transform: scale(0.97);
+}
+
+.screen-share-switch-btn:disabled,
+.screen-share-switch-btn.screen-share-switch-btn--switching {
+  opacity: 0.55;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 .screen-share-stop-btn {
-  padding: 4px 14px;
-  border-radius: 14px;
-  font-size: 12px;
-  font-weight: 600;
-  background-color: var(--chrome-accent, #80333d);
-  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--screen-share-stop-btn-fg);
+  background-color: var(--screen-share-stop-btn-bg);
+  padding: 4px 16px;
+  border-radius: 9999px;
   border: none;
   cursor: pointer;
-  transition: filter 0.15s ease;
+  line-height: 1.2;
   white-space: nowrap;
-  box-shadow: 0 1px 3px color-mix(in srgb, var(--chrome-accent, #80333d) 30%, transparent);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  transition: filter 0.15s ease, transform 0.1s ease;
 }
 
 .screen-share-stop-btn:hover {
-  filter: brightness(1.1);
+  filter: brightness(1.12);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.16);
 }
 
+.screen-share-stop-btn:active {
+  transform: scale(0.97);
+}

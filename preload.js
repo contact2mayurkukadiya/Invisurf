@@ -1883,6 +1883,28 @@ try {
             } catch (_) { }
         });
 
+        window.addEventListener('__invisurf_set_screen_share_options', (e) => {
+            try {
+                ipcRenderer.send('screen-share:set-options', e.detail || {});
+            } catch (_) { }
+        });
+
+        ipcRenderer.on('screen-share:stop-stream', () => {
+            try {
+                window.dispatchEvent(new CustomEvent('__invisurf_stop_display_stream'));
+                if (window.__invisurfActiveDisplayStream?.getTracks) {
+                    window.__invisurfActiveDisplayStream.getTracks().forEach((track) => {
+                        try {
+                            track.stop();
+                            const evt = new Event('ended');
+                            track.dispatchEvent(evt);
+                            if (typeof track.onended === 'function') track.onended(evt);
+                        } catch (_) { }
+                    });
+                }
+            } catch (_) { }
+        });
+
         // 2. Inject into the main world to intercept web application getDisplayMedia and RTCPeerConnection
         if (typeof webFrame !== 'undefined' && typeof webFrame.executeJavaScript === 'function') {
             webFrame.executeJavaScript(`
@@ -1895,6 +1917,76 @@ try {
                         const origGetDisplayMedia = navigator.mediaDevices.getDisplayMedia.bind(navigator.mediaDevices);
                         const activeStreams = new Set();
                         const activeDisplayTracks = new Set();
+                        const legacyMeetingTracks = new Set();
+
+                        function terminateDisplayTrack(track) {
+                            if (!track) return;
+                            try {
+                                track.stop();
+                            } catch (_) {}
+                            try {
+                                const endedEvt = new Event('ended');
+                                track.dispatchEvent(endedEvt);
+                                if (typeof track.onended === 'function') {
+                                    try {
+                                        track.onended(endedEvt);
+                                    } catch (_) {}
+                                }
+                            } catch (_) {}
+                        }
+
+                        function terminateDisplayStream(stream) {
+                            if (!stream) return;
+                            try {
+                                if (typeof stream.getTracks === 'function') {
+                                    stream.getTracks().forEach((track) => terminateDisplayTrack(track));
+                                }
+                            } catch (_) {}
+                            try {
+                                const inactiveEvt = new Event('inactive');
+                                stream.dispatchEvent(inactiveEvt);
+                                if (typeof stream.oninactive === 'function') {
+                                    try {
+                                        stream.oninactive(inactiveEvt);
+                                    } catch (_) {}
+                                }
+                            } catch (_) {}
+                        }
+
+                        let origStop = null;
+                        if (typeof MediaStreamTrack !== 'undefined' && MediaStreamTrack.prototype) {
+                            const origClone = MediaStreamTrack.prototype.clone;
+                            if (typeof origClone === 'function') {
+                                MediaStreamTrack.prototype.clone = function() {
+                                    const cloned = origClone.apply(this, arguments);
+                                    if (activeDisplayTracks.has(this)) {
+                                        activeDisplayTracks.add(cloned);
+                                    }
+                                    return cloned;
+                                };
+                            }
+
+                            origStop = MediaStreamTrack.prototype.stop;
+                            if (typeof origStop === 'function') {
+                                MediaStreamTrack.prototype.stop = function() {
+                                    origStop.apply(this, arguments);
+                                    if (activeDisplayTracks.has(this) || legacyMeetingTracks.has(this)) {
+                                        activeDisplayTracks.delete(this);
+                                        legacyMeetingTracks.delete(this);
+                                        try {
+                                            const endedEvt = new Event('ended');
+                                            this.dispatchEvent(endedEvt);
+                                            if (typeof this.onended === 'function') {
+                                                try { this.onended(endedEvt); } catch (_) {}
+                                            }
+                                        } catch (_) {}
+                                        try {
+                                            window.dispatchEvent(new CustomEvent('__invisurf_display_stream_ended'));
+                                        } catch (_) {}
+                                    }
+                                };
+                            }
+                        }
 
                         // Monkey-patch RTCPeerConnection to track active connections for seamless track swapping
                         if (window.RTCPeerConnection && !window.__invisurfRTCPatched) {
@@ -1920,6 +2012,7 @@ try {
                             }
                             try {
                                 Object.setPrototypeOf(InviSurfRTCPeerConnection, OrigPC);
+                                Object.defineProperty(InviSurfRTCPeerConnection, 'name', { value: 'RTCPeerConnection' });
                                 window.RTCPeerConnection = InviSurfRTCPeerConnection;
                                 if (window.webkitRTCPeerConnection) {
                                     window.webkitRTCPeerConnection = InviSurfRTCPeerConnection;
@@ -1964,18 +2057,31 @@ try {
                         };
 
                         window.addEventListener('__invisurf_stop_display_stream', () => {
-                            for (const stream of activeStreams) {
-                                try {
-                                    stream.getTracks().forEach((track) => {
-                                        try { track.stop(); } catch (_) {}
-                                    });
-                                } catch (_) {}
+                            for (const track of Array.from(activeDisplayTracks)) {
+                                terminateDisplayTrack(track);
+                            }
+                            for (const track of Array.from(legacyMeetingTracks)) {
+                                terminateDisplayTrack(track);
+                            }
+                            for (const stream of Array.from(activeStreams)) {
+                                terminateDisplayStream(stream);
+                            }
+                            if (window.__invisurfActiveDisplayStream) {
+                                terminateDisplayStream(window.__invisurfActiveDisplayStream);
                             }
                             activeStreams.clear();
                             activeDisplayTracks.clear();
+                            legacyMeetingTracks.clear();
+                            window.__invisurfActiveDisplayStream = null;
+                            try {
+                                window.dispatchEvent(new CustomEvent('__invisurf_display_stream_ended'));
+                            } catch (_) {}
                         });
 
+                        let isSwitchingTab = false;
                         window.addEventListener('__invisurf_switch_shared_tab', async (evt) => {
+                            if (isSwitchingTab) return;
+                            isSwitchingTab = true;
                             try {
                                 const hasAudio = evt?.detail?.hasAudio;
                                 const newStream = await origGetDisplayMedia({
@@ -1986,6 +2092,7 @@ try {
 
                                 const newVideoTrack = newStream.getVideoTracks()[0];
                                 const newAudioTrack = newStream.getAudioTracks()[0];
+                                const activeTrackIds = new Set(Array.from(activeDisplayTracks).map((t) => t.id));
 
                                 // Seamless WebRTC track replacement without call renegotiation
                                 if (window.__invisurfActivePeerConnections) {
@@ -1993,7 +2100,12 @@ try {
                                         try {
                                             const senders = typeof pc.getSenders === 'function' ? pc.getSenders() : [];
                                             for (const sender of senders) {
-                                                if (sender.track && activeDisplayTracks.has(sender.track)) {
+                                                if (!sender.track) continue;
+                                                const isDisplaySender = activeDisplayTracks.has(sender.track) ||
+                                                    legacyMeetingTracks.has(sender.track) ||
+                                                    activeTrackIds.has(sender.track.id) ||
+                                                    (typeof sender.track.getSettings === 'function' && sender.track.getSettings().displaySurface !== undefined);
+                                                if (isDisplaySender) {
                                                     if (sender.track.kind === 'video' && newVideoTrack) {
                                                         await sender.replaceTrack(newVideoTrack);
                                                     } else if (sender.track.kind === 'audio' && newAudioTrack) {
@@ -2010,25 +2122,53 @@ try {
                                 // Update HTML5 video elements displaying the shared stream
                                 const allVideos = document.querySelectorAll('video');
                                 allVideos.forEach((v) => {
+                                    if (!v.srcObject) return;
+                                    let shouldSwap = false;
                                     for (const oldStream of activeStreams) {
                                         if (v.srcObject === oldStream) {
-                                            v.srcObject = newStream;
-                                            v.play().catch(() => {});
+                                            shouldSwap = true;
+                                            break;
                                         }
+                                    }
+                                    if (!shouldSwap && typeof v.srcObject.getVideoTracks === 'function') {
+                                        const tracks = v.srcObject.getVideoTracks();
+                                        for (const t of tracks) {
+                                            if (activeDisplayTracks.has(t) || legacyMeetingTracks.has(t) || activeTrackIds.has(t.id)) {
+                                                shouldSwap = true;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    if (shouldSwap) {
+                                        v.srcObject = newStream;
+                                        v.play().catch(() => {});
                                     }
                                 });
 
-                                // Terminate previous tracks
+                                // Transfer previous tracks to legacyMeetingTracks so they don't fire ended now,
+                                // but will fire ended when the entire presentation is stopped!
+                                for (const track of Array.from(activeDisplayTracks)) {
+                                    legacyMeetingTracks.add(track);
+                                    activeDisplayTracks.delete(track);
+                                }
                                 for (const oldStream of activeStreams) {
                                     try {
                                         oldStream.getTracks().forEach((t) => {
-                                            try { t.stop(); } catch (_) {}
+                                            activeDisplayTracks.delete(t);
+                                            legacyMeetingTracks.add(t);
+                                            // Call native stop directly so it bypasses our hook and does NOT fire 'ended' or '__invisurf_display_stream_ended'
+                                            try {
+                                                if (origStop) {
+                                                    origStop.call(t);
+                                                } else {
+                                                    t.stop();
+                                                }
+                                            } catch (_) {}
                                         });
                                     } catch (_) {}
                                 }
 
                                 activeStreams.clear();
-                                activeDisplayTracks.clear();
                                 activeStreams.add(newStream);
                                 newStream.getTracks().forEach((t) => activeDisplayTracks.add(t));
                                 window.__invisurfActiveDisplayStream = newStream;
@@ -2047,6 +2187,8 @@ try {
                                 }));
                             } catch (err) {
                                 console.warn('[InviSurf] switch_shared_tab failed:', err);
+                            } finally {
+                                isSwitchingTab = false;
                             }
                         });
                     } catch (_) {}
@@ -2090,35 +2232,26 @@ try {
                 }
             };
 
-            ipcRenderer.on('screen-share:do-switch-tab', async (_event, data) => {
+            ipcRenderer.on('screen-share:do-switch-tab', (_event, data) => {
                 try {
                     window.dispatchEvent(new CustomEvent('__invisurf_switch_shared_tab', { detail: data }));
                 } catch (_) { }
+            });
 
-                if (window.__invisurfActiveDisplayStream) {
-                    try {
-                        const hasAudio = data?.hasAudio;
-                        const newStream = await origGetDisplayMedia({
-                            video: true,
-                            audio: !!hasAudio,
+            ipcRenderer.on('screen-share:stop-stream', () => {
+                try {
+                    window.dispatchEvent(new CustomEvent('__invisurf_stop_display_stream'));
+                    if (window.__invisurfActiveDisplayStream?.getTracks) {
+                        window.__invisurfActiveDisplayStream.getTracks().forEach((track) => {
+                            try {
+                                track.stop();
+                                const evt = new Event('ended');
+                                track.dispatchEvent(evt);
+                                if (typeof track.onended === 'function') track.onended(evt);
+                            } catch (_) { }
                         });
-                        if (newStream && typeof newStream.getVideoTracks === 'function') {
-                            if (window.__invisurfActiveDisplayStream?.getTracks) {
-                                window.__invisurfActiveDisplayStream.getTracks().forEach((t) => {
-                                    try { t.stop(); } catch (_) { }
-                                });
-                            }
-                            window.__invisurfActiveDisplayStream = newStream;
-                            newStream.getVideoTracks().forEach((track) => {
-                                track.addEventListener('ended', () => {
-                                    try {
-                                        ipcRenderer.send('screen-share:ended');
-                                    } catch (_) { }
-                                }, { once: true });
-                            });
-                        }
-                    } catch (_) { }
-                }
+                    }
+                } catch (_) { }
             });
         }
     }

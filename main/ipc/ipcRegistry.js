@@ -1148,15 +1148,22 @@ function registerIpcHandlers() {
     ipcMain.on('screen-share:stop', (e) => {
         if (!isSenderTrusted(e)) return;
         const { getMediaCaptureManager } = require('../extensions/compat/MediaCaptureManager');
-        const context = getWindowContextByEventSender(e.sender);
-        getMediaCaptureManager().stopScreenShare(context?.activeTabId);
+        getMediaCaptureManager().stopScreenShare();
+    });
+
+    ipcMain.on('screen-share:set-options', (e, opts = {}) => {
+        if (!isSenderTrusted(e)) return;
+        if (!e.sender || e.sender.isDestroyed()) return;
+        const { getMediaCaptureManager } = require('../extensions/compat/MediaCaptureManager');
+        getMediaCaptureManager().setPendingDisplayMediaOptions(e.sender.id, opts);
     });
 
     ipcMain.on('screen-share:switch-tab', (e, { targetTabId } = {}) => {
         if (!isSenderTrusted(e)) return;
-        if (!targetTabId || typeof targetTabId !== 'string') return;
+        const normalizedTabId = targetTabId !== null && targetTabId !== undefined ? String(targetTabId) : null;
+        if (!normalizedTabId) return;
         const { getMediaCaptureManager } = require('../extensions/compat/MediaCaptureManager');
-        getMediaCaptureManager().switchSharedTab(targetTabId);
+        getMediaCaptureManager().switchSharedTab(normalizedTabId);
     });
 
     ipcMain.on('screen-share:ended', (e) => {

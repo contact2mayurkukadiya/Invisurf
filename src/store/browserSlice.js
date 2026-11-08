@@ -103,6 +103,8 @@ const browserSlice = createSlice({
       sharedTitle: '',
       requestingTabId: null,
       requestingHost: '',
+      surfaceSwitching: 'include',
+      state: 'idle',
     },
   },
   reducers: {
@@ -122,6 +124,8 @@ const browserSlice = createSlice({
         sharedTitle: payload.sharedTitle || '',
         requestingTabId: payload.requestingTabId || null,
         requestingHost: payload.requestingHost || '',
+        surfaceSwitching: payload.surfaceSwitching || 'include',
+        state: payload.state || (payload.active ? 'active' : 'idle'),
       };
     },
     setSidePanelWidth(state, action) {

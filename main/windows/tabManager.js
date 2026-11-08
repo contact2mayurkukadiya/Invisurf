@@ -1231,10 +1231,11 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
         host.setFullScreen(false);
         const { width, height } = host.getContentBounds();
         const detached = State.detachedTabWindows.has(id);
+        const topUiHeight = UI_HEIGHT + (context?.isScreenSharingActive ? 38 : 0);
         view.setBounds(
             detached
                 ? { x: 0, y: 0, width, height }
-                : { x: 0, y: UI_HEIGHT, width, height: height - UI_HEIGHT },
+                : { x: 0, y: topUiHeight, width, height: Math.max(0, height - topUiHeight) },
         );
     });
 
