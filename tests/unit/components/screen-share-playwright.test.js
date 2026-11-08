@@ -393,4 +393,102 @@ describe('Screen Share Picker & Banner Visual Verification (Playwright)', () => 
 
     await page.close();
   });
+
+  test('Renders Desktop Media Picker window grid with clean mock fallback layout when thumbnails are missing or broken', async () => {
+    const page = await browser.newPage({ viewport: { width: 1000, height: 750 } });
+    await page.goto(overlayHtmlPath);
+
+    await page.evaluate(() => {
+      document.documentElement.style.setProperty('--chrome-accent', '#1e8e3e');
+      document.documentElement.style.setProperty('--chrome-nav-bg', '#f4faf6');
+      document.documentElement.style.setProperty('--chrome-fg', '#202124');
+      document.documentElement.style.setProperty('--chrome-secondary-fg', 'rgba(32, 33, 36, 0.65)');
+      document.documentElement.style.setProperty('--chrome-tab-separator', 'rgba(0, 0, 0, 0.1)');
+    });
+
+    const validThumbnail = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200"><rect width="300" height="200" fill="%23243038"/><text x="150" y="105" font-family="sans-serif" font-size="18" fill="%23ffffff" text-anchor="middle">Valid Window</text></svg>';
+    const brokenThumbnail = 'data:image/png;base64,BROKEN_IMAGE_DATA_CORRUPT';
+
+    await page.evaluate(({ validThumbnail, brokenThumbnail }) => {
+      window.electronAPI = window.electronAPI || {};
+      window.electronAPI.chromeOverlayNotifyHost = () => {};
+
+      const mockWindows = [
+        { id: 'win:invisurf', name: 'InviSurf', appIcon: 'https://github.com/favicon.ico', thumbnail: validThumbnail },
+        { id: 'win:chrome', name: 'Google Chrome', appIcon: 'https://google.com/favicon.ico', thumbnail: brokenThumbnail },
+        { id: 'win:terminal', name: 'Terminal', thumbnail: '' },
+      ];
+
+      import('./overlay/components/desktopMediaPicker.js').then(({ renderDesktopMediaPicker }) => {
+        renderDesktopMediaPicker({
+          requestId: 4004,
+          requesterName: 'Extension',
+          canRequestAudio: true,
+          sources: {
+            tabs: [{ id: 'tab:1', name: 'Tab 1', thumbnail: '' }],
+            windows: mockWindows,
+            screens: [{ id: 'screen:0', name: 'Entire Screen' }],
+          },
+        });
+      });
+    }, { validThumbnail, brokenThumbnail });
+
+    await page.waitForTimeout(600);
+
+    // Switch to "Window" category tab
+    const windowTab = page.locator('#panel button:has-text("Window")');
+    await windowTab.waitFor({ state: 'visible' });
+    await windowTab.click();
+    await page.waitForTimeout(600);
+
+    // Capture screenshot proving the mock fallback layout renders instead of broken images
+    const currentArtifactDir = '/Users/mayurkukadiya/.gemini/antigravity/brain/2a5f4fc2-edb0-4bf2-b565-e297e457a2b9';
+    await page.screenshot({
+      path: path.join(currentArtifactDir, 'screen-share-picker-missing-image-fallback.png'),
+    });
+    try {
+      await page.screenshot({
+        path: path.join(ARTIFACTS_DIR, 'screen-share-picker-missing-image-fallback.png'),
+      });
+    } catch (_) {}
+
+    // Verify grid cards render fallback for broken / missing thumbnails
+    const fallbackResults = await page.evaluate(() => {
+      const cards = Array.from(document.querySelectorAll('#panel [style*="grid"] > div'));
+      return cards.map(c => {
+        const title = c.textContent || '';
+        const fallback = c.querySelector('.desktop-media-picker-grid-fallback');
+        const img = c.querySelector('img[style*="absolute"]');
+        return {
+          title,
+          hasFallback: !!fallback,
+          fallbackVisible: fallback ? fallback.style.display !== 'none' : false,
+          imgDisplay: img ? img.style.display : null,
+        };
+      });
+    });
+
+    assert.strictEqual(fallbackResults.length, 3, 'Should render 3 window cards in grid');
+
+    // InviSurf (valid thumbnail): img is visible, fallback is hidden
+    const validCard = fallbackResults.find(r => r.title.includes('InviSurf'));
+    assert.ok(validCard, 'Must find InviSurf card');
+    assert.strictEqual(validCard.imgDisplay, 'block', 'Valid thumbnail img must be displayed');
+    assert.strictEqual(validCard.fallbackVisible, false, 'Valid thumbnail fallback must be hidden');
+
+    // Google Chrome (broken thumbnail): img failed and is hidden, fallback is visible
+    const chromeCard = fallbackResults.find(r => r.title.includes('Google Chrome'));
+    assert.ok(chromeCard, 'Must find Google Chrome card');
+    assert.strictEqual(chromeCard.hasFallback, true, 'Google Chrome card must have fallback');
+    assert.strictEqual(chromeCard.fallbackVisible, true, 'Google Chrome card fallback must be visible');
+    assert.strictEqual(chromeCard.imgDisplay, 'none', 'Broken thumbnail img must be hidden');
+
+    // Terminal (empty thumbnail): fallback is visible immediately
+    const terminalCard = fallbackResults.find(r => r.title.includes('Terminal'));
+    assert.ok(terminalCard, 'Must find Terminal card');
+    assert.strictEqual(terminalCard.hasFallback, true, 'Terminal card must have fallback');
+    assert.strictEqual(terminalCard.fallbackVisible, true, 'Terminal card fallback must be visible');
+
+    await page.close();
+  });
 });

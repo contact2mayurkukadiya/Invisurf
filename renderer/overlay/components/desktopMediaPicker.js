@@ -600,6 +600,147 @@ export function renderDesktopMediaPicker(payload) {
     }
 
     // 3B. Grid View for Windows and Screens
+    function createGridCardFallback(item, kind) {
+        const fallback = document.createElement('div');
+        fallback.className = 'desktop-media-picker-grid-fallback';
+        fallback.style.width = '100%';
+        fallback.style.height = '100%';
+        fallback.style.display = 'flex';
+        fallback.style.flexDirection = 'column';
+        fallback.style.backgroundColor = 'color-mix(in srgb, var(--chrome-nav-bg, #ffffff) 94%, var(--chrome-fg, #000) 6%)';
+        fallback.style.position = 'relative';
+        fallback.style.overflow = 'hidden';
+
+        // Mock top header (window or screen titlebar)
+        const mockBar = document.createElement('div');
+        mockBar.style.display = 'flex';
+        mockBar.style.alignItems = 'center';
+        mockBar.style.gap = '6px';
+        mockBar.style.padding = '3px 8px';
+        mockBar.style.height = '20px';
+        mockBar.style.boxSizing = 'border-box';
+        mockBar.style.borderBottom = '1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.08))';
+        mockBar.style.backgroundColor = 'color-mix(in srgb, var(--chrome-nav-bg, #ffffff) 88%, var(--chrome-fg, #000) 12%)';
+        mockBar.style.flexShrink = '0';
+
+        if (kind === 'screen') {
+            const monitorIcon = document.createElement('span');
+            monitorIcon.innerHTML = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="opacity:0.65;display:inline-flex"><rect x="2" y="3" width="20" height="14" rx="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>`;
+            mockBar.appendChild(monitorIcon);
+        } else {
+            const dotsWrap = document.createElement('div');
+            dotsWrap.style.display = 'flex';
+            dotsWrap.style.alignItems = 'center';
+            dotsWrap.style.gap = '3px';
+            dotsWrap.style.flexShrink = '0';
+            ['#ff5f56', '#ffbd2e', '#27c93f'].forEach((color) => {
+                const dot = document.createElement('span');
+                dot.style.width = '5px';
+                dot.style.height = '5px';
+                dot.style.borderRadius = '50%';
+                dot.style.backgroundColor = color;
+                dot.style.display = 'inline-block';
+                dot.style.opacity = '0.75';
+                dotsWrap.appendChild(dot);
+            });
+            mockBar.appendChild(dotsWrap);
+        }
+
+        const mockAddressPill = document.createElement('div');
+        mockAddressPill.style.display = 'flex';
+        mockAddressPill.style.alignItems = 'center';
+        mockAddressPill.style.gap = '4px';
+        mockAddressPill.style.padding = '1px 6px';
+        mockAddressPill.style.borderRadius = '8px';
+        mockAddressPill.style.backgroundColor = 'var(--chrome-nav-bg, #ffffff)';
+        mockAddressPill.style.border = '1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.1))';
+        mockAddressPill.style.maxWidth = '75%';
+        mockAddressPill.style.height = '13px';
+        mockAddressPill.style.boxSizing = 'border-box';
+        mockAddressPill.style.overflow = 'hidden';
+
+        const mockPillText = document.createElement('span');
+        mockPillText.textContent = item.name || (kind === 'screen' ? 'Entire Screen' : 'Window');
+        mockPillText.style.fontSize = '9px';
+        mockPillText.style.fontWeight = '500';
+        mockPillText.style.color = 'var(--chrome-fg, #202124)';
+        mockPillText.style.opacity = '0.75';
+        mockPillText.style.whiteSpace = 'nowrap';
+        mockPillText.style.overflow = 'hidden';
+        mockPillText.style.textOverflow = 'ellipsis';
+        mockAddressPill.appendChild(mockPillText);
+        mockBar.appendChild(mockAddressPill);
+
+        fallback.appendChild(mockBar);
+
+        // Mock Body with centered icon and skeleton bars
+        const mockBody = document.createElement('div');
+        mockBody.style.flex = '1';
+        mockBody.style.display = 'flex';
+        mockBody.style.flexDirection = 'column';
+        mockBody.style.alignItems = 'center';
+        mockBody.style.justifyContent = 'center';
+        mockBody.style.padding = '8px';
+        mockBody.style.gap = '6px';
+        mockBody.style.boxSizing = 'border-box';
+
+        const iconContainer = document.createElement('div');
+        iconContainer.style.display = 'flex';
+        iconContainer.style.alignItems = 'center';
+        iconContainer.style.justifyContent = 'center';
+        iconContainer.style.width = '28px';
+        iconContainer.style.height = '28px';
+        iconContainer.style.flexShrink = '0';
+
+        const fallbackSvg = kind === 'screen'
+            ? `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="opacity:0.55;color:var(--chrome-fg, #202124)"><rect x="2" y="3" width="20" height="14" rx="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>`
+            : `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="opacity:0.55;color:var(--chrome-fg, #202124)"><rect x="2" y="4" width="20" height="16" rx="2"></rect><line x1="2" y1="9" x2="22" y2="9"></line><line x1="6" y1="6.5" x2="6.01" y2="6.5" stroke-width="2.5"></line><line x1="9" y1="6.5" x2="9.01" y2="6.5" stroke-width="2.5"></line></svg>`;
+
+        if (item.appIcon) {
+            const appImg = document.createElement('img');
+            appImg.src = item.appIcon;
+            appImg.style.width = '26px';
+            appImg.style.height = '26px';
+            appImg.style.borderRadius = '4px';
+            appImg.style.objectFit = 'contain';
+            appImg.onerror = () => {
+                appImg.style.display = 'none';
+                iconContainer.innerHTML = fallbackSvg;
+            };
+            iconContainer.appendChild(appImg);
+        } else {
+            iconContainer.innerHTML = fallbackSvg;
+        }
+        mockBody.appendChild(iconContainer);
+
+        const mockSkeleton = document.createElement('div');
+        mockSkeleton.style.width = '60%';
+        mockSkeleton.style.display = 'flex';
+        mockSkeleton.style.flexDirection = 'column';
+        mockSkeleton.style.gap = '4px';
+        mockSkeleton.style.alignItems = 'center';
+        mockSkeleton.style.opacity = '0.25';
+
+        const skLine1 = document.createElement('div');
+        skLine1.style.height = '4px';
+        skLine1.style.borderRadius = '2px';
+        skLine1.style.backgroundColor = 'var(--chrome-fg, #202124)';
+        skLine1.style.width = '100%';
+
+        const skLine2 = document.createElement('div');
+        skLine2.style.height = '4px';
+        skLine2.style.borderRadius = '2px';
+        skLine2.style.backgroundColor = 'var(--chrome-fg, #202124)';
+        skLine2.style.width = '65%';
+
+        mockSkeleton.appendChild(skLine1);
+        mockSkeleton.appendChild(skLine2);
+        mockBody.appendChild(mockSkeleton);
+
+        fallback.appendChild(mockBody);
+        return fallback;
+    }
+
     function renderGrid(items, kind) {
         const grid = document.createElement('div');
         grid.style.display = 'grid';
@@ -645,14 +786,42 @@ export function renderDesktopMediaPicker(payload) {
             imgBox.style.display = 'flex';
             imgBox.style.alignItems = 'center';
             imgBox.style.justifyContent = 'center';
+            imgBox.style.position = 'relative';
+
+            const fallback = createGridCardFallback(item, kind);
+            imgBox.appendChild(fallback);
 
             if (item.thumbnail) {
                 const img = document.createElement('img');
-                img.src = item.thumbnail;
                 img.style.width = '100%';
                 img.style.height = '100%';
                 img.style.objectFit = 'contain';
+                img.style.position = 'absolute';
+                img.style.inset = '0';
+                img.style.display = 'none';
+
+                img.onload = () => {
+                    img.style.display = 'block';
+                    fallback.style.display = 'none';
+                    imgBox.style.backgroundColor = '#0b0f19';
+                };
+                img.onerror = () => {
+                    img.style.display = 'none';
+                    fallback.style.display = 'flex';
+                    imgBox.style.backgroundColor = 'transparent';
+                };
+
+                img.src = item.thumbnail;
                 imgBox.appendChild(img);
+
+                if (img.complete && img.naturalWidth > 0) {
+                    img.style.display = 'block';
+                    fallback.style.display = 'none';
+                    imgBox.style.backgroundColor = '#0b0f19';
+                }
+            } else {
+                fallback.style.display = 'flex';
+                imgBox.style.backgroundColor = 'transparent';
             }
 
             // Info below thumbnail
@@ -668,6 +837,9 @@ export function renderDesktopMediaPicker(payload) {
                 icon.style.width = '16px';
                 icon.style.height = '16px';
                 icon.style.objectFit = 'contain';
+                icon.onerror = () => {
+                    icon.style.display = 'none';
+                };
                 infoRow.appendChild(icon);
             }
 
