@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { DOM_EVENT } from '../constants/conditionStrings.js';
 import { useDispatch } from 'react-redux';
-import { updateTab, updateTabUrl, setSearchEngine, setShowBookmarkBar } from '../store/browserSlice';
+import { updateTab, updateTabUrl, setSearchEngine, setShowBookmarkBar, setScreenShareStatus } from '../store/browserSlice';
 
 export function useElectronIPC({
   onNewTab,
@@ -112,6 +112,13 @@ export function useElectronIPC({
           if (data?.settings?.showBookmarkBar !== undefined) {
             dispatch(setShowBookmarkBar(data.settings.showBookmarkBar));
           }
+        });
+      }
+
+      // Listen for active screen/tab sharing status changes
+      if (api.onScreenShareStatusChanged) {
+        api.onScreenShareStatusChanged((status) => {
+          dispatch(setScreenShareStatus(status));
         });
       }
 

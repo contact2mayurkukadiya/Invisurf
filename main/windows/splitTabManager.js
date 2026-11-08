@@ -88,8 +88,9 @@ function layoutSplitTabViews(context, splitId) {
     try {
         const { width, height } = context.window.getContentBounds();
         const isFullscreen = context.window.isFullScreen();
-        const contentTop = isFullscreen ? 0 : UI_HEIGHT;
-        const contentHeight = isFullscreen ? height : Math.max(0, height - UI_HEIGHT);
+        const topUiHeight = UI_HEIGHT + (context.isScreenSharingActive ? 38 : 0);
+        const contentTop = isFullscreen ? 0 : topUiHeight;
+        const contentHeight = isFullscreen ? height : Math.max(0, height - topUiHeight);
 
         const { getSidePanelWidth } = require('./sidePanelManager');
         const sidePanelWidth = getSidePanelWidth(context) || 0;

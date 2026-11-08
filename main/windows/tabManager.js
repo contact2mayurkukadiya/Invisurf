@@ -215,11 +215,12 @@ function getActiveTabContentBounds(context) {
     if (!context?.window || context.window.isDestroyed()) return { x: 0, y: UI_HEIGHT, width: 0, height: 0 };
     const { width, height } = context.window.getContentBounds();
     const isFullscreen = (State.htmlFullscreenTabId && State.htmlFullscreenTabId === context.activeTabId) || (typeof context.window.isFullScreen === 'function' && context.window.isFullScreen());
+    const topUiHeight = UI_HEIGHT + (context.isScreenSharingActive ? 38 : 0);
     return {
         x: 0,
-        y: isFullscreen ? 0 : UI_HEIGHT,
+        y: isFullscreen ? 0 : topUiHeight,
         width,
-        height: isFullscreen ? height : Math.max(0, height - UI_HEIGHT),
+        height: isFullscreen ? height : Math.max(0, height - topUiHeight),
     };
 }
 
@@ -373,6 +374,20 @@ function activateTabInContext(context, id, options = {}) {
     }
     context.isActiveTabTemporarilyHidden = false;
     context.activeTabViewRemovedForShellOverlay = false;
+
+    // Snapshot current active tab before deactivating it so tab picker has fresh preview
+    const prevActiveId = context.activeTabId;
+    const prevView = prevActiveId ? context.tabs[prevActiveId] : null;
+    if (prevView?.webContents && !prevView.webContents.isDestroyed()) {
+        try {
+            prevView.webContents.capturePage().then((img) => {
+                if (img && !img.isEmpty()) {
+                    prevView._lastSnapshot = img.toDataURL();
+                }
+            }).catch(() => {});
+        } catch (_) {}
+    }
+
     for (const tid of Object.keys(context.tabs)) {
         if (State.detachedTabWindows.has(tid)) continue;
         try {
@@ -1462,6 +1477,17 @@ function createTab(context, id, url = C.URL.NTP_DISPLAY, isStealth = false, opti
         // Blank-tab focus is now driven by the shell's committed Redux state.
         // Do not re-focus after the NTP has loaded: that caused Cmd+T focus to
         // appear delayed and could override an intervening user interaction.
+
+        // Cache rendered snapshot for screen-sharing and tab previews
+        setTimeout(() => {
+            if (context.activeTabId === id && view?.webContents && !view.webContents.isDestroyed()) {
+                view.webContents.capturePage().then((img) => {
+                    if (img && !img.isEmpty()) {
+                        view._lastSnapshot = img.toDataURL();
+                    }
+                }).catch(() => {});
+            }
+        }, 350);
     });
 
     const { consumeNextNavigationTransition, isInternalPageUrl } = require('../utils/navigation');

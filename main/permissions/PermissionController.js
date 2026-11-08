@@ -88,10 +88,10 @@ class PermissionController {
       // If already allowed, permit
       if (decision === 'allow' || decision === 'allow-this-session') return true;
 
-      // For standard promptable web capabilities (camera, microphone, geolocation, notifications):
+      // For standard promptable web capabilities (camera, microphone, geolocation, notifications, display-capture):
       // Return true so that navigator.permissions.query does not falsely report 'denied',
-      // allowing web apps to call getUserMedia and trigger setPermissionRequestHandler.
-      if (permName === 'camera' || permName === 'microphone' || permName === 'geolocation' || permName === 'notifications') {
+      // allowing web apps to call getUserMedia/getDisplayMedia and trigger setPermissionRequestHandler.
+      if (permName === 'camera' || permName === 'microphone' || permName === 'geolocation' || permName === 'notifications' || permName === 'display-capture') {
         return true;
       }
 
@@ -121,6 +121,15 @@ class PermissionController {
       const origin = normalizeOrigin(requestingUrl);
       if (!origin) {
         return callback(false);
+      }
+
+      // Handle display-capture directly: display media requests are interactively routed through setDisplayMediaRequestHandler
+      if (permission === 'display-capture') {
+        if (process.platform === 'darwin') {
+          const osOk = await this.verifyOSPermissions('display-capture');
+          if (!osOk) return callback(false);
+        }
+        return callback(true);
       }
 
       // Handle compound media requests (camera + microphone together)
@@ -251,7 +260,7 @@ class PermissionController {
           getMediaCaptureManager().handleDisplayMediaRequest(request, cb);
         } catch (err) {
           console.warn('[PermissionController] setDisplayMediaRequestHandler error:', err);
-          cb({ video: null });
+          cb({});
         }
       });
     }
@@ -322,6 +331,19 @@ class PermissionController {
         console.warn('[PermissionController] macOS mic access query error:', err?.message || err);
         return false;
       }
+    }
+
+    if (permission === 'screen' || permission === 'display-capture') {
+      try {
+        if (typeof systemPreferences.getMediaAccessStatus === 'function') {
+          const status = systemPreferences.getMediaAccessStatus('screen');
+          if (status === 'granted') return true;
+          if (status === 'denied' || status === 'restricted') return false;
+        }
+      } catch (err) {
+        console.warn('[PermissionController] macOS screen access query error:', err?.message || err);
+      }
+      return true;
     }
 
     return true;

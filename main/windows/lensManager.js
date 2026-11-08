@@ -210,8 +210,9 @@ function getLensLayoutMetrics(context, tabId = context?.activeTabId) {
     const { width, height } = context.window.getContentBounds();
     const fs = State.htmlFullscreenTabId === tabId;
     const sidebarWidth = fs ? 0 : getLensSidebarWidth(context, tabId);
-    const contentTop = fs ? 0 : UI_HEIGHT;
-    const contentHeight = fs ? height : Math.max(0, height - UI_HEIGHT);
+    const topUiHeight = UI_HEIGHT + (context.isScreenSharingActive ? 38 : 0);
+    const contentTop = fs ? 0 : topUiHeight;
+    const contentHeight = fs ? height : Math.max(0, height - topUiHeight);
     const panelGap = fs || sidebarWidth <= 0 ? 0 : LENS_PANEL_GAP;
     const sidebarBounds = sidebarWidth > 0 ? {
         x: Math.max(0, width - sidebarWidth + 6),

@@ -953,6 +953,12 @@ function registerIpcHandlers() {
             return;
         }
 
+        if (data?.type === 'desktopMediaPickerRequestTabSnapshot') {
+            const { getMediaCaptureManager } = require('../extensions/compat/MediaCaptureManager');
+            getMediaCaptureManager().captureHighQualityTabSnapshot(data.tabId, data.requestId, context);
+            return;
+        }
+
         if (data?.type === 'dismiss' && context.activeDesktopMediaPicker) {
             const requestId = context.activeDesktopMediaPicker.requestId;
             const { getMediaCaptureManager } = require('../extensions/compat/MediaCaptureManager');
@@ -1137,6 +1143,26 @@ function registerIpcHandlers() {
         if (typeof payload.muteSiteShowsUnmute === 'boolean') State.tabMenuMuteSiteShowsUnmute = payload.muteSiteShowsUnmute;
         if (typeof payload.pinShowsUnpin === 'boolean') State.tabMenuPinShowsUnpin = payload.pinShowsUnpin;
         require('../ui/menu').rebuildApplicationMenu();
+    });
+
+    ipcMain.on('screen-share:stop', (e) => {
+        if (!isSenderTrusted(e)) return;
+        const { getMediaCaptureManager } = require('../extensions/compat/MediaCaptureManager');
+        const context = getWindowContextByEventSender(e.sender);
+        getMediaCaptureManager().stopScreenShare(context?.activeTabId);
+    });
+
+    ipcMain.on('screen-share:switch-tab', (e, { targetTabId } = {}) => {
+        if (!isSenderTrusted(e)) return;
+        if (!targetTabId || typeof targetTabId !== 'string') return;
+        const { getMediaCaptureManager } = require('../extensions/compat/MediaCaptureManager');
+        getMediaCaptureManager().switchSharedTab(targetTabId);
+    });
+
+    ipcMain.on('screen-share:ended', (e) => {
+        if (!isSenderTrusted(e)) return;
+        const { getMediaCaptureManager } = require('../extensions/compat/MediaCaptureManager');
+        getMediaCaptureManager().stopScreenShare(e.sender?.id);
     });
 
     ipcMain.on(C.IPC_SEND.TAB_SET_AUDIO_MUTED, (e, { id, muted }) => {

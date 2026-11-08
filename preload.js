@@ -837,6 +837,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onShortcutTabSearch: (callback) => ipcRenderer.on(C.IPC_EVENT.SHORTCUT_TAB_SEARCH, () => callback()),
     onShortcutCommandPalette: (callback) => ipcRenderer.on(C.IPC_EVENT.SHORTCUT_COMMAND_PALETTE, () => callback()),
 
+    // Screen sharing banner controls
+    stopScreenShare: () => ipcRenderer.send('screen-share:stop'),
+    switchScreenShareTab: (targetTabId) => ipcRenderer.send('screen-share:switch-tab', { targetTabId }),
+    onScreenShareStatusChanged: (callback) => {
+        const handler = (_event, data) => callback(data);
+        ipcRenderer.on('screen-share-status-changed', handler);
+        return () => ipcRenderer.removeListener('screen-share-status-changed', handler);
+    },
+
     runMenuCommand: (commandId) => ipcRenderer.invoke(C.IPC_INVOKE.RUN_MENU_COMMAND, commandId),
     isGoogleLensActiveForProfile: () => ipcRenderer.invoke(C.IPC_INVOKE.GOOGLE_LENS_ACTIVE_FOR_PROFILE),
     closeGoogleLens: (options) => ipcRenderer.invoke(C.IPC_INVOKE.LENS_CLOSE || 'lens:close', options),
@@ -1864,4 +1873,255 @@ contextBridge.exposeInMainWorld('extensionAPI', {
         return () => ipcRenderer.removeListener('extensions:errors-updated', handler);
     },
 });
+
+try {
+    if (typeof window !== 'undefined') {
+        // 1. Listen for stream ended events from the main-world and bridge them to the main process
+        window.addEventListener('__invisurf_display_stream_ended', () => {
+            try {
+                ipcRenderer.send('screen-share:ended');
+            } catch (_) { }
+        });
+
+        // 2. Inject into the main world to intercept web application getDisplayMedia and RTCPeerConnection
+        if (typeof webFrame !== 'undefined' && typeof webFrame.executeJavaScript === 'function') {
+            webFrame.executeJavaScript(`
+                (function() {
+                    try {
+                        if (!navigator.mediaDevices || typeof navigator.mediaDevices.getDisplayMedia !== 'function') return;
+                        if (window.__invisurfDisplayMediaPatched) return;
+                        window.__invisurfDisplayMediaPatched = true;
+
+                        const origGetDisplayMedia = navigator.mediaDevices.getDisplayMedia.bind(navigator.mediaDevices);
+                        const activeStreams = new Set();
+                        const activeDisplayTracks = new Set();
+
+                        // Monkey-patch RTCPeerConnection to track active connections for seamless track swapping
+                        if (window.RTCPeerConnection && !window.__invisurfRTCPatched) {
+                            window.__invisurfRTCPatched = true;
+                            const OrigPC = window.RTCPeerConnection;
+                            const activePeerConnections = new Set();
+                            window.__invisurfActivePeerConnections = activePeerConnections;
+
+                            class InviSurfRTCPeerConnection extends OrigPC {
+                                constructor(...args) {
+                                    super(...args);
+                                    activePeerConnections.add(this);
+                                    this.addEventListener('connectionstatechange', () => {
+                                        if (this.connectionState === 'closed' || this.connectionState === 'failed') {
+                                            activePeerConnections.delete(this);
+                                        }
+                                    });
+                                }
+                                close() {
+                                    activePeerConnections.delete(this);
+                                    return super.close();
+                                }
+                            }
+                            try {
+                                Object.setPrototypeOf(InviSurfRTCPeerConnection, OrigPC);
+                                window.RTCPeerConnection = InviSurfRTCPeerConnection;
+                                if (window.webkitRTCPeerConnection) {
+                                    window.webkitRTCPeerConnection = InviSurfRTCPeerConnection;
+                                }
+                            } catch (_) {}
+                        }
+
+                        navigator.mediaDevices.getDisplayMedia = async function(...args) {
+                            try {
+                                const stream = await origGetDisplayMedia(...args);
+                                if (stream && typeof stream.getVideoTracks === 'function') {
+                                    activeStreams.add(stream);
+                                    stream.getTracks().forEach((t) => activeDisplayTracks.add(t));
+                                    window.__invisurfActiveDisplayStream = stream;
+                                    stream.getVideoTracks().forEach((track) => {
+                                        track.addEventListener('ended', () => {
+                                            activeStreams.delete(stream);
+                                            try {
+                                                window.dispatchEvent(new CustomEvent('__invisurf_display_stream_ended'));
+                                            } catch (_) {}
+                                        }, { once: true });
+                                    });
+                                }
+                                return stream;
+                            } catch (err) {
+                                // Chromium in Electron rejects cancelled requests with AbortError ('Invalid capture constraints').
+                                // When a user cancels or dismisses the screen-sharing prompt, standard Google Chrome throws:
+                                // DOMException: Permission denied by user (name: 'NotAllowedError', code: 0).
+                                // Web applications (Google Meet, Teams, Zoom) explicitly check for "by user" to recognize that
+                                // the user intentionally clicked Cancel, suppressing permission alerts and failure modals.
+                                if (err && (
+                                    err.name === 'AbortError' ||
+                                    err.name === 'NotAllowedError' ||
+                                    String(err.message || '').includes('Invalid capture constraints') ||
+                                    String(err.message || '').toLowerCase().includes('denied') ||
+                                    String(err.message || '').toLowerCase().includes('cancel')
+                                )) {
+                                    throw new DOMException('Permission denied by user', 'NotAllowedError');
+                                }
+                                throw err;
+                            }
+                        };
+
+                        window.addEventListener('__invisurf_stop_display_stream', () => {
+                            for (const stream of activeStreams) {
+                                try {
+                                    stream.getTracks().forEach((track) => {
+                                        try { track.stop(); } catch (_) {}
+                                    });
+                                } catch (_) {}
+                            }
+                            activeStreams.clear();
+                            activeDisplayTracks.clear();
+                        });
+
+                        window.addEventListener('__invisurf_switch_shared_tab', async (evt) => {
+                            try {
+                                const hasAudio = evt?.detail?.hasAudio;
+                                const newStream = await origGetDisplayMedia({
+                                    video: true,
+                                    audio: !!hasAudio,
+                                });
+                                if (!newStream || typeof newStream.getVideoTracks !== 'function') return;
+
+                                const newVideoTrack = newStream.getVideoTracks()[0];
+                                const newAudioTrack = newStream.getAudioTracks()[0];
+
+                                // Seamless WebRTC track replacement without call renegotiation
+                                if (window.__invisurfActivePeerConnections) {
+                                    for (const pc of window.__invisurfActivePeerConnections) {
+                                        try {
+                                            const senders = typeof pc.getSenders === 'function' ? pc.getSenders() : [];
+                                            for (const sender of senders) {
+                                                if (sender.track && activeDisplayTracks.has(sender.track)) {
+                                                    if (sender.track.kind === 'video' && newVideoTrack) {
+                                                        await sender.replaceTrack(newVideoTrack);
+                                                    } else if (sender.track.kind === 'audio' && newAudioTrack) {
+                                                        await sender.replaceTrack(newAudioTrack);
+                                                    }
+                                                }
+                                            }
+                                        } catch (err) {
+                                            console.warn('[InviSurf] replaceTrack error:', err);
+                                        }
+                                    }
+                                }
+
+                                // Update HTML5 video elements displaying the shared stream
+                                const allVideos = document.querySelectorAll('video');
+                                allVideos.forEach((v) => {
+                                    for (const oldStream of activeStreams) {
+                                        if (v.srcObject === oldStream) {
+                                            v.srcObject = newStream;
+                                            v.play().catch(() => {});
+                                        }
+                                    }
+                                });
+
+                                // Terminate previous tracks
+                                for (const oldStream of activeStreams) {
+                                    try {
+                                        oldStream.getTracks().forEach((t) => {
+                                            try { t.stop(); } catch (_) {}
+                                        });
+                                    } catch (_) {}
+                                }
+
+                                activeStreams.clear();
+                                activeDisplayTracks.clear();
+                                activeStreams.add(newStream);
+                                newStream.getTracks().forEach((t) => activeDisplayTracks.add(t));
+                                window.__invisurfActiveDisplayStream = newStream;
+
+                                if (newVideoTrack) {
+                                    newVideoTrack.addEventListener('ended', () => {
+                                        activeStreams.delete(newStream);
+                                        try {
+                                            window.dispatchEvent(new CustomEvent('__invisurf_display_stream_ended'));
+                                        } catch (_) {}
+                                    }, { once: true });
+                                }
+
+                                window.dispatchEvent(new CustomEvent('__invisurf_display_stream_swapped', {
+                                    detail: { newStream, tabId: evt?.detail?.newTabId }
+                                }));
+                            } catch (err) {
+                                console.warn('[InviSurf] switch_shared_tab failed:', err);
+                            }
+                        });
+                    } catch (_) {}
+                })();
+            `).catch(() => { });
+        }
+
+        // 3. Fallback wrapper for the isolated world (ensures isolated tests and direct calls stay operational)
+        if (navigator?.mediaDevices && typeof navigator.mediaDevices.getDisplayMedia === 'function') {
+            const origGetDisplayMedia = navigator.mediaDevices.getDisplayMedia.bind(navigator.mediaDevices);
+            navigator.mediaDevices.getDisplayMedia = async function(...args) {
+                try {
+                    const stream = await origGetDisplayMedia(...args);
+                    if (stream && typeof stream.getVideoTracks === 'function') {
+                        window.__invisurfActiveDisplayStream = stream;
+                        stream.getVideoTracks().forEach((track) => {
+                            track.addEventListener('ended', () => {
+                                try {
+                                    ipcRenderer.send('screen-share:ended');
+                                } catch (_) { }
+                            }, { once: true });
+                        });
+                    }
+                    return stream;
+                } catch (err) {
+                    // Chromium in Electron rejects cancelled requests with AbortError ('Invalid capture constraints').
+                    // When a user cancels or dismisses the screen-sharing prompt, standard Google Chrome throws:
+                    // DOMException: Permission denied by user (name: 'NotAllowedError', code: 0).
+                    // Web applications (Google Meet, Teams, Zoom) explicitly check for "by user" to recognize that
+                    // the user intentionally clicked Cancel, suppressing permission alerts and failure modals.
+                    if (err && (
+                        err.name === 'AbortError' ||
+                        err.name === 'NotAllowedError' ||
+                        String(err.message || '').includes('Invalid capture constraints') ||
+                        String(err.message || '').toLowerCase().includes('denied') ||
+                        String(err.message || '').toLowerCase().includes('cancel')
+                    )) {
+                        throw new DOMException('Permission denied by user', 'NotAllowedError');
+                    }
+                    throw err;
+                }
+            };
+
+            ipcRenderer.on('screen-share:do-switch-tab', async (_event, data) => {
+                try {
+                    window.dispatchEvent(new CustomEvent('__invisurf_switch_shared_tab', { detail: data }));
+                } catch (_) { }
+
+                if (window.__invisurfActiveDisplayStream) {
+                    try {
+                        const hasAudio = data?.hasAudio;
+                        const newStream = await origGetDisplayMedia({
+                            video: true,
+                            audio: !!hasAudio,
+                        });
+                        if (newStream && typeof newStream.getVideoTracks === 'function') {
+                            if (window.__invisurfActiveDisplayStream?.getTracks) {
+                                window.__invisurfActiveDisplayStream.getTracks().forEach((t) => {
+                                    try { t.stop(); } catch (_) { }
+                                });
+                            }
+                            window.__invisurfActiveDisplayStream = newStream;
+                            newStream.getVideoTracks().forEach((track) => {
+                                track.addEventListener('ended', () => {
+                                    try {
+                                        ipcRenderer.send('screen-share:ended');
+                                    } catch (_) { }
+                                }, { once: true });
+                            });
+                        }
+                    } catch (_) { }
+                }
+            });
+        }
+    }
+} catch (_) {}
+
 

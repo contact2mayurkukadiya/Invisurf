@@ -13,8 +13,8 @@ class TabRegistry {
      */
     resolveTab(tabId) {
         let stringTabId = null;
-        let numericId = Number(tabId);
-        if (numericId === -1 || numericId === 0 || tabId === undefined || tabId === null || isNaN(numericId)) {
+        let numericId = typeof tabId === 'number' ? tabId : (typeof tabId === 'string' && /^\d+$/.test(tabId) ? Number(tabId) : NaN);
+        if (numericId === -1 || numericId === 0 || tabId === undefined || tabId === null || tabId === '') {
             const active = this.getActiveTab();
             if (active && active.id) {
                 numericId = active.id;

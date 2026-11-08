@@ -1482,7 +1482,7 @@ const { ipcRenderer } = require('electron');
             _desktopCaptureRequestId += 1;
             const reqId = _desktopCaptureRequestId;
 
-            _call('desktopCapture.chooseDesktopMedia', { sources, targetTab: tab })
+            _call('desktopCapture.chooseDesktopMedia', { sources, targetTab: tab, clientRequestId: reqId })
                 .then(res => {
                     if (_cancelledDesktopCaptureRequests.has(reqId)) {
                         _cancelledDesktopCaptureRequests.delete(reqId);
@@ -1593,6 +1593,15 @@ const { ipcRenderer } = require('electron');
                 p.then(tabs => callback(tabs || [])).catch(() => callback([]));
             }
             return p;
+        },
+        captureOffscreenTab: (startUrl, options, callback) => {
+            let cb = callback;
+            let opt = options;
+            if (typeof options === 'function') {
+                cb = options;
+                opt = {};
+            }
+            return window.chrome.tabCapture.capture(opt, cb);
         },
         onStatusChanged: _createEventTarget('chrome.tabCapture.onStatusChanged'),
     };
@@ -1729,24 +1738,32 @@ const { ipcRenderer } = require('electron');
             }
 
             let active = true;
+            let fetching = false;
             const img = new Image();
 
             const poll = async () => {
-                if (!active) return;
+                if (!active || fetching) return;
+                fetching = true;
                 try {
-                    const dataUrl = await _call('tabs.captureVisibleTab', { options: { format: 'jpeg', quality: 80 } });
+                    const dataUrl = await _call('tabs.captureVisibleTab', { options: { format: 'jpeg', quality: 75 } });
                     if (dataUrl && active) {
-                        img.onload = () => {
-                            if (!active) return;
-                            if (img.width && img.height && (canvas.width !== img.width || canvas.height !== img.height)) {
-                                canvas.width = img.width;
-                                canvas.height = img.height;
-                            }
-                            ctx.drawImage(img, 0, 0);
-                        };
-                        img.src = dataUrl;
+                        await new Promise((imgRes) => {
+                            img.onload = () => {
+                                if (active && ctx) {
+                                    if (img.width && img.height && (canvas.width !== img.width || canvas.height !== img.height)) {
+                                        canvas.width = img.width;
+                                        canvas.height = img.height;
+                                    }
+                                    ctx.drawImage(img, 0, 0);
+                                }
+                                imgRes();
+                            };
+                            img.onerror = () => imgRes();
+                            img.src = dataUrl;
+                        });
                     }
                 } catch (_) {}
+                fetching = false;
                 if (active) {
                     setTimeout(poll, 33);
                 }
@@ -1754,12 +1771,21 @@ const { ipcRenderer } = require('electron');
 
             poll();
 
+            const cleanup = () => {
+                active = false;
+                img.src = '';
+                if (ctx) {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                }
+            };
+
             stream.getTracks().forEach(t => {
                 const orig = t.stop.bind(t);
                 t.stop = () => {
-                    active = false;
+                    cleanup();
                     orig();
                 };
+                t.addEventListener('ended', cleanup, { once: true });
             });
 
             resolve(stream);

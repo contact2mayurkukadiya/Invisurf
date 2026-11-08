@@ -1,0 +1,102 @@
+.screen-share-banner-wrapper {
+  height: 38px;
+  min-height: 38px;
+  max-height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  box-sizing: border-box;
+  background-color: var(--chrome-nav-bg, #ffffff);
+  border-bottom: 1px solid var(--chrome-tab-separator, rgba(0, 0, 0, 0.08));
+  user-select: none;
+  z-index: 99;
+  flex-shrink: 0;
+  animation: screenShareBannerSlideDown 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes screenShareBannerSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.screen-share-banner-pill {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 14px 4px 12px;
+  border-radius: 20px;
+  background-color: color-mix(in srgb, var(--chrome-accent, #80333d) 12%, var(--chrome-nav-bg, #ffffff));
+  border: 1px solid color-mix(in srgb, var(--chrome-accent, #80333d) 25%, transparent);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+.screen-share-banner-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--chrome-fg, #202124);
+  opacity: 0.85;
+}
+
+.screen-share-banner-text {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--chrome-fg, #202124);
+  white-space: nowrap;
+}
+
+.screen-share-host {
+  font-weight: 600;
+  color: var(--chrome-fg, #202124);
+}
+
+.screen-share-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.screen-share-switch-btn,
+.screen-share-jump-btn {
+  padding: 4px 14px;
+  border-radius: 14px;
+  font-size: 12px;
+  font-weight: 600;
+  background-color: color-mix(in srgb, var(--chrome-accent, #80333d) 18%, var(--chrome-nav-bg, #ffffff));
+  color: var(--chrome-accent, #80333d);
+  border: 1px solid color-mix(in srgb, var(--chrome-accent, #80333d) 30%, transparent);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.screen-share-switch-btn:hover,
+.screen-share-jump-btn:hover {
+  filter: brightness(0.96);
+}
+
+.screen-share-stop-btn {
+  padding: 4px 14px;
+  border-radius: 14px;
+  font-size: 12px;
+  font-weight: 600;
+  background-color: var(--chrome-accent, #80333d);
+  color: #ffffff;
+  border: none;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+  white-space: nowrap;
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--chrome-accent, #80333d) 30%, transparent);
+}
+
+.screen-share-stop-btn:hover {
+  filter: brightness(1.1);
+}
+

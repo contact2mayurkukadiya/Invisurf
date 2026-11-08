@@ -12,7 +12,7 @@ import { renderDownloadPanel } from './components/downloadPanel.js';
 import { renderOmniboxSuggestions } from './components/omnibox.js';
 import { renderPermissionPrompt } from './components/permissionPrompt.js';
 import { renderExtensionInstallPrompt } from './components/extensionInstallPrompt.js';
-import { renderDesktopMediaPicker } from './components/desktopMediaPicker.js';
+import { renderDesktopMediaPicker, updateDesktopMediaPickerSnapshot } from './components/desktopMediaPicker.js';
 import { renderExtensionMenu } from './components/extensionMenu.js';
 import { renderExtensionPopupShadow } from './components/extensionPopupShadow.js';
 import { renderTransparencyMenu } from './components/transparencyMenu.js';
@@ -63,6 +63,7 @@ if (window.electronAPI && window.electronAPI.onChromeOverlayV1Patch) {
                 case 'permissionPrompt': return renderPermissionPrompt(patch);
                 case 'extensionInstallPrompt': return renderExtensionInstallPrompt(patch);
                 case 'desktopMediaPicker': return renderDesktopMediaPicker(patch);
+                case 'desktopMediaPickerTabSnapshot': return updateDesktopMediaPickerSnapshot(patch);
                 case 'extensionMenu': return renderExtensionMenu(patch);
                 case 'extensionPopupShadow': return renderExtensionPopupShadow(patch);
                 case 'transparencyMenu': return renderTransparencyMenu(patch);

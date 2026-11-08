@@ -95,6 +95,15 @@ const browserSlice = createSlice({
       customUrl: null,
       pinnedPanelIds: getInitialPinnedPanels(),
     },
+    screenShare: {
+      active: false,
+      sourceKind: 'tab',
+      sharedTabId: null,
+      sharedHost: '',
+      sharedTitle: '',
+      requestingTabId: null,
+      requestingHost: '',
+    },
   },
   reducers: {
     toggleSidePanel(state) {
@@ -102,6 +111,18 @@ const browserSlice = createSlice({
     },
     setSidePanelOpen(state, action) {
       state.sidePanel.isOpen = !!action.payload;
+    },
+    setScreenShareStatus(state, action) {
+      const payload = action.payload || {};
+      state.screenShare = {
+        active: !!payload.active,
+        sourceKind: payload.sourceKind || 'tab',
+        sharedTabId: payload.sharedTabId || null,
+        sharedHost: payload.sharedHost || '',
+        sharedTitle: payload.sharedTitle || '',
+        requestingTabId: payload.requestingTabId || null,
+        requestingHost: payload.requestingHost || '',
+      };
     },
     setSidePanelWidth(state, action) {
       state.sidePanel.width = Math.max(260, Number(action.payload) || 360);
@@ -651,6 +672,7 @@ export const {
   setToolbarConfig,
   setToolbarConfigItem,
   resetToolbarConfig,
+  setScreenShareStatus,
   setSplitGroup,
   removeSplitGroup,
   detachSplitTab,

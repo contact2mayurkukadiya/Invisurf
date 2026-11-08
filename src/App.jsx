@@ -29,6 +29,7 @@ import { useGhostTitleBarInteractivity } from './hooks/useGhostTitleBarInteracti
 import TabBar from './components/TabBar';
 import NavBar from './components/NavBar';
 import BookmarkBar from './components/BookmarkBar';
+import ScreenShareBanner from './components/ScreenShareBanner';
 import SearchTabsModal from './components/SearchTabsModal';
 import CommandPaletteModal from './components/CommandPaletteModal';
 import SidePanel from './components/sidepanel/SidePanel';
@@ -1055,6 +1056,7 @@ function AppShell() {
           searchEngine={searchEngine}
         />
         <BookmarkBar currentTabId={currentTabId} />
+        <ScreenShareBanner currentTabId={currentTabId} />
       </div>
       <SidePanel />
       <SplitDivider />

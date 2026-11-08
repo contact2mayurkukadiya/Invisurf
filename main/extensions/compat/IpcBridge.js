@@ -1426,7 +1426,7 @@ class IpcBridge {
 
             // ==================== MEDIA CAPTURE ====================
             case 'desktopCapture.chooseDesktopMedia':
-                return getMediaCaptureManager().chooseDesktopMedia(cleanExtId, args.sources, args.targetTab, sender);
+                return getMediaCaptureManager().chooseDesktopMedia(cleanExtId, args.sources, args.targetTab, sender, args.clientRequestId);
             case 'desktopCapture.cancelChooseDesktopMedia':
                 return getMediaCaptureManager().cancelChooseDesktopMedia(args.requestId);
             case 'tabCapture.getMediaStreamId':
