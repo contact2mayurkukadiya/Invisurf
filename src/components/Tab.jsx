@@ -16,6 +16,7 @@ export default function Tab({
   pinnedTabCount = 0,
   tabCount = 1,
   onDetachTab,
+  onGetFallbackTabId,
   captureRole = null,
   groupColor = null,
   isFirstInGroup = false,
@@ -41,6 +42,7 @@ export default function Tab({
     isActive,
     tabCount,
     onDetachTab,
+    onGetFallbackTabId,
   });
 
   // Resolve favicon to display

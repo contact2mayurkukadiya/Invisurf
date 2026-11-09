@@ -38,6 +38,7 @@ function startDetach(sourceContext, payload = {}) {
 
     const {
         tabId,
+        fallbackTabId,
         screenX = 0,
         screenY = 0,
         grabOffsetX = 50,
@@ -411,8 +412,9 @@ function startDetach(sourceContext, payload = {}) {
 
         // If active tab was in the split pair, switch source context to next adjacent tab
         if (sourceContext.activeTabId === leftTabId || sourceContext.activeTabId === rightTabId) {
-            const remainingTabs = sourceContext.tabOrder || [];
-            const nextId = remainingTabs[0] || null;
+            const nextId = (fallbackTabId !== undefined)
+                ? (fallbackTabId && sourceContext.tabOrder?.includes(fallbackTabId) ? fallbackTabId : null)
+                : (sourceContext.tabOrder?.[0] || null);
             if (nextId) {
                 tabManager.activateTabInContext(sourceContext, nextId);
             } else {
@@ -531,8 +533,9 @@ function startDetach(sourceContext, payload = {}) {
 
     // If active tab was detached, switch source context to next adjacent tab
     if (sourceContext.activeTabId === tabId) {
-        const remainingTabs = sourceContext.tabOrder || [];
-        const nextId = remainingTabs[0] || null;
+        const nextId = (fallbackTabId !== undefined)
+            ? (fallbackTabId && sourceContext.tabOrder?.includes(fallbackTabId) ? fallbackTabId : null)
+            : (sourceContext.tabOrder?.[0] || null);
         if (nextId) {
             tabManager.activateTabInContext(sourceContext, nextId);
         } else {

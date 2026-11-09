@@ -46,12 +46,18 @@ test.describe('Chrome Tab Groups E2E Verification', () => {
 
     // 6. Open GroupEditorPopup by right-clicking the chip
     await groupChip.click({ button: 'right' });
-    await shellWindow.waitForTimeout(500);
+    await shellWindow.waitForTimeout(400);
 
-    const overlayPage = invisurfApp.app.context().pages().find(
-      (p) => p.url().includes('chrome-overlay.html?shellMenu=1')
-    );
-    const targetScope = overlayPage || shellWindow;
+    const getOverlayPage = () => {
+      const candidates = [
+        ...invisurfApp.app.context().pages(),
+        ...invisurfApp.app.windows(),
+      ];
+      return candidates.find((p) => p.url().includes('chrome-overlay.html?shellMenu=1')) || null;
+    };
+
+    await expect.poll(() => getOverlayPage() !== null, { timeout: 6000 }).toBe(true);
+    const targetScope = getOverlayPage() || shellWindow;
     const editorPopup = targetScope.locator('.group-editor-popup');
     await expect(editorPopup).toBeVisible({ timeout: 5000 });
 

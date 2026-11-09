@@ -42,6 +42,7 @@ export default function TabBar({
   onSwitchTab,
   onDragEnd,
   onDetachTab,
+  onGetFallbackTabId,
   onTabStripContextMenu,
 }) {
   const tabOrder = useSelector(s => s.browser.tabOrder);
@@ -546,6 +547,7 @@ export default function TabBar({
                   onSwitch={onSwitchTab}
                   onDragEnd={onDragEnd}
                   onDetachTab={onDetachTab}
+                  onGetFallbackTabId={onGetFallbackTabId}
                   onContextMenu={onTabStripContextMenu}
                   groupColor={groupUnderlineColor}
                   isFirstInGroup={isFirstInGroup}
@@ -567,6 +569,7 @@ export default function TabBar({
                   onSwitch={onSwitchTab}
                   onDragEnd={onDragEnd}
                   onDetachTab={onDetachTab}
+                  onGetFallbackTabId={onGetFallbackTabId}
                   onHoverEnter={handleTabHoverEnter}
                   onHoverLeave={handleTabHoverLeave}
                   onHideTooltip={hideTooltip}

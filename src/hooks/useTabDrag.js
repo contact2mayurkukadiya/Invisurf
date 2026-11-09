@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { flushSync } from 'react-dom';
 
 function isTransparentDragBackground(bg) {
   if (!bg) return true;
@@ -41,19 +42,50 @@ function resolveTabDragBackgroundColor(tabEl) {
   return computed;
 }
 
-function getElementUnderneath(tabEl, clientX, clientY) {
-  if (!tabEl) return document.elementFromPoint(clientX, clientY);
-  const origPE = tabEl.style.pointerEvents;
-  tabEl.style.pointerEvents = 'none';
-  const el = document.elementFromPoint(clientX, clientY);
-  tabEl.style.pointerEvents = origPE;
-  return el;
+/**
+ * DSA Optimization: Binary search helpers for finding target tab index.
+ * Since tab centers along the strip are strictly monotonically increasing,
+ * we can locate the crossed tab center in O(log N) steps.
+ */
+function findLeftTargetIndex(tabCenters, low, high, currentTabLeft) {
+  let result = high + 1;
+  while (low <= high) {
+    const mid = (low + high) >> 1;
+    if (currentTabLeft < tabCenters[mid]) {
+      result = mid;
+      high = mid - 1;
+    } else {
+      low = mid + 1;
+    }
+  }
+  return result;
+}
+
+function findRightTargetIndex(tabCenters, low, high, currentTabRight) {
+  let result = low - 1;
+  while (low <= high) {
+    const mid = (low + high) >> 1;
+    if (currentTabRight > tabCenters[mid]) {
+      result = mid;
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
+  }
+  return result;
 }
 
 /**
- * Pointer-based tab drag hook.
- * Attaches listeners imperatively to avoid triggering React re-renders
- * during animation. On drop, calls onDragEnd(newTabOrderIds[]).
+ * High-performance pointer-based tab drag hook.
+ *
+ * Performance & Memory optimizations:
+ * 1. Coalesces pointermove events with requestAnimationFrame (caps work to 60/120Hz display refresh).
+ * 2. Uses O(log N) binary search on cached Float64Array tab centers instead of linear array scans.
+ * 3. Uses Int8Array shift diffing to only touch DOM elements whose transform direction actually changed.
+ * 4. Eliminates forced synchronous layout thrashing (document.elementFromPoint) via pre-cached group intervals.
+ * 5. Uses hardware-accelerated translate3d transforms.
+ * 6. Smooth drop animation snaps the tab directly into place, followed by atomic flushSync handoff
+ *    and instant transform clearance in the same render frame, eliminating all visual flicker.
  *
  * @param {object} opts
  * @param {string}   opts.id          - This tab's Redux ID
@@ -78,16 +110,22 @@ export function useTabDrag({
   isActive = false,
   tabCount = 1,
   onDetachTab,
+  onGetFallbackTabId,
 }) {
   const tabRef = useRef(null);
 
   // Keep stable refs to callbacks so the effect never needs to re-run
   const cbRef = useRef({});
-  cbRef.current = { tab, splitPair, rightTab, onSwitchTab, onDragEnd, onHideTooltip, isPinned, pinnedTabCount, isActive, tabCount, onDetachTab };
+  cbRef.current = { tab, splitPair, rightTab, onSwitchTab, onDragEnd, onHideTooltip, isPinned, pinnedTabCount, isActive, tabCount, onDetachTab, onGetFallbackTabId };
 
   useEffect(() => {
     const tabEl = tabRef.current;
     if (!tabEl) return;
+
+    let dropTimer = null;
+    let moveRafId = null;
+    let detachRafId = null;
+    let slotBar = null;
 
     const handlePointerDown = (e) => {
       if (e.button !== 0) return;
@@ -104,7 +142,7 @@ export function useTabDrag({
 
       let dragStarted = false;
       let isDetached = false;
-      let rafId = null;
+      let isDropping = false;
 
       const startX = e.clientX;
       const startY = e.clientY;
@@ -116,129 +154,141 @@ export function useTabDrag({
 
       let originalTabs = [];
       let originalRects = [];
+      let tabCenters = null;
+      let tabShifts = null;
       let draggingIndex = -1;
       let finalTargetIndex = -1;
+      let dragDx = 0;
       let dragBackgroundColor = '';
       let hoveredGroupId = null;
       let groupRegions = [];
-      let slotBar = null;
-      let exactBarTop = null;
-      let exactBarHeight = 2.5;
       let bar = null;
       let draggingGid = null;
+      let draggedWidthWithGap = 0;
+      let boundsLeft = 0;
+      let boundsRight = 0;
 
-      const onMove = (me) => {
-        if (isDetached) {
-          if (!rafId) {
-            const sx = me.screenX;
-            const sy = me.screenY;
-            rafId = requestAnimationFrame(() => {
-              rafId = null;
-              window.electronAPI?.tabDragMove?.({ screenX: sx, screenY: sy });
+      let latestClientX = startX;
+      let latestClientY = startY;
+      let latestScreenX = e.screenX;
+      let latestScreenY = e.screenY;
+
+      const startDrag = (me) => {
+        dragStarted = true;
+        try {
+          tabEl.setPointerCapture(pointerId);
+        } catch (_) {}
+
+        bar = tabEl.closest('.tab-bar');
+        originalTabs = Array.from(bar.querySelectorAll('.tab'));
+        const count = originalTabs.length;
+        originalRects = originalTabs.map((t) => t.getBoundingClientRect());
+        tabCenters = new Float64Array(count);
+        tabShifts = new Int8Array(count);
+
+        for (let i = 0; i < count; i++) {
+          tabCenters[i] = originalRects[i].left + originalRects[i].width * 0.5;
+        }
+
+        draggingIndex = originalTabs.indexOf(tabEl);
+        finalTargetIndex = draggingIndex;
+
+        const rect = originalRects[draggingIndex] || initialTabRect;
+        draggedWidthWithGap = (rect.width || tabWidth) + 5;
+        offsetX = me.clientX - rect.left;
+
+        const container = tabEl.closest('.tab-container');
+        const boundsRect = container ? container.getBoundingClientRect() : bar.getBoundingClientRect();
+        boundsLeft = boundsRect.left;
+        boundsRight = boundsRect.right;
+
+        bar.classList.add('tab-bar--dragging');
+        tabEl.classList.add('tab-dragging');
+        tabEl.style.zIndex = '9999';
+        dragBackgroundColor = resolveTabDragBackgroundColor(tabEl);
+        tabEl.style.backgroundColor = dragBackgroundColor;
+        window._draggingTabId = id;
+
+        // Continuous bottom border placeholder on empty area during drag within group
+        draggingGid = tabEl.getAttribute('data-group-id');
+        const groupColor = tabEl.style.getPropertyValue('--group-color') || '#1a73e8';
+        const track = tabEl.closest('.tab-track');
+        if (draggingGid && track) {
+          const sampleTab = bar.querySelector(`.tab[data-group-id="${draggingGid}"]`) || tabEl;
+          const tabR = sampleTab.getBoundingClientRect();
+          const trackRect = track.getBoundingClientRect();
+          const baselineTopInTrack = (tabR.bottom - 3) - trackRect.top;
+
+          slotBar = document.createElement('div');
+          slotBar.className = 'tab-group-drag-placeholder-bar';
+          slotBar.style.backgroundColor = groupColor;
+          slotBar.style.transition = 'none';
+
+          const chipWrapper = bar.querySelector(`.group-chip-wrapper[data-group-id="${draggingGid}"]`);
+          const chipRect = chipWrapper ? chipWrapper.getBoundingClientRect() : null;
+          const memberTabs = originalTabs.filter(t => t.getAttribute('data-group-id') === draggingGid);
+          const firstMemberIndex = memberTabs.length > 0 ? originalTabs.indexOf(memberTabs[0]) : 0;
+          const isFirstGroupSlot = draggingIndex <= firstMemberIndex;
+
+          let initLeft, initWidth;
+          if (isFirstGroupSlot && chipRect) {
+            initLeft = (chipRect.right - trackRect.left) - 2;
+            initWidth = (rect.right + 5) - (chipRect.right - 2);
+          } else {
+            initLeft = rect.left - trackRect.left;
+            initWidth = rect.width + 5;
+          }
+
+          slotBar.style.left = `${initLeft}px`;
+          slotBar.style.width = `${initWidth}px`;
+          slotBar.style.top = `${baselineTopInTrack}px`;
+          slotBar.style.height = '2px';
+          slotBar.style.bottom = 'auto';
+          track.appendChild(slotBar);
+        }
+
+        // Cache expanded group regions along the tab strip (with chip boundaries)
+        groupRegions = [];
+        const groupChips = bar.querySelectorAll('.group-chip-wrapper:not(.group-chip-wrapper--collapsed)');
+        groupChips.forEach((chipWrapper) => {
+          const gid = chipWrapper.querySelector('.group-chip')?.getAttribute('data-group-id') || chipWrapper.getAttribute('data-group-id');
+          if (!gid) return;
+          const chipRect = chipWrapper.getBoundingClientRect();
+          const memberTabs = originalTabs.filter(t => t.getAttribute('data-group-id') === gid);
+          if (memberTabs.length > 0) {
+            const firstRect = memberTabs[0].getBoundingClientRect();
+            const lastRect = memberTabs[memberTabs.length - 1].getBoundingClientRect();
+            groupRegions.push({
+              groupId: gid,
+              left: Math.min(chipRect.left, firstRect.left),
+              right: lastRect.right + 10,
+              chipLeft: chipRect.left,
+              chipRight: chipRect.right,
+              firstMemberIndex: originalTabs.indexOf(memberTabs[0]),
+              lastMemberIndex: originalTabs.indexOf(memberTabs[memberTabs.length - 1]),
+            });
+          } else {
+            groupRegions.push({
+              groupId: gid,
+              left: chipRect.left - 5,
+              right: chipRect.right + 10,
+              chipLeft: chipRect.left,
+              chipRight: chipRect.right,
+              firstMemberIndex: 0,
+              lastMemberIndex: 0,
             });
           }
-          return;
-        }
+        });
+      };
 
-        const deltaX = me.clientX - startX;
-        const deltaY = me.clientY - startY;
+      const updateDrag = () => {
+        moveRafId = null;
+        if (isDetached || isDropping) return;
 
-        if (!dragStarted) {
-          if (Math.hypot(deltaX, deltaY) < 6) return; // dead-zone
-          dragStarted = true;
-          try {
-            tabEl.setPointerCapture(pointerId);
-          } catch (_) {}
+        const deltaY = latestClientY - startY;
 
-          bar = tabEl.closest('.tab-bar');
-          originalTabs = Array.from(bar.querySelectorAll('.tab'));
-          originalRects = originalTabs.map(t => t.getBoundingClientRect());
-          draggingIndex = originalTabs.indexOf(tabEl);
-          finalTargetIndex = draggingIndex;
-          bar.classList.add('tab-bar--dragging');
-          // Disable tab transitions during drag/drop to avoid jitter on cleanup.
-          originalTabs.forEach((t) => { t.style.transition = 'none'; });
-
-          const rect = originalRects[draggingIndex] || initialTabRect;
-          offsetX = me.clientX - rect.left;
-          tabEl.classList.add('tab-dragging');
-          dragBackgroundColor = resolveTabDragBackgroundColor(tabEl);
-          tabEl.style.backgroundColor = dragBackgroundColor;
-          // Flag used by tooltip hover guard
-          window._draggingTabId = id;
-
-          // Requirement 3: Continuous bottom border on empty area during drag within group
-          draggingGid = tabEl.getAttribute('data-group-id');
-          const groupColor = tabEl.style.getPropertyValue('--group-color') || '#1a73e8';
-          const track = tabEl.closest('.tab-track');
-          if (draggingGid && track) {
-            // Find the exact baseline Y position from existing bottom bar or sample tab
-            const sampleTab = bar.querySelector(`.tab[data-group-id="${draggingGid}"]`) || tabEl;
-            const tabRect = sampleTab.getBoundingClientRect();
-            const trackRect = track.getBoundingClientRect();
-            const baselineTopInTrack = (tabRect.bottom - 3) - trackRect.top;
-
-            slotBar = document.createElement('div');
-            slotBar.className = 'tab-group-drag-placeholder-bar';
-            slotBar.style.backgroundColor = groupColor;
-            slotBar.style.transition = 'none';
-
-            const chipWrapper = bar.querySelector(`.group-chip-wrapper[data-group-id="${draggingGid}"]`);
-            const chipRect = chipWrapper ? chipWrapper.getBoundingClientRect() : null;
-            const memberTabs = originalTabs.filter(t => t.getAttribute('data-group-id') === draggingGid);
-            const firstMemberIndex = memberTabs.length > 0 ? originalTabs.indexOf(memberTabs[0]) : 0;
-            const isFirstGroupSlot = draggingIndex <= firstMemberIndex;
-
-            let initLeft, initWidth;
-            if (isFirstGroupSlot && chipRect) {
-              // Seamless 2px overlap into chip wrapper right edge to guarantee continuous baseline
-              initLeft = (chipRect.right - trackRect.left) - 2;
-              initWidth = (rect.right + 5) - (chipRect.right - 2);
-            } else {
-              initLeft = rect.left - trackRect.left;
-              initWidth = rect.width + 5;
-            }
-
-            slotBar.style.left = `${initLeft}px`;
-            slotBar.style.width = `${initWidth}px`;
-            slotBar.style.top = `${baselineTopInTrack}px`;
-            slotBar.style.height = '2px';
-            slotBar.style.bottom = 'auto';
-            track.appendChild(slotBar);
-          }
-
-          // Requirement 4: Cache expanded group regions along the tab strip
-          groupRegions = [];
-          const groupChips = bar.querySelectorAll('.group-chip-wrapper:not(.group-chip-wrapper--collapsed)');
-          groupChips.forEach((chipWrapper) => {
-            const gid = chipWrapper.querySelector('.group-chip')?.getAttribute('data-group-id') || chipWrapper.getAttribute('data-group-id');
-            if (!gid) return;
-            const chipRect = chipWrapper.getBoundingClientRect();
-            const memberTabs = originalTabs.filter(t => t.getAttribute('data-group-id') === gid);
-            if (memberTabs.length > 0) {
-              const firstRect = memberTabs[0].getBoundingClientRect();
-              const lastRect = memberTabs[memberTabs.length - 1].getBoundingClientRect();
-              groupRegions.push({
-                groupId: gid,
-                left: Math.min(chipRect.left, firstRect.left),
-                right: lastRect.right + 10,
-                firstMemberIndex: originalTabs.indexOf(memberTabs[0]),
-                lastMemberIndex: originalTabs.indexOf(memberTabs[memberTabs.length - 1]),
-              });
-            } else {
-              groupRegions.push({
-                groupId: gid,
-                left: chipRect.left - 5,
-                right: chipRect.right + 10,
-                firstMemberIndex: 0,
-                lastMemberIndex: 0,
-              });
-            }
-          });
-        }
-
-        // Check vertical detachment threshold (35px)
-        if (!isDetached && Math.abs(deltaY) > 35) {
+        // Vertical detachment threshold (35px)
+        if (Math.abs(deltaY) > 35) {
           isDetached = true;
 
           if (slotBar) {
@@ -246,7 +296,6 @@ export function useTabDrag({
             slotBar = null;
           }
 
-          // Clear transforms on remaining tabs
           originalTabs.forEach((t) => {
             t.style.transform = '';
             t.style.transition = '';
@@ -254,19 +303,20 @@ export function useTabDrag({
           });
           tabEl.classList.remove('tab-dragging');
           tabEl.style.backgroundColor = '';
-          const barEl = tabEl.closest('.tab-bar');
-          if (barEl) barEl.classList.remove('tab-bar--dragging');
+          if (bar) bar.classList.remove('tab-bar--dragging');
 
           const count = cbRef.current.tabCount ?? originalTabs.length;
           const isSingle = count <= 1;
           const currentTab = cbRef.current.tab;
           const currentSplitPair = cbRef.current.splitPair;
           const currentRightTab = cbRef.current.rightTab;
+          const fallbackTabId = cbRef.current.onGetFallbackTabId?.(id, currentSplitPair) || null;
 
           window.electronAPI?.tabDragDetach?.({
             tabId: id,
-            screenX: me.screenX,
-            screenY: me.screenY,
+            fallbackTabId,
+            screenX: latestScreenX,
+            screenY: latestScreenY,
             grabOffsetX,
             grabOffsetY,
             tabWidth,
@@ -293,73 +343,47 @@ export function useTabDrag({
           return;
         }
 
-        // ── Constrain to tab container bounds ────────────────────────────
-        const container = tabEl.closest('.tab-container');
-        const boundsRect = container ? container.getBoundingClientRect() : tabEl.closest('.tab-bar').getBoundingClientRect();
+        // Constrain to tab container bounds
         const tabW = originalRects[draggingIndex]?.width || tabWidth;
-        const newX = Math.max(boundsRect.left, Math.min(me.clientX - offsetX, boundsRect.right - tabW));
-        const dragDx = newX - (originalRects[draggingIndex]?.left || initialTabRect.left);
+        const newX = Math.max(boundsLeft, Math.min(latestClientX - offsetX, boundsRight - tabW));
+        dragDx = newX - (originalRects[draggingIndex]?.left || initialTabRect.left);
         const currentTabLeft = newX;
         const currentTabRight = newX + tabW;
 
-        // ── Determine new target index using leading-edge threshold ───────
+        // Apply hardware-accelerated transform to dragged tab
+        tabEl.style.transform = `translate3d(${dragDx}px, 0, 0)`;
+
+        // DSA Binary Search to find target slot index
         let targetIndex = draggingIndex;
-
-        // Moving left: tab's leading edge is currentTabLeft.
-        // Switch when currentTabLeft crosses the center of tab i.
-        for (let i = 0; i < draggingIndex; i++) {
-          const center = originalRects[i].left + originalRects[i].width / 2;
-          if (currentTabLeft < center) {
-            targetIndex = i;
-            break;
-          }
+        if (draggingIndex > 0 && currentTabLeft < tabCenters[draggingIndex - 1]) {
+          targetIndex = findLeftTargetIndex(tabCenters, 0, draggingIndex - 1, currentTabLeft);
+        } else if (draggingIndex < originalTabs.length - 1 && currentTabRight > tabCenters[draggingIndex + 1]) {
+          targetIndex = findRightTargetIndex(tabCenters, draggingIndex + 1, originalTabs.length - 1, currentTabRight);
         }
 
-        // Moving right: tab's leading edge is currentTabRight.
-        // Switch when currentTabRight crosses the center of tab i.
-        for (let i = originalTabs.length - 1; i > draggingIndex; i--) {
-          const center = originalRects[i].left + originalRects[i].width / 2;
-          if (currentTabRight > center) {
-            targetIndex = i;
-            break;
-          }
-        }
-
-        // Requirement 4: Check if hovering over any expanded group's area
-        // Overlapping a grouped tab even a little bit joins the group
+        // Check expanded group regions (pure arithmetic, zero forced layout hit-testing!)
         hoveredGroupId = null;
-        for (const region of groupRegions) {
+        for (let r = 0; r < groupRegions.length; r++) {
+          const region = groupRegions[r];
           const overlap = Math.max(0, Math.min(currentTabRight, region.right) - Math.max(currentTabLeft, region.left));
-          if (overlap > 12 || (me.clientX >= region.left && me.clientX <= region.right)) {
+          if (overlap > 12 || (latestClientX >= region.left && latestClientX <= region.right)) {
             hoveredGroupId = region.groupId;
-            if (currentTabRight < region.left + 50 || me.clientX < region.left + 50) {
+            if (latestClientX >= region.chipLeft && latestClientX <= region.chipRight) {
+              targetIndex = region.firstMemberIndex;
+            } else if (currentTabRight < region.left + 50 || latestClientX < region.left + 50) {
               targetIndex = region.firstMemberIndex;
             }
             break;
           }
         }
 
-        // Check if hovering over an expanded group chip or its child tabs
-        const elUnder = getElementUnderneath(tabEl, me.clientX, me.clientY);
-        const groupHolder = elUnder?.closest('[data-group-id]');
-        if (groupHolder) {
-          const isCollapsed = groupHolder.classList.contains('group-chip--collapsed') || groupHolder.classList.contains('group-chip-wrapper--collapsed');
-          if (!isCollapsed) {
-            const gid = groupHolder.getAttribute('data-group-id');
-            if (gid) {
-              hoveredGroupId = gid;
-              // If hovering over the group chip directly, target the group's first member index
-              if (groupHolder.classList.contains('group-chip') || groupHolder.classList.contains('group-chip-wrapper')) {
-                const firstMemberIndex = originalTabs.findIndex(t => t.getAttribute('data-group-id') === gid);
-                if (firstMemberIndex !== -1) {
-                  targetIndex = firstMemberIndex;
-                }
-              }
-            }
-          }
+        const pinCount = cbRef.current.pinnedTabCount || 0;
+        if (pinCount > 0 && !cbRef.current.isPinned) {
+          targetIndex = Math.max(pinCount, targetIndex);
         }
+        finalTargetIndex = targetIndex;
 
-        // Requirement 3: Keep empty area under dragging tab connected with bottom border (no animation lag)
+        // Keep empty area under dragging tab connected with bottom border (no lag)
         if (slotBar) {
           const track = tabEl.closest('.tab-track');
           if (track) {
@@ -377,7 +401,6 @@ export function useTabDrag({
 
             let slotLeft, slotWidth;
             if (isFirstGroupSlot && chipRect) {
-              // Seamless 2px overlap into chip wrapper right edge to guarantee continuous baseline
               slotLeft = (chipRect.right - trackRect.left) - 2;
               slotWidth = (slotRect.right + 5) - (chipRect.right - 2);
             } else {
@@ -385,35 +408,60 @@ export function useTabDrag({
               slotWidth = slotRect.width + 5;
             }
 
-            slotBar.style.transition = 'none';
             slotBar.style.left = `${slotLeft}px`;
             slotBar.style.width = `${slotWidth}px`;
-            slotBar.style.bottom = 'auto';
           }
         }
 
-        const pinCount = cbRef.current.pinnedTabCount || 0;
-        if (pinCount > 0 && !cbRef.current.isPinned) {
-          targetIndex = Math.max(pinCount, targetIndex);
-        }
-        finalTargetIndex = targetIndex;
-
-        // ── Animate via transform (no DOM reorder during drag) ───────────
-        const draggedWidthWithGap = (originalRects[draggingIndex]?.width || tabWidth) + 5;
-        originalTabs.forEach((t, i) => {
-          if (i === draggingIndex) {
-            t.style.transform = `translateX(${dragDx}px)`;
-            t.style.zIndex = '9999';
-            return;
-          }
+        // Minimal DOM update: diff shift states and update only modified sibling tabs
+        for (let i = 0; i < originalTabs.length; i++) {
+          if (i === draggingIndex) continue;
+          let desired = 0;
           if (targetIndex < draggingIndex && i >= targetIndex && i < draggingIndex) {
-            t.style.transform = `translateX(${draggedWidthWithGap}px)`;
+            desired = 1;
           } else if (targetIndex > draggingIndex && i > draggingIndex && i <= targetIndex) {
-            t.style.transform = `translateX(-${draggedWidthWithGap}px)`;
-          } else {
-            t.style.transform = '';
+            desired = -1;
           }
-        });
+          if (tabShifts[i] !== desired) {
+            tabShifts[i] = desired;
+            originalTabs[i].style.transform = desired === 0
+              ? ''
+              : (desired > 0 ? `translate3d(${draggedWidthWithGap}px, 0, 0)` : `translate3d(-${draggedWidthWithGap}px, 0, 0)`);
+          }
+        }
+      };
+
+      const onMove = (me) => {
+        if (isDropping) return;
+
+        if (isDetached) {
+          if (!detachRafId) {
+            const sx = me.screenX;
+            const sy = me.screenY;
+            detachRafId = requestAnimationFrame(() => {
+              detachRafId = null;
+              window.electronAPI?.tabDragMove?.({ screenX: sx, screenY: sy });
+            });
+          }
+          return;
+        }
+
+        const deltaX = me.clientX - startX;
+        const deltaY = me.clientY - startY;
+
+        if (!dragStarted) {
+          if (Math.hypot(deltaX, deltaY) < 6) return; // dead-zone
+          startDrag(me);
+        }
+
+        latestClientX = me.clientX;
+        latestClientY = me.clientY;
+        latestScreenX = me.screenX;
+        latestScreenY = me.screenY;
+
+        if (!moveRafId) {
+          moveRafId = requestAnimationFrame(updateDrag);
+        }
       };
 
       const onUp = (me) => {
@@ -425,9 +473,13 @@ export function useTabDrag({
           tabEl.releasePointerCapture(pointerId);
         } catch (_) {}
 
-        if (rafId) {
-          cancelAnimationFrame(rafId);
-          rafId = null;
+        if (moveRafId) {
+          cancelAnimationFrame(moveRafId);
+          moveRafId = null;
+        }
+        if (detachRafId) {
+          cancelAnimationFrame(detachRafId);
+          detachRafId = null;
         }
 
         if (isDetached) {
@@ -439,110 +491,115 @@ export function useTabDrag({
           return;
         }
 
-        if (dragStarted) {
+        if (!dragStarted) {
+          return;
+        }
+
+        isDropping = true;
+
+        let dropGroupId = hoveredGroupId;
+        if (!dropGroupId) {
+          const currentTabLeft = (tabEl.getBoundingClientRect?.()?.left) || 0;
+          const currentTabRight = currentTabLeft + (originalRects[draggingIndex]?.width || tabWidth);
+          for (const region of groupRegions) {
+            const overlap = Math.max(0, Math.min(currentTabRight, region.right) - Math.max(currentTabLeft, region.left));
+            if (overlap > 12 || (me?.clientX >= region.left && me?.clientX <= region.right)) {
+              dropGroupId = region.groupId;
+              break;
+            }
+          }
+        }
+
+        // If joining a group, ensure target index is within/adjacent to that group's members
+        if (dropGroupId) {
+          const targetRegion = groupRegions.find(r => r.groupId === dropGroupId);
+          if (targetRegion) {
+            if (finalTargetIndex < targetRegion.firstMemberIndex) {
+              finalTargetIndex = targetRegion.firstMemberIndex;
+            } else if (finalTargetIndex > targetRegion.lastMemberIndex + 1) {
+              finalTargetIndex = targetRegion.lastMemberIndex + 1;
+            }
+          }
+        }
+
+        const currentTabGroupId = tabEl.getAttribute('data-group-id') || null;
+        const isGroupChange = dropGroupId && dropGroupId !== currentTabGroupId;
+        const didReorder = (finalTargetIndex !== -1 && finalTargetIndex !== draggingIndex) || isGroupChange;
+
+        // Calculate exact target offset in pixels
+        let targetDx = 0;
+        if (didReorder && finalTargetIndex >= 0 && finalTargetIndex < originalRects.length) {
+          if (finalTargetIndex > draggingIndex) {
+            targetDx = (originalRects[finalTargetIndex].right - originalRects[draggingIndex].width) - originalRects[draggingIndex].left;
+          } else if (finalTargetIndex < draggingIndex) {
+            targetDx = originalRects[finalTargetIndex].left - originalRects[draggingIndex].left;
+          }
+        }
+
+        // Dynamic duration based on remaining distance to travel (e.g. 90ms - 150ms)
+        const distance = Math.abs(targetDx - dragDx);
+        const duration = Math.min(150, Math.max(90, Math.round(distance * 0.4)));
+
+        // Smooth drop snap animation
+        tabEl.classList.add('tab-dropping');
+        tabEl.style.setProperty('--drop-duration', `${duration}ms`);
+        tabEl.style.transition = `transform ${duration}ms cubic-bezier(0.2, 0, 0, 1)`;
+        tabEl.style.transform = `translate3d(${targetDx}px, 0, 0)`;
+
+        dropTimer = setTimeout(() => {
+          dropTimer = null;
+          isDropping = false;
+
           if (slotBar) {
             slotBar.remove();
             slotBar = null;
           }
 
-          let dropGroupId = hoveredGroupId;
-          if (!dropGroupId) {
-            const currentTabLeft = (tabEl.getBoundingClientRect?.()?.left) || 0;
-            const currentTabRight = currentTabLeft + (tabEl.getBoundingClientRect?.()?.width || tabWidth);
-            for (const region of groupRegions) {
-              const overlap = Math.max(0, Math.min(currentTabRight, region.right) - Math.max(currentTabLeft, region.left));
-              if (overlap > 12 || (me?.clientX >= region.left && me?.clientX <= region.right)) {
-                dropGroupId = region.groupId;
-                break;
-              }
-            }
-          }
-          const upEl = getElementUnderneath(tabEl, me?.clientX || 0, me?.clientY || 0);
-          const upGroupHolder = upEl?.closest('[data-group-id]');
-          if (upGroupHolder) {
-            const isCollapsed = upGroupHolder.classList.contains('group-chip--collapsed') || upGroupHolder.classList.contains('group-chip-wrapper--collapsed');
-            if (!isCollapsed) {
-              const gid = upGroupHolder.getAttribute('data-group-id');
-              if (gid) {
-                dropGroupId = gid;
-                if (upGroupHolder.classList.contains('group-chip') || upGroupHolder.classList.contains('group-chip-wrapper')) {
-                  const firstMemberIndex = originalTabs.findIndex(t => t.getAttribute('data-group-id') === gid);
-                  if (firstMemberIndex !== -1) {
-                    finalTargetIndex = firstMemberIndex;
-                  }
-                }
-              }
-            }
-          }
-
-          // If joining a group, ensure target index is within/adjacent to that group's members
-          if (dropGroupId) {
-            const targetRegion = groupRegions.find(r => r.groupId === dropGroupId);
-            if (targetRegion) {
-              if (finalTargetIndex < targetRegion.firstMemberIndex) {
-                finalTargetIndex = targetRegion.firstMemberIndex;
-              } else if (finalTargetIndex > targetRegion.lastMemberIndex + 1) {
-                finalTargetIndex = targetRegion.lastMemberIndex + 1;
-              }
-            }
-          }
-
-          const currentTabGroupId = tabEl.getAttribute('data-group-id') || null;
-          const isGroupChange = dropGroupId && dropGroupId !== currentTabGroupId;
-          const didReorder = (finalTargetIndex !== -1 && finalTargetIndex !== draggingIndex) || isGroupChange;
-
-          const clearTransformsOnly = () => {
+          if (!didReorder) {
             originalTabs.forEach((t) => {
               t.style.transform = '';
               t.style.zIndex = '';
+              t.style.transition = '';
             });
-          };
-          const restoreTransitionsLater = () => {
-            window.requestAnimationFrame(() => {
-              originalTabs.forEach((t) => {
-                t.style.transition = '';
-              });
-            });
-          };
-
-          if (didReorder) {
-            // Build new id order and hand off to Redux
-            const ids = originalTabs.map(t => t.id);
-            const [moved] = ids.splice(draggingIndex, 1);
-            let dropIndex = finalTargetIndex !== -1 ? finalTargetIndex : draggingIndex;
-            const pc = cbRef.current.pinnedTabCount || 0;
-            if (pc > 0 && !cbRef.current.isPinned) {
-              dropIndex = Math.max(pc, dropIndex);
-            }
-            ids.splice(dropIndex, 0, moved);
-            cbRef.current.onDragEnd(ids, { movedTabId: id, targetGroupId: dropGroupId });
+            tabEl.classList.remove('tab-dragging', 'tab-dropping');
+            tabEl.style.backgroundColor = '';
+            if (bar) bar.classList.remove('tab-bar--dragging');
+            window._draggingTabId = null;
+            return;
           }
 
-          if (!didReorder) {
-            clearTransformsOnly();
-            restoreTransitionsLater();
-          } else {
-            // Preserve visual positions through React reorder, then clear transforms.
-            window.requestAnimationFrame(() => {
-              window.requestAnimationFrame(() => {
-                clearTransformsOnly();
-                restoreTransitionsLater();
-              });
-            });
+          // Build new id order and hand off to Redux
+          const ids = originalTabs.map((t) => t.id);
+          const [moved] = ids.splice(draggingIndex, 1);
+          let dropIndex = finalTargetIndex !== -1 ? finalTargetIndex : draggingIndex;
+          const pc = cbRef.current.pinnedTabCount || 0;
+          if (pc > 0 && !cbRef.current.isPinned) {
+            dropIndex = Math.max(pc, dropIndex);
           }
-        }
+          ids.splice(dropIndex, 0, moved);
 
-        tabEl.classList.remove('tab-dragging');
-        tabEl.style.backgroundColor = '';
-        const barEl = tabEl.closest('.tab-bar');
-        if (barEl) {
-          window.requestAnimationFrame(() => {
-            window.requestAnimationFrame(() => {
-              barEl.classList.remove('tab-bar--dragging');
-            });
+          // Disable transitions before React DOM reorder to prevent backward motion
+          originalTabs.forEach((t) => {
+            t.style.transition = 'none';
           });
-        }
-        window._draggingTabId = null;
+
+          // Synchronously commit to React DOM with flushSync
+          flushSync(() => {
+            cbRef.current.onDragEnd(ids, { movedTabId: id, targetGroupId: dropGroupId });
+          });
+
+          // React has now synchronously reordered the DOM nodes in .tab-track.
+          // Instantly clear transforms so new DOM order matches final visual position in the SAME paint frame.
+          originalTabs.forEach((t) => {
+            t.style.transform = '';
+            t.style.zIndex = '';
+            t.style.transition = '';
+          });
+          tabEl.classList.remove('tab-dragging', 'tab-dropping');
+          tabEl.style.backgroundColor = '';
+          if (bar) bar.classList.remove('tab-bar--dragging');
+          window._draggingTabId = null;
+        }, duration);
       };
 
       document.addEventListener('pointermove', onMove);
@@ -561,6 +618,22 @@ export function useTabDrag({
     return () => {
       tabEl.removeEventListener('pointerdown', handlePointerDown);
       tabEl.removeEventListener('mousedown', handleMouseDown);
+      if (dropTimer) {
+        clearTimeout(dropTimer);
+        dropTimer = null;
+      }
+      if (moveRafId) {
+        cancelAnimationFrame(moveRafId);
+        moveRafId = null;
+      }
+      if (detachRafId) {
+        cancelAnimationFrame(detachRafId);
+        detachRafId = null;
+      }
+      if (slotBar) {
+        slotBar.remove();
+        slotBar = null;
+      }
     };
   }, [id]);
 

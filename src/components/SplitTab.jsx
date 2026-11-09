@@ -25,6 +25,7 @@ export default function SplitTab({
   pinnedTabCount = 0,
   tabCount = 1,
   onDetachTab,
+  onGetFallbackTabId,
   groupColor = null,
   isFirstInGroup = false,
   isLastInGroup = false,
@@ -79,6 +80,7 @@ export default function SplitTab({
     isActive,
     tabCount,
     onDetachTab,
+    onGetFallbackTabId,
   });
 
   const getFavicon = (tab) => {

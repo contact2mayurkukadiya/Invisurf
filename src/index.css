@@ -500,8 +500,21 @@ body:has(.header--stealth-window) .side-panel-content-snapshot {
     overflow: hidden;
 }
 
-.tab-bar.tab-bar--dragging .tab {
+/* While dragging, the dragged tab tracks pointer with zero latency */
+.tab-bar.tab-bar--dragging .tab.tab-dragging:not(.tab-dropping) {
     transition: none !important;
+    z-index: 9999;
+}
+
+/* Sibling tabs smoothly slide out of the way */
+.tab-bar.tab-bar--dragging .tab:not(.tab-dragging) {
+    transition: transform 160ms cubic-bezier(0.2, 0, 0, 1) !important;
+}
+
+/* When dropped, the tab smoothly snaps into the target slot */
+.tab-bar.tab-bar--dragging .tab.tab-dropping {
+    transition: transform var(--drop-duration, 140ms) cubic-bezier(0.2, 0, 0, 1) !important;
+    z-index: 9999;
 }
 
 .tab-bar.tab-bar--dragging .tab::before,
@@ -1793,8 +1806,13 @@ body:has(.header--stealth-window) .side-panel-content-snapshot {
 }
 
 /* ── Tab drag-and-drop ─────────────────────────────────────────────────────── */
-.tab.tab-dragging {
+.tab.tab-dragging:not(.tab-dropping) {
     transition: none !important;
+    background-color: inherit;
+}
+
+.tab.tab-dragging.tab-dropping {
+    transition: transform var(--drop-duration, 140ms) cubic-bezier(0.2, 0, 0, 1) !important;
     background-color: inherit;
 }
 

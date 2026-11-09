@@ -544,8 +544,8 @@ function moveTabToDetachedWindow(id, fallbackTabId) {
 
     if (context.activeTabId === id) {
         const next =
-            fallbackTabId && context.tabs[fallbackTabId] && !State.detachedTabWindows.has(fallbackTabId)
-                ? fallbackTabId
+            fallbackTabId !== undefined
+                ? (fallbackTabId && context.tabs[fallbackTabId] && !State.detachedTabWindows.has(fallbackTabId) ? fallbackTabId : null)
                 : Object.keys(context.tabs).find((tid) => tid !== id && !State.detachedTabWindows.has(tid));
         if (next) {
             activateTabInContext(context, next);

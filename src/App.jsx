@@ -90,8 +90,15 @@ function getNextActiveTabOnClose({ closingId, tabOrder, remaining, tabs, tabGrou
   const anyVisible = remaining.find(isTabVisible);
   if (anyVisible) return anyVisible;
 
-  // 4. Default fallback to standard spatial neighbor (even if collapsed)
-  return rightNeighbor ?? leftNeighbor ?? remaining[0] ?? null;
+  // 4. If closing tab was inside an expanded group, keep active tab within that group if members remain
+  const closingGid = tabs[closingId]?.groupId;
+  if (closingGid && tabGroups?.[closingGid] && !tabGroups[closingGid].collapsed) {
+    const sameGroupMember = remaining.find((tid) => tabs[tid]?.groupId === closingGid);
+    if (sameGroupMember) return sameGroupMember;
+  }
+
+  // Never fall back to tabs inside collapsed groups, so collapsed groups remain collapsed
+  return null;
 }
 
 function AppShell() {
@@ -274,9 +281,11 @@ function AppShell() {
           dispatch(setCurrentTab(nextId));
           window.electronAPI.switchTab(nextId);
         }, 0);
+      } else {
+        createTab();
       }
     }
-  }, [dispatch]);
+  }, [dispatch, createTab]);
 
   const handleTabClosedExternal = useCallback((id) => {
     if (!id) return;
@@ -303,11 +312,13 @@ function AppShell() {
           dispatch(setCurrentTab(nextId));
           window.electronAPI.switchTab(nextId);
         }, 0);
+      } else {
+        createTab();
       }
     } else if (closeWindowIfLast) {
       closeCurrentShellWindow();
     }
-  }, [dispatch, closeCurrentShellWindow]);
+  }, [dispatch, closeCurrentShellWindow, createTab]);
 
   const handleDragEnd = useCallback((newTabOrder, details) => {
     dispatch(reorderTabs({ tabOrder: newTabOrder, movedTabId: details?.movedTabId, targetGroupId: details?.targetGroupId }));
@@ -339,6 +350,8 @@ function AppShell() {
         if (nextId) {
           dispatch(setCurrentTab(nextId));
           window.electronAPI?.switchTab?.(nextId);
+        } else {
+          createTab();
         }
       }
       return;
@@ -361,9 +374,25 @@ function AppShell() {
       if (nextId) {
         dispatch(setCurrentTab(nextId));
         window.electronAPI?.switchTab?.(nextId);
+      } else {
+        createTab();
       }
     }
-  }, [dispatch]);
+  }, [dispatch, createTab]);
+
+  const getFallbackTabId = useCallback((closingId, splitPair) => {
+    const { tabOrder, tabs, tabGroups, mruOrder } = stateRef.current;
+    const toRemove = splitPair ? [splitPair.leftTabId, splitPair.rightTabId].filter(Boolean) : [closingId];
+    const remaining = tabOrder.filter((tid) => !toRemove.includes(tid));
+    return getNextActiveTabOnClose({
+      closingId,
+      tabOrder,
+      remaining,
+      tabs,
+      tabGroups,
+      mruOrder,
+    });
+  }, []);
 
   const handleSwitchTabDir = useCallback((direction) => {
     const { tabOrder, currentTabId } = stateRef.current;
@@ -486,13 +515,19 @@ function AppShell() {
   }, [closeTab]);
 
   const moveTabToNewWindowFor = useCallback(async (tabId) => {
-    const { tabOrder, currentTabId } = stateRef.current;
+    const { tabOrder, currentTabId, tabs, tabGroups, mruOrder } = stateRef.current;
     const wasActive = currentTabId === tabId;
     let fallbackTabId = null;
     if (wasActive) {
-      const idx = tabOrder.indexOf(tabId);
       const remaining = tabOrder.filter((tid) => tid !== tabId);
-      fallbackTabId = remaining[idx] ?? remaining[idx - 1] ?? null;
+      fallbackTabId = getNextActiveTabOnClose({
+        closingId: tabId,
+        tabOrder,
+        remaining,
+        tabs,
+        tabGroups,
+        mruOrder,
+      });
     }
     const move = window.electronAPI.tabMoveToNewWindow;
     if (!move) return;
@@ -502,11 +537,13 @@ function AppShell() {
     if (wasActive) {
       if (fallbackTabId) {
         dispatch(setCurrentTab(fallbackTabId));
+      } else if (tabOrder.length > 1) {
+        createTab();
       } else {
         closeCurrentShellWindow();
       }
     }
-  }, [dispatch, closeCurrentShellWindow]);
+  }, [dispatch, closeCurrentShellWindow, createTab]);
 
   const handleTabMoveNewWindowShortcut = useCallback(() => {
     const id = stateRef.current.currentTabId;
@@ -1434,6 +1471,7 @@ function AppShell() {
           onSwitchTab={switchTab}
           onDragEnd={handleDragEnd}
           onDetachTab={handleDetachTab}
+          onGetFallbackTabId={getFallbackTabId}
           onTabStripContextMenu={handleTabStripContextMenu}
         />
         <NavBar
