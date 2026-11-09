@@ -610,41 +610,7 @@ export function toggleCollapse({
       }
     }
 
-    // 3. If all tabs belong to groups, try MRU tab from any non-collapsed group
-    if (!found && Array.isArray(mruOrder)) {
-      for (const tid of mruOrder) {
-        const gid = tabs[tid]?.groupId;
-        if (tid !== activeTabId && gid && !nextGroups[gid]?.collapsed) {
-          found = tid;
-          break;
-        }
-      }
-    }
-
-    // 4. Fallback: find nearest tab outside collapsed groups (search right, then left)
-    if (!found) {
-      const range = groupRange(tabs, tabOrder, groupId);
-      const startIdx = range ? range.last + 1 : 0;
-      for (let i = startIdx; i < tabOrder.length; i++) {
-        const tid = tabOrder[i];
-        const gid = tabs[tid]?.groupId;
-        if (!gid || !nextGroups[gid]?.collapsed) {
-          found = tid;
-          break;
-        }
-      }
-      if (!found && range) {
-        for (let i = range.first - 1; i >= 0; i--) {
-          const tid = tabOrder[i];
-          const gid = tabs[tid]?.groupId;
-          if (!gid || !nextGroups[gid]?.collapsed) {
-            found = tid;
-            break;
-          }
-        }
-      }
-    }
-
+    // 3. When no non-grouped tab exists in tab strip, signal 'NEW_TAB' to open a new active tab
     nextActiveTabId = found || 'NEW_TAB';
   }
 

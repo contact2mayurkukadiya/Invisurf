@@ -257,4 +257,56 @@ test.describe('Chrome Tab Groups E2E Verification', () => {
     await expect(shellWindow.locator('.group-chip')).toBeVisible();
     await expect(shellWindow.locator('.tab--in-group')).toHaveCount(3);
   });
+
+  test('collapses group when 0 non-grouped tabs exist and active tab is inside group, automatically creating and activating a new tab', async ({ invisurfApp }) => {
+    const { shellWindow } = invisurfApp;
+    await expect(shellWindow.locator('#add-tab')).toBeVisible({ timeout: 10000 });
+
+    // 1. Start with 2 tabs and put BOTH into a single group (0 non-grouped tabs)
+    const addTabBtn = shellWindow.locator('#add-tab');
+    await addTabBtn.click();
+    await shellWindow.waitForTimeout(300);
+
+    const tabs = shellWindow.locator('.tab');
+    await expect(tabs).toHaveCount(2);
+    const tab0Id = await tabs.nth(0).getAttribute('id');
+    const tab1Id = await tabs.nth(1).getAttribute('id');
+
+    await shellWindow.evaluate(({ ids }) => {
+      window.dispatchEvent(new CustomEvent('invisurf:create-group-for-tabs', {
+        detail: { tabIds: ids, title: 'AI' }
+      }));
+    }, { ids: [tab0Id, tab1Id] });
+    await shellWindow.waitForTimeout(400);
+
+    // Verify both tabs are in group
+    await expect(shellWindow.locator('.tab--in-group')).toHaveCount(2);
+    const groupChip = shellWindow.locator('.group-chip');
+    await expect(groupChip).toBeVisible();
+
+    // Verify active tab is tab1 (inside the group)
+    const activeTab = shellWindow.locator('.tab.active');
+    await expect(activeTab).toHaveCount(1);
+    await expect(activeTab).toHaveClass(/tab--in-group/);
+
+    // 2. Click the group chip to collapse it
+    await groupChip.click();
+    await shellWindow.waitForTimeout(600);
+
+    // 3. Group should be collapsed
+    await expect(groupChip).toHaveClass(/group-chip--collapsed/);
+
+    // 4. A new tab must have been automatically created outside the group and activated!
+    const tabsAfterCollapse = shellWindow.locator('.tab');
+    await expect(tabsAfterCollapse).toHaveCount(3); // 2 grouped + 1 new tab
+
+    const newActiveTab = shellWindow.locator('.tab.active');
+    await expect(newActiveTab).toHaveCount(1);
+    await expect(newActiveTab).not.toHaveClass(/tab--in-group/);
+    await expect(newActiveTab).toBeVisible();
+
+    // Capture screenshot proving the fix
+    const artifactDir = '/Users/mayurkukadiya/.gemini/antigravity/brain/4a55070a-1712-4015-b363-d36e8aabb3f6';
+    await shellWindow.locator('.tab-bar').screenshot({ path: `${artifactDir}/collapse-zero-non-grouped-creates-new-tab.png` });
+  });
 });

@@ -482,14 +482,19 @@ export default function TabBar({
                     tabCount={memberCount}
                     isCollapsed={!!group.collapsed}
                     onToggleCollapse={(targetGid) => {
-                      const curTab = store.getState().browser.tabs[store.getState().browser.currentTabId];
+                      const st = store.getState().browser;
+                      const wasCollapsed = !!st.tabGroups?.[targetGid]?.collapsed;
+                      const isCollapsing = !wasCollapsed;
+                      const curTabId = st.currentTabId;
+                      const curTab = st.tabs[curTabId];
                       const wasInGroup = curTab?.groupId === targetGid;
                       dispatch(toggleGroupCollapse({ groupId: targetGid }));
-                      if (wasInGroup) {
+                      if (isCollapsing && wasInGroup) {
                         const nextId = store.getState().browser.currentTabId;
-                        if (nextId && nextId !== curTab.id) {
+                        if (nextId && nextId !== curTabId) {
                           onSwitchTab?.(nextId);
-                        } else if (!nextId) {
+                        } else {
+                          // No non-grouped tab exists in the tab strip: open a new tab as active
                           onNewTab?.();
                         }
                       }

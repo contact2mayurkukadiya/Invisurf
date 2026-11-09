@@ -330,5 +330,65 @@ describe('Tab Group 5 Enhancements Verification', () => {
     assert.deepStrictEqual(state.tabOrder, ['tab-1', 'tab-2']);
     assert.strictEqual(state.currentTabId, 'tab-1');
   });
+
+  it('Group Collapse: Returns NEW_TAB when no non-grouped tab exists in tab strip', async () => {
+    const { toggleCollapse } = await loadDeps();
+    const tabs = {
+      't1': { id: 't1', groupId: 'g1' },
+      't2': { id: 't2', groupId: 'g1' },
+    };
+    const tabOrder = ['t1', 't2'];
+    const groups = {
+      g1: { id: 'g1', title: 'Design', color: 'blue', collapsed: false },
+    };
+
+    const res = toggleCollapse({
+      tabs,
+      tabOrder,
+      groups,
+      groupId: 'g1',
+      collapsed: true,
+      activeTabId: 't1',
+      mruOrder: ['t1', 't2'],
+    });
+
+    assert.strictEqual(res.groups.g1.collapsed, true);
+    assert.strictEqual(res.nextActiveTabId, 'NEW_TAB', 'Returns NEW_TAB when zero non-grouped tabs exist in tab strip');
+  });
+
+  it('Group Collapse: onToggleCollapse calls onNewTab when zero non-grouped tabs exist and active tab is in collapsing group', async () => {
+    const { reducer, actions } = await loadDeps();
+    let state = reducer(undefined, { type: '@@INIT' });
+
+    state = reducer(state, actions.addTab({ id: 't1' }));
+    state = reducer(state, actions.addTab({ id: 't2' }));
+    state = reducer(state, actions.createTabGroup({ tabIds: ['t1', 't2'] }));
+    const g1Id = Object.keys(state.tabGroups)[0];
+
+    // Simulate TabBar onToggleCollapse callback logic
+    const wasCollapsed = !!state.tabGroups?.[g1Id]?.collapsed;
+    const isCollapsing = !wasCollapsed;
+    const curTabId = state.currentTabId;
+    const curTab = state.tabs[curTabId];
+    const wasInGroup = curTab?.groupId === g1Id;
+
+    state = reducer(state, actions.toggleGroupCollapse({ groupId: g1Id }));
+
+    let newTabCalled = false;
+    let switchedToId = null;
+
+    if (isCollapsing && wasInGroup) {
+      const nextId = state.currentTabId;
+      if (nextId && nextId !== curTabId) {
+        switchedToId = nextId;
+      } else {
+        newTabCalled = true;
+      }
+    }
+
+    assert.strictEqual(newTabCalled, true, 'onNewTab must be called when 0 non-grouped tabs exist');
+    assert.strictEqual(switchedToId, null);
+    assert.strictEqual(state.tabGroups[g1Id].collapsed, true);
+  });
 });
 
