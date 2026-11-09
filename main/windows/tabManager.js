@@ -76,19 +76,20 @@ function addTabContentChildView(context, view) {
 function removeTabContentChildView(context, view) {
     if (!view) return false;
     const parent = getTabContentParent(context);
+    let removed = false;
     if (parent && typeof parent.removeChildView === 'function') {
         try {
             parent.removeChildView(view);
-            return true;
+            removed = true;
         } catch (_) { }
     }
-    if (parent !== context?.window?.contentView && context?.window?.contentView) {
+    if (context?.window?.contentView && typeof context.window.contentView.removeChildView === 'function') {
         try {
             context.window.contentView.removeChildView(view);
-            return true;
+            removed = true;
         } catch (_) { }
     }
-    return false;
+    return removed;
 }
 
 function generateTabId() {
@@ -392,6 +393,11 @@ function activateTabInContext(context, id, options = {}) {
         if (State.detachedTabWindows.has(tid)) continue;
         try {
             removeTabContentChildView(context, context.tabs[tid]);
+            if (tid !== id) {
+                if (typeof context.tabs[tid]?.setBounds === 'function') {
+                    context.tabs[tid].setBounds({ x: 0, y: 0, width: 0, height: 0 });
+                }
+            }
         } catch (_) { }
     }
     lensManager.detachLensSidebarsExcept(context, id);

@@ -85,6 +85,16 @@ function layoutSplitTabViews(context, splitId) {
     }
     const rightView = pair.rightTabId ? context.tabs?.[pair.rightTabId] : null;
 
+    const tabManager = require('./tabManager');
+    // Ensure all other tabs in context (neither left nor right view of this split) are hidden and bounds-zeroed
+    for (const [tid, otherView] of Object.entries(context.tabs || {})) {
+        if (tid !== pair.leftTabId && tid !== pair.rightTabId) {
+            try {
+                tabManager.removeTabContentChildView(context, otherView);
+            } catch (_) { }
+        }
+    }
+
     try {
         const { width, height } = context.window.getContentBounds();
         const isFullscreen = context.window.isFullScreen();

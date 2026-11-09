@@ -384,8 +384,6 @@ function ensureChromeOverlayOnTop(context) {
         if (lensSession?.sidebarView && !lensSession.sidebarView.webContents.isDestroyed() && !context.isLensSidebarTemporarilyHidden) {
             const hostView = lensSession.sidebarHostView || lensSession.sidebarView;
             if (hostView && cv && typeof cv.addChildView === 'function') {
-                const { removeTabContentChildView } = require('./tabManager');
-                removeTabContentChildView(context, hostView);
                 cv.addChildView(hostView);
             }
         }
