@@ -3,6 +3,7 @@ import { useTabDrag } from '../hooks/useTabDrag';
 import { useInvsurfLogoFaviconUrl } from '../hooks/useInvsurfLogoFavicon';
 import { isInvsurfBrandedInternalTab } from '../utils/invisurfInternalPages';
 import { logoIcognitoDarkSvg, tabCloseSvg } from '../constants/appAssetUrls';
+import TabGroupBorder from './tabgroup/TabGroupBorder';
 
 const DEFAULT_FAVICON = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI2NjYyI+PHBhdGggZD0iTTEyIDJDNi40OCAyIDIgNi40OCAyIDEyczQuNDggMTAgMTAgMTAgMTAtNC40OCAxMC0xMFMxNy41MiAyIDEyIDJ6bTAgMThjLTQuNDEgMC04LTMuNTktOC04czMuNTktOCA4LTggOCAzLjU5IDggOC0zLjU5IDgtOCA4eiIvPjwvc3ZnPg==';
 
@@ -16,12 +17,18 @@ export default function Tab({
   tabCount = 1,
   onDetachTab,
   captureRole = null,
+  groupColor = null,
+  isFirstInGroup = false,
+  isLastInGroup = false,
+  prevTabIsActiveInGroup = false,
+  nextTabIsActiveInGroup = false,
+  isCollapsedMember = false,
 }) {
   const { url, title, favicon, isNewTab, isStealth, isLoading, isPinned } = tab || {};
   const invsurfLogoFavicon = useInvsurfLogoFaviconUrl();
 
   const handleSwitchTab = useCallback((tabId) => onSwitch(tabId), [onSwitch]);
-  const handleDragEnd = useCallback((ids) => onDragEnd(ids), [onDragEnd]);
+  const handleDragEnd = useCallback((ids, details) => onDragEnd(ids, details), [onDragEnd]);
 
   const tabRef = useTabDrag({
     id,
@@ -76,6 +83,10 @@ export default function Tab({
     isActive ? 'active' : '',
     isStealth ? 'stealth-tab' : '',
     isPinned ? 'tab--pinned' : '',
+    groupColor ? 'tab--in-group' : '',
+    groupColor && isFirstInGroup ? 'tab--group-first' : '',
+    groupColor && isLastInGroup ? 'tab--group-last' : '',
+    isCollapsedMember ? 'tab--collapsed-member' : '',
     `tab--mode-${displayMode}`,
     captureRole ? 'tab--has-capture-indicator' : '',
   ].filter(Boolean).join(' ');
@@ -86,12 +97,23 @@ export default function Tab({
       ref={tabRef}
       className={className}
       data-tab-id={id}
+      data-group-id={tab?.groupId || undefined}
+      style={groupColor ? { '--group-color': groupColor } : undefined}
       onMouseEnter={handleHoverEnter}
       onMouseLeave={onHoverLeave}
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
       onContextMenu={handleContextMenu}
     >
+      {/* Tab Group Chrome-parity connected border / baseline */}
+      <TabGroupBorder
+        groupColor={groupColor}
+        isActive={isActive}
+        isFirstInGroup={isFirstInGroup}
+        isLastInGroup={isLastInGroup}
+        prevTabIsActiveInGroup={prevTabIsActiveInGroup}
+        nextTabIsActiveInGroup={nextTabIsActiveInGroup}
+      />
       {/* Icon / Spinner */}
       <div className="icon-container">
         {isLoading

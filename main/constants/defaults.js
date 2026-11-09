@@ -65,6 +65,7 @@ const SHELL_MENU_OVERLAY_KINDS = new Set([
     'zoomReset',
     'windowArrangeMenu',
     'toolbarContextMenu',
+    'tabGroupEditor',
 ]);
 
 const COOKIE_CONFIG_DEFAULTS = {
@@ -142,6 +143,12 @@ const TAB_STRIP_CONTEXT_MENU_ACTION_IDS = new Set([
     'splitSwitchSides',
     'splitToggleStacked',
     'splitSeparate',
+    'groupNew',
+    'groupRemove',
+    'groupUngroup',
+    'groupClose',
+    'groupMoveNewWindow',
+    'groupEdit',
 ]);
 
 module.exports = {

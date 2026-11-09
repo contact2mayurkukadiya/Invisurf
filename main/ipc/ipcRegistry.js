@@ -30,10 +30,37 @@ const compatDiagnostics = require(path.join(process.cwd(), 'compatibilityDiagnos
 const identityDiagnostics = require(path.join(process.cwd(), 'runtime', 'identityDiagnostics.js'));
 const { getTabNetworkDomains, addToCookieBlocklist } = require(path.join(process.cwd(), 'runtime', 'sessionPolicy.js'));
 
-function spawnWindowWithTab({ profileId, url, urls, stealthWindow, ghostWindow }) {
+function spawnWindowWithTab({ profileId, url, urls, group, tabs, activeTabId, stealthWindow, ghostWindow }) {
     // 1. Ensure profile exists and create the Native Window Shell
     profileService.ensureProfile(profileId);
     const createdContext = windowManager.createWindow({ profileId, stealthWindow, ghostWindow });
+
+    const existingBootstrap = State.windowBootstrapById.get(createdContext.windowId) || {};
+
+    if (group && Array.isArray(tabs) && tabs.length > 0) {
+        State.windowBootstrapById.set(createdContext.windowId, {
+            ...existingBootstrap,
+            movedGroup: {
+                group: { ...group },
+                tabs: tabs.map((t) => ({
+                    id: t.id || `tab-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                    url: t.url || '',
+                    title: t.title || 'New Tab',
+                    favicon: t.favicon || null,
+                    isStealth: !!t.isStealth,
+                })),
+                activeTabId: activeTabId || tabs[0]?.id,
+            },
+        });
+        if (State.appLogger) {
+            State.appLogger.info('window:spawn-group', {
+                windowId: createdContext.windowId,
+                groupId: group.id,
+                tabCount: tabs.length,
+            });
+        }
+        return createdContext;
+    }
 
     // 2. Store the initial URL(s) as a bootstrap payload so that when the new window's
     //    React shell mounts and calls init(), it reads this payload and opens the
@@ -43,7 +70,6 @@ function spawnWindowWithTab({ profileId, url, urls, stealthWindow, ghostWindow }
         ? urls.filter((u) => typeof u === 'string' && u.trim() !== '')
         : (url && typeof url === 'string' && url.trim() !== '' ? [url] : []);
 
-    const existingBootstrap = State.windowBootstrapById.get(createdContext.windowId) || {};
     if (urlArray.length === 1) {
         State.windowBootstrapById.set(createdContext.windowId, {
             ...existingBootstrap,
@@ -158,8 +184,15 @@ function registerIpcHandlers() {
         const senderContext = getWindowContextByEventSender(event.sender);
         if (!senderContext) return null;
         const profileId = typeof payload.profileId === 'string' && payload.profileId.trim() ? payload.profileId.trim() : senderContext.profileId;
-        // Support both a single `url` and an `urls` array (for "Open All in new window")
-        const createdContext = spawnWindowWithTab({ profileId, url: payload.url, urls: payload.urls });
+        // Support single `url`, `urls` array, or `group` payload (for "Move group to new window")
+        const createdContext = spawnWindowWithTab({
+            profileId,
+            url: payload.url,
+            urls: payload.urls,
+            group: payload.group,
+            tabs: payload.tabs,
+            activeTabId: payload.activeTabId,
+        });
         return { windowId: createdContext.windowId, profileId };
     });
 
@@ -578,7 +611,12 @@ function registerIpcHandlers() {
 
         if (closedWindow) {
             State.windowBootstrapById.set(created.windowId, {
-                restoreWindow: { tabs: closedWindow.tabs, activeTabId: closedWindow.activeTabId },
+                restoreWindow: {
+                    tabs: closedWindow.tabs,
+                    activeTabId: closedWindow.activeTabId,
+                    splitGroups: closedWindow.splitGroups || {},
+                    tabGroups: closedWindow.tabGroups || {},
+                },
             });
         }
 
@@ -1597,30 +1635,48 @@ function registerIpcHandlers() {
         const win = BrowserWindow.fromWebContents(sender);
         if (!win || win.isDestroyed()) return { ok: false };
 
-        const template = [];
-        for (const raw of items) {
-            if (!raw || typeof raw !== 'object') continue;
+        function formatItem(raw) {
+            if (!raw || typeof raw !== 'object') return null;
             if (raw.type === 'separator') {
-                template.push({ type: 'separator' });
-                continue;
+                return { type: 'separator' };
             }
-            if (raw.type !== 'item') continue;
+            if (raw.type === 'submenu' && Array.isArray(raw.submenu)) {
+                const subTemplate = raw.submenu.map(formatItem).filter(Boolean);
+                const label = truncateMenuLabel(String(raw.label || ''), 80);
+                if (!label || subTemplate.length === 0) return null;
+                return {
+                    label,
+                    submenu: subTemplate,
+                    enabled: raw.enabled !== false,
+                };
+            }
+            if (raw.type !== 'item') return null;
             const actionId = raw.id;
-            if (!actionId || typeof actionId !== 'string' || !TAB_STRIP_CONTEXT_MENU_ACTION_IDS.has(actionId)) continue;
+            const isAllowed = actionId && typeof actionId === 'string' && (
+                TAB_STRIP_CONTEXT_MENU_ACTION_IDS.has(actionId) ||
+                actionId.startsWith('groupAdd:') ||
+                actionId.startsWith('group:')
+            );
+            if (!isAllowed) return null;
             const label = truncateMenuLabel(String(raw.label || ''), 80);
-            if (!label) continue;
+            if (!label) return null;
             const enabled = raw.enabled !== false;
             const capturedTabId = tabId;
             const capturedActionId = actionId;
-            template.push({
-                label, enabled,
+            return {
+                label,
+                enabled,
                 click: () => {
                     try {
-                        if (!sender.isDestroyed()) sender.send(C.IPC_EVENT.TAB_STRIP_MENU_ACTION, { tabId: capturedTabId, id: capturedActionId });
+                        if (!sender.isDestroyed()) {
+                            sender.send(C.IPC_EVENT.TAB_STRIP_MENU_ACTION, { tabId: capturedTabId, id: capturedActionId });
+                        }
                     } catch (err) { console.error(C.IPC_EVENT.TAB_STRIP_MENU_ACTION, err?.message || err); }
                 },
-            });
+            };
         }
+
+        const template = items.map(formatItem).filter(Boolean);
         if (template.length === 0) return { ok: false };
         global.__lastTabStripContextMenuTemplate = template;
         try {
@@ -2066,7 +2122,9 @@ function registerIpcHandlers() {
                 })() : parsed;
                 if (!decoded) return null;
                 if (decoded.schemaVersion === 2 && decoded.windowsById) {
-                    return decoded.windowsById[context.windowId] || null;
+                    const winEntry = decoded.windowsById[context.windowId] ||
+                        Object.values(decoded.windowsById).find((w) => w && w.profileId === context.profileId);
+                    return winEntry || null;
                 }
                 if (decoded.tabs) return decoded; // Legacy
                 return null;
@@ -2114,6 +2172,7 @@ function registerIpcHandlers() {
                 tabs: Array.isArray(data?.tabs) ? data.tabs : [],
                 activeTabId: data?.activeTabId || null,
                 splitGroups: data?.splitGroups && typeof data.splitGroups === 'object' ? data.splitGroups : {},
+                tabGroups: data?.tabGroups && typeof data.tabGroups === 'object' ? data.tabGroups : {},
             };
             doc.profiles = Array.from(State.profilesById.values()).map((p) => ({
                 profileId: p.profileId,

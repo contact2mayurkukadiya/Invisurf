@@ -46,7 +46,188 @@ function startDetach(sourceContext, payload = {}) {
         tabData: clientTabData = null,
         splitPair: clientSplitPair = null,
         rightTabData: clientRightTabData = null,
+        isGroupDetach = false,
+        groupId = null,
+        group = null,
+        memberTabIds = [],
+        memberTabsData = [],
+        activeTabId = null,
     } = payload;
+
+    // Detach an entire tab group into a new window via vertical drag
+    if (isGroupDetach && group && Array.isArray(memberTabIds) && memberTabIds.length > 0) {
+        const tabManager = require('./tabManager');
+        const windowManager = require('./windowManager');
+
+        const nonGroupTabs = Array.isArray(sourceContext.tabOrder)
+            ? sourceContext.tabOrder.filter((tid) => !memberTabIds.includes(tid))
+            : [];
+        const isSingle = isSingleTab === true || nonGroupTabs.length === 0;
+
+        if (isSingle) {
+            try {
+                if (typeof sourceContext.window.setAlwaysOnTop === 'function') {
+                    sourceContext.window.setAlwaysOnTop(true, 'floating');
+                }
+                if (typeof sourceContext.window.moveTop === 'function') {
+                    sourceContext.window.moveTop();
+                }
+            } catch (_) { }
+
+            const resolvedMemberTabsData = (Array.isArray(memberTabsData) && memberTabsData.length > 0)
+                ? memberTabsData
+                : memberTabIds.map((tid) => {
+                    const v = sourceContext.tabs?.[tid];
+                    return {
+                        id: tid,
+                        url: v?.webContents?.getURL?.() || '',
+                        title: v?.webContents?.getTitle?.() || 'New Tab',
+                        favicon: v?._favicon || null,
+                        isLoading: v?.webContents?.isLoading?.() || false,
+                        isStealth: !!sourceContext.stealthWindow,
+                    };
+                });
+
+            const memberViews = {};
+            for (const tid of memberTabIds) {
+                if (sourceContext.tabs?.[tid]) {
+                    memberViews[tid] = sourceContext.tabs[tid];
+                }
+            }
+
+            activeDrag = {
+                isGroupDrag: true,
+                groupId: group.id,
+                group: { ...group },
+                memberTabIds,
+                memberTabsData: resolvedMemberTabsData,
+                memberViews,
+                activeTabId: activeTabId || memberTabIds[0],
+                sourceContext,
+                currentContext: sourceContext,
+                detachedWindow: sourceContext.window,
+                detachedContext: sourceContext,
+                grabOffsetX: Number(grabOffsetX) || 50,
+                grabOffsetY: Number(grabOffsetY) || 20,
+                isSingleTabDrag: true,
+                isDocked: false,
+            };
+            return { ok: true, isSingleTab: true };
+        }
+
+        // Multi-tab window detachment of an entire group
+        const memberViews = {};
+        for (const tid of memberTabIds) {
+            const v = sourceContext.tabs?.[tid];
+            if (v) {
+                try {
+                    tabManager.removeTabContentChildView(sourceContext, v);
+                } catch (_) { }
+                memberViews[tid] = v;
+            }
+            delete sourceContext.tabs?.[tid];
+            delete sourceContext.sleepingTabs?.[tid];
+            State.tabIdToWindowId.delete(tid);
+        }
+        if (Array.isArray(sourceContext.tabOrder)) {
+            sourceContext.tabOrder = sourceContext.tabOrder.filter(tid => !memberTabIds.includes(tid));
+        }
+        delete sourceContext.tabGroups?.[group.id];
+
+        // Switch source context to remaining tab
+        const remainingTabs = sourceContext.tabOrder || [];
+        if (memberTabIds.includes(sourceContext.activeTabId)) {
+            if (remainingTabs.length > 0) {
+                tabManager.activateTabInContext(sourceContext, remainingTabs[0]);
+            } else {
+                sourceContext.activeTabId = null;
+            }
+        }
+
+        const padLeft = getTabStripPaddingLeft();
+        const targetX = Math.round(screenX - (Number(grabOffsetX) || 50) - padLeft);
+        const targetY = Math.round(screenY - (Number(grabOffsetY) || 20) - 5);
+
+        const bootstrapPayload = {
+            detachedGroup: {
+                group: { ...group },
+                tabs: memberTabsData,
+                activeTabId: activeTabId || memberTabIds[0],
+            },
+        };
+
+        const targetContext = windowManager.createWindow({
+            profileId: sourceContext.profileId,
+            stealthWindow: sourceContext.stealthWindow,
+            bounds: {
+                x: targetX,
+                y: targetY,
+                width: 1100,
+                height: 750,
+            },
+            bootstrapPayload,
+            show: false,
+            focusable: false,
+            alwaysOnTop: true,
+        });
+
+        if (!targetContext?.window || targetContext.window.isDestroyed()) {
+            return { ok: false };
+        }
+
+        try {
+            if (typeof targetContext.window.setAlwaysOnTop === 'function') {
+                targetContext.window.setAlwaysOnTop(true, 'floating');
+            }
+            if (typeof targetContext.window.setFocusable === 'function') {
+                targetContext.window.setFocusable(false);
+            }
+            if (typeof targetContext.window.showInactive === 'function') {
+                targetContext.window.showInactive();
+            }
+            if (typeof targetContext.window.moveTop === 'function') {
+                targetContext.window.moveTop();
+            }
+        } catch (_) { }
+
+        if (!targetContext.tabs) targetContext.tabs = {};
+        if (!targetContext.tabGroups) targetContext.tabGroups = {};
+        targetContext.tabGroups[group.id] = { ...group };
+        targetContext.tabOrder = [...memberTabIds];
+
+        for (const tid of memberTabIds) {
+            const v = memberViews[tid];
+            if (v && !v.webContents.isDestroyed()) {
+                targetContext.tabs[tid] = v;
+                State.tabIdToWindowId.set(tid, targetContext.window.id);
+                State.webContentsIdToTabId.set(v.webContents.id, tid);
+                try {
+                    tabManager.addTabContentChildView(targetContext, v);
+                } catch (_) { }
+            }
+        }
+        const actId = activeTabId || memberTabIds[0];
+        targetContext.activeTabId = actId;
+        tabManager.layoutActiveTabView(targetContext, actId);
+
+        activeDrag = {
+            isGroupDrag: true,
+            groupId: group.id,
+            group: { ...group },
+            memberTabIds,
+            memberTabsData,
+            memberViews,
+            sourceContext,
+            currentContext: targetContext,
+            detachedWindow: targetContext.window,
+            detachedContext: targetContext,
+            grabOffsetX: Number(grabOffsetX) || 50,
+            grabOffsetY: Number(grabOffsetY) || 20,
+            isSingleTabDrag: false,
+            isDocked: false,
+        };
+        return { ok: true, isSingleTab: false };
+    }
 
     if (!tabId || typeof tabId !== 'string') return { ok: false };
 
@@ -117,6 +298,7 @@ function startDetach(sourceContext, payload = {}) {
         isLoading: !!isLoading,
         isStealth: !!sourceContext.stealthWindow,
         history,
+        groupId: clientTabData?.groupId || null,
     };
 
     let rightView = null;
@@ -438,8 +620,11 @@ function startDetach(sourceContext, payload = {}) {
             id: tabId,
             url: toDisplayUrl(url),
             title: title || 'New Tab',
+            favicon: favicon || null,
+            isLoading: !!isLoading,
             isStealth: !!sourceContext.stealthWindow,
             history,
+            groupId: clientTabData?.groupId || null,
         },
         view,
         grabOffsetX: Number(grabOffsetX) || 50,
@@ -456,6 +641,66 @@ function handleDragMove(payload = {}) {
 
     const screenX = Number(payload.screenX) || 0;
     const screenY = Number(payload.screenY) || 0;
+
+    // Group drag: moves either the single window or the detached window
+    if (activeDrag.isGroupDrag) {
+        if (!activeDrag.isDocked) {
+            if (activeDrag.isSingleTabDrag) {
+                const win = activeDrag.sourceContext?.window;
+                if (win && !win.isDestroyed()) {
+                    win.setPosition(
+                        Math.round(screenX - activeDrag.grabOffsetX),
+                        Math.round(screenY - activeDrag.grabOffsetY)
+                    );
+                    try {
+                        if (typeof win.moveTop === 'function') win.moveTop();
+                    } catch (_) { }
+                }
+
+                // Check if user dragged group window over another window's tab bar
+                const target = findTargetWindowForReattach(
+                    activeDrag.sourceContext.window.id,
+                    screenX,
+                    screenY,
+                    activeDrag.sourceContext
+                );
+                if (target) {
+                    dockGroupIntoWindow(target.targetContext, screenX, screenY);
+                    try {
+                        if (win && !win.isDestroyed()) {
+                            win.setAlwaysOnTop(false);
+                            win.hide();
+                        }
+                    } catch (_) { }
+                    activeDrag.isSingleTabDrag = false;
+                }
+            } else {
+                const win = activeDrag.detachedWindow;
+                if (win && !win.isDestroyed()) {
+                    const padLeft = getTabStripPaddingLeft();
+                    win.setPosition(
+                        Math.round(screenX - activeDrag.grabOffsetX - padLeft),
+                        Math.round(screenY - activeDrag.grabOffsetY - 5)
+                    );
+                    try {
+                        if (typeof win.moveTop === 'function') win.moveTop();
+                    } catch (_) { }
+                }
+
+                // Check if cursor entered another window's tab bar
+                const target = findTargetWindowForReattach(
+                    activeDrag.detachedWindow.id,
+                    screenX,
+                    screenY,
+                    activeDrag.sourceContext
+                );
+                if (target) {
+                    dockGroupIntoWindow(target.targetContext, screenX, screenY);
+                }
+            }
+        }
+        return;
+    }
 
     // Single tab drag: move source window
     if (activeDrag.isSingleTabDrag) {
@@ -531,6 +776,73 @@ function handleDragMove(payload = {}) {
             }
         }
     }
+}
+
+function dockGroupIntoWindow(targetContext, screenX, screenY) {
+    if (!activeDrag || !activeDrag.isGroupDrag) return;
+    if (!targetContext || !targetContext.window || targetContext.window.isDestroyed()) return;
+    if (activeDrag.currentContext === targetContext && activeDrag.isDocked) return;
+
+    const tabManager = require('./tabManager');
+    const { group, memberTabIds, memberTabsData, memberViews } = activeDrag;
+
+    // Hide temporary detached window while docked
+    if (activeDrag.detachedWindow && !activeDrag.detachedWindow.isDestroyed()) {
+        try {
+            if (typeof activeDrag.detachedWindow.setAlwaysOnTop === 'function') {
+                activeDrag.detachedWindow.setAlwaysOnTop(false);
+            }
+            activeDrag.detachedWindow.hide();
+        } catch (_) { }
+    }
+
+    if (!targetContext.tabs) targetContext.tabs = {};
+    if (!targetContext.tabGroups) targetContext.tabGroups = {};
+    if (!Array.isArray(targetContext.tabOrder)) targetContext.tabOrder = [];
+
+    targetContext.tabGroups[group.id] = { ...group };
+
+    for (const tid of memberTabIds) {
+        const v = memberViews?.[tid] || activeDrag.currentContext?.tabs?.[tid] || activeDrag.sourceContext?.tabs?.[tid];
+        if (v && !v.webContents.isDestroyed()) {
+            if (activeDrag.currentContext && activeDrag.currentContext !== targetContext) {
+                try {
+                    tabManager.removeTabContentChildView(activeDrag.currentContext, v);
+                    delete activeDrag.currentContext.tabs?.[tid];
+                } catch (_) { }
+            }
+            if (activeDrag.sourceContext && activeDrag.sourceContext !== targetContext) {
+                try {
+                    tabManager.removeTabContentChildView(activeDrag.sourceContext, v);
+                    delete activeDrag.sourceContext.tabs?.[tid];
+                } catch (_) { }
+            }
+            targetContext.tabs[tid] = v;
+            State.tabIdToWindowId.set(tid, targetContext.window.id);
+            State.webContentsIdToTabId.set(v.webContents.id, tid);
+            if (!targetContext.tabOrder.includes(tid)) {
+                targetContext.tabOrder.push(tid);
+            }
+            tabManager.addTabContentChildView(targetContext, v);
+        }
+    }
+
+    const primaryId = activeDrag.activeTabId || memberTabIds[0];
+    targetContext.activeTabId = primaryId;
+    tabManager.layoutActiveTabView(targetContext, primaryId);
+
+    // Notify target window's React shell to insert the group and its member tabs
+    if (targetContext.window.webContents && !targetContext.window.webContents.isDestroyed()) {
+        targetContext.window.webContents.send(C.IPC_EVENT.TAB_REATTACHED, {
+            group,
+            tabs: memberTabsData,
+            screenX,
+            screenY,
+        });
+    }
+
+    activeDrag.currentContext = targetContext;
+    activeDrag.isDocked = true;
 }
 
 function dockTabIntoWindow(targetContext, screenX, screenY) {
@@ -827,6 +1139,57 @@ function undockTabToDetachedWindow(screenX, screenY) {
 
 function handleDragEnd(payload = {}) {
     if (!activeDrag) return { ok: true };
+
+    if (activeDrag.isGroupDrag) {
+        const { detachedWindow, isSingleTabDrag, currentContext, isDocked } = activeDrag;
+        if (isDocked) {
+            if (detachedWindow && !detachedWindow.isDestroyed()) {
+                try {
+                    if (typeof detachedWindow.setAlwaysOnTop === 'function') {
+                        detachedWindow.setAlwaysOnTop(false);
+                    }
+                    detachedWindow.destroy();
+                } catch (_) { }
+            }
+            if (currentContext?.window && !currentContext.window.isDestroyed()) {
+                try {
+                    currentContext.window.focus();
+                    const actView = currentContext?.tabs?.[currentContext.activeTabId];
+                    if (actView && !actView.webContents.isDestroyed()) {
+                        actView.webContents.focus();
+                    }
+                } catch (_) { }
+            }
+            activeDrag = null;
+            return { ok: true };
+        }
+
+        if (!isSingleTabDrag && detachedWindow && !detachedWindow.isDestroyed()) {
+            try {
+                if (typeof detachedWindow.setAlwaysOnTop === 'function') {
+                    detachedWindow.setAlwaysOnTop(false);
+                }
+                if (typeof detachedWindow.setFocusable === 'function') {
+                    detachedWindow.setFocusable(true);
+                }
+                detachedWindow.focus();
+                const actView = currentContext?.tabs?.[currentContext.activeTabId];
+                if (actView && !actView.webContents.isDestroyed()) {
+                    actView.webContents.focus();
+                }
+            } catch (_) { }
+        } else if (isSingleTabDrag) {
+            try {
+                if (activeDrag.sourceContext?.window && !activeDrag.sourceContext.window.isDestroyed()) {
+                    if (typeof activeDrag.sourceContext.window.setAlwaysOnTop === 'function') {
+                        activeDrag.sourceContext.window.setAlwaysOnTop(false);
+                    }
+                }
+            } catch (_) { }
+        }
+        activeDrag = null;
+        return { ok: true };
+    }
 
     const { isSingleTabDrag, isDocked, detachedWindow, currentContext, view, splitPair, leftView, rightView } = activeDrag;
 

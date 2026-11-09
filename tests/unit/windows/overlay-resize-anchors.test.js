@@ -280,6 +280,34 @@ describe('Overlay Menus Window Resize & Anchor Following', () => {
     });
   });
 
+  describe('Tab Group Editor Overlay', () => {
+    test('SHELL_MENU_OVERLAY_KINDS includes tabGroupEditor', () => {
+      const { SHELL_MENU_OVERLAY_KINDS } = require('../../../main/constants/defaults');
+      assert.ok(SHELL_MENU_OVERLAY_KINDS.has('tabGroupEditor'), 'SHELL_MENU_OVERLAY_KINDS must include tabGroupEditor');
+    });
+
+    test('tabGroupEditor bounds follow group chip anchor and accommodate shadow margins', () => {
+      const ctx1 = createMockContext(1000, 700);
+      const patch1 = {
+        kind: 'tabGroupEditor',
+        anchorRect: { left: 120, top: 8, width: 60, height: 24 },
+      };
+      const bounds1 = overlayManager.computeMenuOverlayBounds(ctx1, patch1);
+
+      const ctx2 = createMockContext(1200, 700);
+      const patch2 = {
+        kind: 'tabGroupEditor',
+        anchorRect: { left: 220, top: 8, width: 60, height: 24 },
+      };
+      const bounds2 = overlayManager.computeMenuOverlayBounds(ctx2, patch2);
+
+      assert.ok(bounds1 && bounds2);
+      assert.equal(bounds2.x - bounds1.x, 100, 'tabGroupEditor tracks group chip position');
+      // 260 (panel) + 28 (shadowLeft) + 28 (shadowRight) = 316
+      assert.equal(bounds1.width, 316, 'overlay width accommodates 260px panel with shadows');
+    });
+  });
+
   describe('Toolbar Menus Standardized Width (same as extension puzzle menu: 320px)', () => {
     const ctx = createMockContext(1400, 800);
     const fs = require('fs');

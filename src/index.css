@@ -523,6 +523,11 @@ body:has(.header--stealth-window) .side-panel-content-snapshot {
     transition: opacity 0.2s ease;
 }
 
+/* Do not show standard vertical separator between tabs in the same tab group */
+.tab.tab--in-group+.tab.tab--in-group:not(.active)::before {
+    display: none !important;
+}
+
 /* Keep the active tab visually merged with neighbors like Chrome. */
 .tab.active+.tab::before {
     opacity: 0;

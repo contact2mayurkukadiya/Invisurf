@@ -91,6 +91,12 @@ function captureClosedTabSnapshot(context, tabId) {
     if (!context || !tabId) return null;
     if (State.detachedTabWindows.has(tabId)) return null;
 
+    const sessionWindow = readDecodedSessionDoc()?.windowsById?.[context.windowId] || null;
+    const persistedTab = sessionWindow?.tabs?.find((t) => t.id === tabId);
+    const groupId = persistedTab?.groupId || null;
+    const splitPairId = persistedTab?.splitPairId || null;
+    const groupVisual = groupId && sessionWindow?.tabGroups?.[groupId] ? sessionWindow.tabGroups[groupId] : null;
+
     if (context.sleepingTabs[tabId]) {
         const sleep = context.sleepingTabs[tabId];
         const displayUrl = toDisplayUrl(sleep.url || '');
@@ -103,6 +109,9 @@ function captureClosedTabSnapshot(context, tabId) {
                     history: null,
                     favicon: sleep.favicon || null,
                     isSleeping: true,
+                    groupId,
+                    groupVisual,
+                    splitPairId,
                 };
             }
             return null;
@@ -114,6 +123,9 @@ function captureClosedTabSnapshot(context, tabId) {
             history: sleep.history || null,
             favicon: sleep.favicon || null,
             isSleeping: true,
+            groupId,
+            groupVisual,
+            splitPairId,
         };
     }
 
@@ -131,6 +143,9 @@ function captureClosedTabSnapshot(context, tabId) {
                 history: null,
                 favicon: null,
                 isSleeping: false,
+                groupId,
+                groupVisual,
+                splitPairId,
             };
         }
         return null;
@@ -142,6 +157,9 @@ function captureClosedTabSnapshot(context, tabId) {
         history: captureNavigationHistorySnapshot(tabWebContents),
         favicon: view._favicon || null,
         isSleeping: false,
+        groupId,
+        groupVisual,
+        splitPairId,
     };
 }
 
@@ -187,6 +205,8 @@ function captureClosedWindowSnapshot(context) {
         bounds,
         tabs,
         activeTabId,
+        splitGroups: sessionWindow?.splitGroups || {},
+        tabGroups: sessionWindow?.tabGroups || {},
     };
 }
 
@@ -257,6 +277,8 @@ function pushRecentlyClosedEntry(profileId, entry) {
                 sessionId: t.sessionId || `session_tab_${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${idx}`,
             })),
             activeTabId,
+            splitGroups: entry.splitGroups || {},
+            tabGroups: entry.tabGroups || {},
             closedAt: Date.now(),
         };
     } else {
@@ -269,6 +291,8 @@ function pushRecentlyClosedEntry(profileId, entry) {
             history: entry.history || null,
             favicon: entry.favicon || null,
             ghostWindow: !!entry.ghostWindow,
+            groupId: entry.groupId || null,
+            groupVisual: entry.groupVisual || null,
             closedAt: Date.now(),
         };
     }
@@ -330,6 +354,8 @@ function restoreRecentlyClosedTabInContext(context, entry) {
             isStealth: stealthTab,
             url: toDisplayUrl(entry.url),
             title: entry.title || '',
+            groupId: entry.groupId || null,
+            groupVisual: entry.groupVisual || null,
         });
     }
     return true;
@@ -349,6 +375,8 @@ function restoreRecentlyClosedWindowEntry(entry) {
         restoreWindow: {
             tabs: entry.tabs,
             activeTabId: entry.activeTabId,
+            splitGroups: entry.splitGroups || {},
+            tabGroups: entry.tabGroups || {},
         },
     };
 

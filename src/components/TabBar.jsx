@@ -1,7 +1,12 @@
 import React, { useEffect, useRef, useCallback, useMemo, useState, useLayoutEffect } from 'react';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch, useStore } from 'react-redux';
 import Tab from './Tab';
 import SplitTab from './SplitTab';
+import GroupChip from './tabgroup/GroupChip';
+import './tabgroup/tabGroup.css';
+import { toggleGroupCollapse, setGroupVisuals, ungroupTabGroup, addTab, moveTabGroup, detachGroup } from '../store/browserSlice';
+import { useChromeShellMenuOverlay } from '../context/ChromeOverlayContext.jsx';
+import { getGroupThemeColors } from '../utils/tabGroupModel';
 import { tabAddSvg } from '../constants/appAssetUrls';
 import { PLATFORM } from '../constants/conditionStrings.js';
 
@@ -44,6 +49,12 @@ export default function TabBar({
   const currentTabId = useSelector(s => s.browser.currentTabId);
   const splitGroups = useSelector(s => s.browser.splitGroups);
   const screenShare = useSelector(s => s.browser.screenShare);
+  const tabGroups = useSelector(s => s.browser.tabGroups || {});
+  const dispatch = useDispatch();
+  const store = useStore();
+
+  const { reset, acquire, release, post } = useChromeShellMenuOverlay();
+  const activeOverlayGroupIdRef = useRef(null);
 
   const [isStuckToRight, setIsStuckToRight] = useState(false);
   const [tabWidth, setTabWidth] = useState(240);
@@ -52,10 +63,110 @@ export default function TabBar({
   const tabBarRef = useRef(null);
   const tabTrackRef = useRef(null);
   const tabContainerRef = useRef(null);
-
   const hoverTimeoutRef = useRef(null);
+
   const tabsRef = useRef(tabs);
   tabsRef.current = tabs;
+  const tabOrderRef = useRef(tabOrder);
+  tabOrderRef.current = tabOrder;
+  const tabGroupsRef = useRef(tabGroups);
+  tabGroupsRef.current = tabGroups;
+
+  const openGroupEditor = useCallback(async (groupId, anchorRect) => {
+    if (!groupId) return;
+    const group = tabGroupsRef.current?.[groupId];
+    activeOverlayGroupIdRef.current = groupId;
+    try {
+      await reset();
+      await acquire();
+      await post({
+        kind: 'tabGroupEditor',
+        groupId,
+        title: group?.title || '',
+        color: group?.color || 'grey',
+        anchorRect: {
+          left: anchorRect?.left || 0,
+          top: anchorRect?.top || 0,
+          width: anchorRect?.width || 24,
+          height: anchorRect?.height || 24,
+        },
+      });
+    } catch (err) {
+      console.error('tabGroupEditor overlay open failed', err);
+      try { await release(); } catch (_) {}
+    }
+  }, [reset, acquire, release, post]);
+
+  // Listen for host events forwarded from the overlay view
+  useEffect(() => {
+    const unsub = window.electronAPI?.onChromeOverlayV1HostEvent?.((data) => {
+      const { type, groupId } = data || {};
+      if (type === 'tabGroupSetTitle') {
+        dispatch(setGroupVisuals({ groupId, title: data.title }));
+      } else if (type === 'tabGroupSetColor') {
+        dispatch(setGroupVisuals({ groupId, color: data.color }));
+      } else if (type === 'tabGroupNewTab') {
+        const newId = `tab-${Date.now()}`;
+        dispatch(addTab({ id: newId, groupId }));
+        if (window.electronAPI?.newTab) {
+          window.electronAPI.newTab(newId, false, null);
+        }
+        void release();
+      } else if (type === 'tabGroupUngroup') {
+        dispatch(ungroupTabGroup({ groupId }));
+        void release();
+      } else if (type === 'tabGroupCloseGroup') {
+        const toClose = tabOrderRef.current.filter((tid) => tabsRef.current[tid]?.groupId === groupId);
+        toClose.forEach((tid) => onCloseTab(tid));
+        void release();
+      } else if (type === 'tabGroupMoveNewWindow') {
+        const toMove = tabOrderRef.current.filter((tid) => tabsRef.current[tid]?.groupId === groupId);
+        const group = tabGroupsRef.current?.[groupId] || store.getState().browser.tabGroups?.[groupId];
+        if (group && toMove.length > 0 && window.electronAPI?.createWindow) {
+          const memberTabsData = toMove.map((tid) => {
+            const t = tabsRef.current[tid];
+            return {
+              id: tid,
+              url: t?.url || '',
+              title: t?.title || 'New Tab',
+              favicon: t?.favicon || null,
+              isStealth: !!t?.isStealth,
+            };
+          });
+          const curId = store.getState().browser.currentTabId;
+          const activeTabId = toMove.includes(curId) ? curId : toMove[0];
+
+          window.electronAPI.createWindow({
+            group: { ...group },
+            tabs: memberTabsData,
+            activeTabId,
+          });
+          toMove.forEach((tid) => onCloseTab(tid));
+        }
+        void release();
+      } else if (type === 'dismiss') {
+        activeOverlayGroupIdRef.current = null;
+        void release();
+      }
+    });
+    return () => {
+      if (typeof unsub === 'function') unsub();
+    };
+  }, [dispatch, onCloseTab, release]);
+
+  // Listen for external trigger to open group editor (e.g. after context menu creation)
+  useEffect(() => {
+    const handler = (e) => {
+      const { groupId } = e.detail || {};
+      if (groupId) {
+        const chipEl = tabTrackRef.current?.querySelector(`[data-group-id="${groupId}"]`) || tabBarRef.current;
+        const rect = chipEl ? chipEl.getBoundingClientRect() : null;
+        openGroupEditor(groupId, rect);
+      }
+    };
+    window.addEventListener('invisurf:open-group-editor', handler);
+    return () => window.removeEventListener('invisurf:open-group-editor', handler);
+  }, [openGroupEditor]);
 
   const hideTooltip = useCallback(() => {
     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
@@ -153,7 +264,15 @@ export default function TabBar({
     [tabOrder, rightSplitTabIds]
   );
 
-  const lastTabId = visibleTabOrder[visibleTabOrder.length - 1];
+  const uncollapsedVisibleTabOrder = useMemo(
+    () => visibleTabOrder.filter((tid) => {
+      const gid = tabs[tid]?.groupId;
+      return !gid || !tabGroups[gid]?.collapsed;
+    }),
+    [visibleTabOrder, tabs, tabGroups]
+  );
+
+  const lastTabId = uncollapsedVisibleTabOrder[uncollapsedVisibleTabOrder.length - 1];
 
   const isLastTabActive = useMemo(() => {
     if (!lastTabId) return false;
@@ -233,7 +352,19 @@ export default function TabBar({
     const addTabSpace = 48;
     const maxAvailable = Math.max(100, totalBarWidth - addTabSpace);
 
-    const unpinnedCount = visibleTabOrder.length - pinnedTabCount;
+    let groupChipsSpace = 0;
+    const seenGids = new Set();
+    visibleTabOrder.forEach((tid) => {
+      const gid = tabs[tid]?.groupId;
+      if (gid && tabGroups[gid] && !seenGids.has(gid)) {
+        seenGids.add(gid);
+        const titleLen = (tabGroups[gid].title || '').length;
+        const chipW = titleLen === 0 ? 20 : Math.min(160, 36 + titleLen * 7);
+        groupChipsSpace += chipW + 5;
+      }
+    });
+
+    const unpinnedCount = uncollapsedVisibleTabOrder.length - pinnedTabCount;
     if (unpinnedCount <= 0) {
       setIsStuckToRight(false);
       setTabWidth(240);
@@ -246,11 +377,11 @@ export default function TabBar({
     const gapsAndPadding = Math.max(0, (unpinnedCount - 1) * 5) + 11;
 
     // Total width if all unpinned tabs were at full preferred width (240px)
-    const totalWidthAtFull = (unpinnedCount * 240) + pinnedSpace + gapsAndPadding;
+    const totalWidthAtFull = (unpinnedCount * 240) + pinnedSpace + gapsAndPadding + groupChipsSpace;
     const shouldStick = totalWidthAtFull > maxAvailable;
     setIsStuckToRight(shouldStick);
 
-    const availableForUnpinned = maxAvailable - pinnedSpace - gapsAndPadding;
+    const availableForUnpinned = maxAvailable - pinnedSpace - gapsAndPadding - groupChipsSpace;
     const idealWidth = availableForUnpinned / unpinnedCount;
     const nextWidth = Math.min(240, Math.max(28, Math.floor(idealWidth)));
 
@@ -261,7 +392,7 @@ export default function TabBar({
     if (container && (!shouldStick || nextWidth > 28 || container.scrollWidth <= container.clientWidth)) {
       container.scrollLeft = 0;
     }
-  }, [visibleTabOrder.length, pinnedTabCount]);
+  }, [uncollapsedVisibleTabOrder.length, visibleTabOrder, tabGroups, pinnedTabCount]);
 
   useLayoutEffect(() => {
     updateTabWidth();
@@ -332,14 +463,69 @@ export default function TabBar({
         onWheel={handleWheel}
       >
         <div ref={tabTrackRef} className="tab-track" style={{ '--tab-width': `${tabWidth}px` }}>
-          {tabOrder.map(id => {
-            if (rightSplitTabIds.has(id)) return null;
-            const splitPair = Object.values(splitGroups || {}).find(
-              (p) => p.leftTabId === id && tabs[id]?.splitPairId === p.id
-            );
+          {(() => {
+            const renderedGroupChips = new Set();
+            return tabOrder.map((id) => {
+              if (rightSplitTabIds.has(id)) return null;
+              const tab = tabs[id];
+              const gid = tab?.groupId;
+              const group = (gid && tabGroups[gid]) ? tabGroups[gid] : null;
 
-            if (splitPair) {
-              return (
+              let chipElement = null;
+              if (group && !renderedGroupChips.has(gid)) {
+                renderedGroupChips.add(gid);
+                const memberCount = tabOrder.filter((tid) => tabs[tid]?.groupId === gid).length;
+                chipElement = (
+                  <GroupChip
+                    key={`chip-${gid}`}
+                    group={group}
+                    tabCount={memberCount}
+                    isCollapsed={!!group.collapsed}
+                    onToggleCollapse={(targetGid) => {
+                      const curTab = store.getState().browser.tabs[store.getState().browser.currentTabId];
+                      const wasInGroup = curTab?.groupId === targetGid;
+                      dispatch(toggleGroupCollapse({ groupId: targetGid }));
+                      if (wasInGroup) {
+                        const nextId = store.getState().browser.currentTabId;
+                        if (nextId && nextId !== curTab.id) {
+                          onSwitchTab?.(nextId);
+                        } else if (!nextId) {
+                          onNewTab?.();
+                        }
+                      }
+                    }}
+                    onOpenEditor={(targetGid, rect) => {
+                      openGroupEditor(targetGid, rect);
+                    }}
+                    onContextMenu={onTabStripContextMenu}
+                    onMoveGroup={(targetGid, targetIndex) => {
+                      dispatch(moveTabGroup({ groupId: targetGid, targetIndex }));
+                    }}
+                    onDetachGroup={(targetGid, memberTabIds) => {
+                      dispatch(detachGroup({ groupId: targetGid, memberTabIds }));
+                    }}
+                    activeTabId={currentTabId}
+                    tabOrder={tabOrder}
+                    tabs={tabs}
+                    pinnedTabCount={pinnedTabCount}
+                  />
+                );
+              }
+
+              const groupUnderlineColor = group?.color ? getGroupThemeColors(group.color, false).underline : null;
+              const memberTabs = gid ? tabOrder.filter((tid) => tabs[tid]?.groupId === gid && !rightSplitTabIds.has(tid)) : [];
+              const memberIdx = memberTabs.indexOf(id);
+              const isFirstInGroup = memberIdx === 0;
+              const isLastInGroup = memberIdx === memberTabs.length - 1;
+              const isCollapsedMember = !!group?.collapsed;
+              const prevTabIsActiveInGroup = memberIdx > 0 && memberTabs[memberIdx - 1] === currentTabId;
+              const nextTabIsActiveInGroup = memberIdx >= 0 && memberIdx < memberTabs.length - 1 && memberTabs[memberIdx + 1] === currentTabId;
+
+              const splitPair = Object.values(splitGroups || {}).find(
+                (p) => p.leftTabId === id && tabs[id]?.splitPairId === p.id
+              );
+
+              const tabContent = splitPair ? (
                 <SplitTab
                   key={`split-${splitPair.id}`}
                   splitPair={splitPair}
@@ -356,31 +542,51 @@ export default function TabBar({
                   onDragEnd={onDragEnd}
                   onDetachTab={onDetachTab}
                   onContextMenu={onTabStripContextMenu}
+                  groupColor={groupUnderlineColor}
+                  isFirstInGroup={isFirstInGroup}
+                  isLastInGroup={isLastInGroup}
+                  prevTabIsActiveInGroup={prevTabIsActiveInGroup}
+                  nextTabIsActiveInGroup={nextTabIsActiveInGroup}
+                  isCollapsedMember={isCollapsedMember}
+                />
+              ) : (
+                <Tab
+                  key={id}
+                  id={id}
+                  tab={tabs[id]}
+                  isActive={id === currentTabId}
+                  displayMode={displayMode}
+                  pinnedTabCount={pinnedTabCount}
+                  tabCount={visibleTabOrder.length}
+                  onClose={() => onCloseTab(id)}
+                  onSwitch={onSwitchTab}
+                  onDragEnd={onDragEnd}
+                  onDetachTab={onDetachTab}
+                  onHoverEnter={handleTabHoverEnter}
+                  onHoverLeave={handleTabHoverLeave}
+                  onHideTooltip={hideTooltip}
+                  onContextMenu={onTabStripContextMenu ? (e) => onTabStripContextMenu(e, id) : undefined}
+                  captureRole={getCaptureRole(id)}
+                  groupColor={groupUnderlineColor}
+                  isFirstInGroup={isFirstInGroup}
+                  isLastInGroup={isLastInGroup}
+                  prevTabIsActiveInGroup={prevTabIsActiveInGroup}
+                  nextTabIsActiveInGroup={nextTabIsActiveInGroup}
+                  isCollapsedMember={isCollapsedMember}
                 />
               );
-            }
 
-            return (
-              <Tab
-                key={id}
-                id={id}
-                tab={tabs[id]}
-                isActive={id === currentTabId}
-                displayMode={displayMode}
-                pinnedTabCount={pinnedTabCount}
-                tabCount={visibleTabOrder.length}
-                onClose={() => onCloseTab(id)}
-                onSwitch={onSwitchTab}
-                onDragEnd={onDragEnd}
-                onDetachTab={onDetachTab}
-                onHoverEnter={handleTabHoverEnter}
-                onHoverLeave={handleTabHoverLeave}
-                onHideTooltip={hideTooltip}
-                onContextMenu={onTabStripContextMenu ? (e) => onTabStripContextMenu(e, id) : undefined}
-                captureRole={getCaptureRole(id)}
-              />
-            );
-          })}
+              if (chipElement) {
+                return (
+                  <React.Fragment key={`group-item-${id}`}>
+                    {chipElement}
+                    {tabContent}
+                  </React.Fragment>
+                );
+              }
+              return tabContent;
+            });
+          })()}
         </div>
       </div>
       {visibleTabOrder.length > 0 && (

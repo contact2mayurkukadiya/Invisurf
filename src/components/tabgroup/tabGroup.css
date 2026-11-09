@@ -1,0 +1,536 @@
+/* Chrome-style Tab Group Styles */
+
+/* Group Chip Wrapper & Baseline Underline */
+.group-chip-wrapper {
+    display: inline-flex;
+    align-items: center;
+    height: calc(100% + 1px);
+    top: 2px;
+    position: relative;
+    flex-shrink: 0;
+    margin: 0;
+    -webkit-app-region: no-drag;
+    z-index: 5;
+    box-sizing: border-box;
+}
+
+/* Continuous bottom underline under chip when expanded */
+.group-chip-wrapper:not(.group-chip-wrapper--collapsed)::after {
+    content: '';
+    position: absolute;
+    bottom: 1px;
+    left: 2px;
+    right: -5px; /* bridges across 5px gap in tab-track to the next item */
+    height: 2px;
+    background-color: var(--group-color, #1a73e8);
+    border-radius: 2px 0 0 2px;
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* When the first tab in group is active, chip underline stops at right: 4px to meet fillet with 0 overlap */
+.group-chip-wrapper.group-chip-wrapper--next-active:not(.group-chip-wrapper--collapsed)::after {
+    right: 4px !important;
+}
+
+/* While dragging, any empty slot beside the chip must be fully connected across the gap */
+.tab-bar--dragging .group-chip-wrapper:not(.group-chip-wrapper--collapsed)::after,
+.tab-bar--dragging .group-chip-wrapper.group-chip-wrapper--next-active:not(.group-chip-wrapper--collapsed)::after {
+    right: -5px !important;
+}
+
+.tab-bar--dragging .tab--in-group .tab-group-bottom-bar {
+    left: 0px !important;
+}
+
+.group-chip-wrapper--collapsed::after {
+    display: none !important;
+}
+
+.group-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 22px;
+    line-height: 22px;
+    padding: 0 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    user-select: none;
+    cursor: grab;
+    flex-shrink: 0;
+    margin: -2px 2px 2px 2px;
+    box-sizing: border-box;
+    transition: filter 0.15s ease, opacity 0.15s ease;
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    z-index: 5;
+    -webkit-app-region: no-drag;
+}
+
+.group-chip--dragging {
+    cursor: grabbing !important;
+    opacity: 0.9;
+    z-index: 9999 !important;
+}
+
+/* Tab-shaped background on group chip drag (matching Chrome) */
+.group-chip-wrapper--dragging {
+    background: var(--chrome-slider, #ffffff) !important;
+    border-radius: 10px 10px 0 0 !important;
+    box-shadow: none !important;
+    padding: 2px 8px 3px 8px;
+    overflow: visible;
+}
+
+.group-chip-wrapper--dragging::before {
+    content: '';
+    position: absolute;
+    bottom: 1px;
+    left: -10px;
+    width: 10px;
+    height: 10px;
+    background: var(--chrome-slider, #ffffff);
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M10 0V10H0A10 10 0 0 0 10 0Z' fill='black'/%3E%3C/svg%3E") no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M10 0V10H0A10 10 0 0 0 10 0Z' fill='black'/%3E%3C/svg%3E") no-repeat;
+    -webkit-mask-size: 10px 10px;
+    mask-size: 10px 10px;
+    pointer-events: none;
+}
+
+.group-chip-wrapper--dragging::after {
+    content: '';
+    position: absolute;
+    bottom: 1px;
+    right: -10px;
+    width: 10px;
+    height: 10px;
+    background: var(--chrome-slider, #ffffff);
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M0 0V10H10A10 10 0 0 1 0 0Z' fill='black'/%3E%3C/svg%3E") no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M0 0V10H10A10 10 0 0 1 0 0Z' fill='black'/%3E%3C/svg%3E") no-repeat;
+    -webkit-mask-size: 10px 10px;
+    mask-size: 10px 10px;
+    pointer-events: none;
+    display: block !important;
+}
+
+.group-chip:hover {
+    filter: brightness(1.1);
+}
+
+.group-chip:focus,
+.group-chip:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+.group-chip--dot {
+    width: 14px;
+    height: 14px;
+    min-width: 14px;
+    padding: 0;
+    border-radius: 50%;
+}
+
+.group-chip--collapsed {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.group-chip-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.group-chip-count {
+    font-size: 10px;
+    margin-left: 5px;
+    font-weight: 600;
+    opacity: 0.9;
+}
+
+.group-chip-dot-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+/* Tabs inside a group share the exact active baseline height */
+.tab--in-group {
+    position: relative;
+    overflow: visible !important;
+    height: calc(100% + 1px) !important;
+    top: 2px !important;
+}
+
+/* Inactive tabs in group: bottom underline along baseline, no borders */
+.tab--in-group:not(.active) {
+    border: none !important;
+    padding-top: 4px;
+    padding-bottom: 8px;
+}
+
+/* Inactive tabs in group: bottom underline along baseline */
+.tab-group-bottom-bar {
+    position: absolute;
+    bottom: 1px;
+    height: 2px;
+    background-color: var(--group-color, #1a73e8);
+    pointer-events: none;
+    z-index: 2;
+}
+
+/* Active tab in group: border is rendered via continuous SVG contour, no CSS border */
+.tab--in-group.active {
+    border: none !important;
+    overflow: visible !important;
+}
+
+/* Chrome-like connected border contour for active tab in group */
+.tab-group-active-border {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 12;
+    overflow: visible;
+}
+
+.tab-group-active-border__left {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 10px;
+    pointer-events: none;
+    overflow: visible;
+}
+
+.tab-group-active-border__top,
+.tab-group-active-border__top-bar {
+    position: absolute;
+    top: 0;
+    left: 10px;
+    right: 10px;
+    height: 2px;
+    background-color: currentColor;
+    pointer-events: none;
+}
+
+.tab-group-active-border__right {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 10px;
+    pointer-events: none;
+    overflow: visible;
+}
+
+.tab-group-active-border__left-bar {
+    position: absolute;
+    left: 0;
+    top: 10px;
+    bottom: 10px;
+    width: 2px;
+    background-color: currentColor;
+    pointer-events: none;
+}
+
+.tab-group-active-border__right-bar {
+    position: absolute;
+    right: 0;
+    top: 10px;
+    bottom: 10px;
+    width: 2px;
+    background-color: currentColor;
+    pointer-events: none;
+}
+
+.tab-group-active-border__corner-tl {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 10px;
+    height: 10px;
+    overflow: visible;
+    pointer-events: none;
+}
+
+.tab-group-active-border__corner-tr {
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: 10px;
+    height: 10px;
+    overflow: visible;
+    pointer-events: none;
+}
+
+.tab-group-active-border__fillet-bl {
+    position: absolute;
+    left: -10px;
+    bottom: 1px;
+    width: 11px;
+    height: 10px;
+    overflow: visible;
+    pointer-events: none;
+}
+
+.tab-group-active-border__fillet-br {
+    position: absolute;
+    right: -10px;
+    bottom: 1px;
+    width: 11px;
+    height: 10px;
+    overflow: visible;
+    pointer-events: none;
+}
+
+.tab--in-group.active::before {
+    left: -10px !important;
+    bottom: 1px !important;
+    width: 10px !important;
+    height: 10px !important;
+}
+
+.tab--in-group.active::after {
+    right: -10px !important;
+    bottom: 1px !important;
+    width: 10px !important;
+    height: 10px !important;
+}
+
+/* Animated Collapse / Expand for Group Member Tabs matching Chrome's motion specs */
+.tab--in-group {
+    transition: max-width 120ms cubic-bezier(0.0, 0.0, 0.2, 1),
+                min-width 120ms cubic-bezier(0.0, 0.0, 0.2, 1),
+                flex-basis 120ms cubic-bezier(0.0, 0.0, 0.2, 1),
+                padding-left 120ms cubic-bezier(0.0, 0.0, 0.2, 1),
+                padding-right 120ms cubic-bezier(0.0, 0.0, 0.2, 1),
+                margin 120ms cubic-bezier(0.0, 0.0, 0.2, 1),
+                opacity 90ms cubic-bezier(0.4, 0.0, 1, 1);
+    will-change: max-width, min-width, opacity;
+}
+
+.tab--in-group.tab--collapsed-member {
+    max-width: 0 !important;
+    min-width: 0 !important;
+    flex: 0 0 0px !important;
+    width: 0 !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    margin-left: 0 !important;
+    margin-right: -5px !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    overflow: hidden !important;
+    border: none !important;
+    transition: max-width 120ms cubic-bezier(0.4, 0.0, 1.0, 1.0),
+                min-width 120ms cubic-bezier(0.4, 0.0, 1.0, 1.0),
+                flex-basis 120ms cubic-bezier(0.4, 0.0, 1.0, 1.0),
+                padding-left 120ms cubic-bezier(0.4, 0.0, 1.0, 1.0),
+                padding-right 120ms cubic-bezier(0.4, 0.0, 1.0, 1.0),
+                margin 120ms cubic-bezier(0.4, 0.0, 1.0, 1.0),
+                opacity 90ms cubic-bezier(0.4, 0.0, 1.0, 1.0) !important;
+}
+
+.tab--in-group.tab--collapsed-member * {
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+.tab--in-group.tab--collapsed-member .tab-group-bottom-bar,
+.tab--in-group.tab--collapsed-member .tab-group-active-border {
+    display: none !important;
+}
+
+/* Continuous Drag Placeholder Bar: keeps empty area connected during tab dragging without transition lag */
+.tab-group-drag-placeholder-bar {
+    position: absolute;
+    height: 2px !important;
+    pointer-events: none;
+    z-index: 2;
+    transition: none !important;
+}
+
+/* Chrome-like vertical separator for collapsed tab groups */
+.group-chip-wrapper--collapsed:not(.group-chip-wrapper--dragging)::before {
+    content: "";
+    position: absolute;
+    left: -3.5px;
+    top: 50%;
+    width: 2px;
+    height: 15px;
+    transform: translateY(-50%);
+    background: var(--chrome-tab-separator, rgba(0, 0, 0, 0.12));
+    border-radius: 1px;
+    pointer-events: none;
+    z-index: 1;
+    transition: opacity 0.12s ease;
+}
+
+/* Hide separator when first item in tab track or preceded by active/hovered tab */
+.tab-track > .group-chip-wrapper--collapsed:first-child::before,
+.tab-track > :first-child.group-chip-wrapper--collapsed::before,
+.tab.active + .group-chip-wrapper--collapsed::before,
+.tab:hover + .group-chip-wrapper--collapsed::before,
+.group-chip-wrapper--collapsed:hover::before {
+    opacity: 0 !important;
+}
+
+/* Hide separator on adjacent items when a collapsed group chip is hovered */
+.group-chip-wrapper--collapsed:hover + .tab:not(.active)::before,
+.group-chip-wrapper--collapsed:hover + .group-chip-wrapper::before {
+    opacity: 0 !important;
+}
+
+/* Group Editor Popup */
+.group-editor-popup {
+    background: #ffffff;
+    color: #202124;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    padding: 12px;
+    width: 250px;
+    box-sizing: border-box;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    animation: groupEditorFadeIn 0.12s ease-out;
+    -webkit-app-region: no-drag;
+}
+
+@keyframes groupEditorFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.group-editor-input-wrapper {
+    margin-bottom: 10px;
+}
+
+.group-editor-title-input {
+    width: 100%;
+    height: 32px;
+    border-radius: 4px;
+    border: 1px solid #dadce0;
+    padding: 0 10px;
+    font-size: 13px;
+    box-sizing: border-box;
+    color: #202124;
+    background: #ffffff;
+    transition: border-color 0.15s ease;
+}
+
+.group-editor-title-input:focus {
+    border-color: #1a73e8;
+    outline: none;
+}
+
+.group-editor-swatches {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+    padding: 2px 0;
+}
+
+.group-editor-swatch {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition: transform 0.12s ease;
+}
+
+.group-editor-swatch:hover {
+    transform: scale(1.2);
+}
+
+.group-editor-swatch--selected {
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4px #1a73e8;
+    transform: scale(1.15);
+}
+
+.group-editor-divider {
+    height: 1px;
+    background: #e8eaed;
+    margin: 8px 0;
+}
+
+.group-editor-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.group-editor-action-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 6px 8px;
+    border-radius: 4px;
+    border: none;
+    background: transparent;
+    font-size: 13px;
+    color: #3c4043;
+    cursor: pointer;
+    text-align: left;
+    transition: background-color 0.12s ease;
+}
+
+.group-editor-action-btn:hover {
+    background-color: #f1f3f4;
+}
+
+.group-editor-action-icon {
+    flex-shrink: 0;
+    color: #5f6368;
+}
+
+/* Dark theme overrides when app is dark */
+@media (prefers-color-scheme: dark) {
+    .group-editor-popup {
+        background: #292a2d;
+        color: #e8eaed;
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.45);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .group-editor-title-input {
+        background: #35363a;
+        color: #e8eaed;
+        border-color: #5f6368;
+    }
+
+    .group-editor-divider {
+        background: #3c4043;
+    }
+
+    .group-editor-action-btn {
+        color: #e8eaed;
+    }
+
+    .group-editor-action-btn:hover {
+        background-color: #35363a;
+    }
+
+    .group-editor-action-icon {
+        color: #9aa0a6;
+    }
+}
+

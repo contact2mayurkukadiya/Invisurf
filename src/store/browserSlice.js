@@ -1,5 +1,15 @@
 import { createSlice } from '@reduxjs/toolkit';
 import { URL as URL_C } from '../constants/conditionStrings.js';
+import {
+  createGroup as modelCreateGroup,
+  addToGroup as modelAddToGroup,
+  removeFromGroup as modelRemoveFromGroup,
+  ungroup as modelUngroup,
+  moveGroup as modelMoveGroup,
+  toggleCollapse as modelToggleCollapse,
+  repairInvariants,
+  reconcileTabOrderAfterDrag,
+} from '../utils/tabGroupModel.js';
 
 // Empty URL in Redux means “new tab” — main.js resolves to newtab.html on load.
 const NTP_URL = '';
@@ -21,6 +31,7 @@ function tabChromeDefaults() {
     zoomFactor: 1.0,
     lastActiveAt: Date.now(),
     splitPairId: null,
+    groupId: null,
   };
 }
 
@@ -29,6 +40,26 @@ function applyPinnedLeadingOrder(state) {
   const pinned = state.tabOrder.filter(tid => state.tabs[tid]?.isPinned);
   const unpinned = state.tabOrder.filter(tid => !state.tabs[tid]?.isPinned);
   state.tabOrder = [...pinned, ...unpinned];
+}
+
+/** Updates Most Recently Used (MRU) activation order with id at index 0 */
+function touchMruTab(state, id) {
+  if (!id) return;
+  state.mruOrder = [id, ...(state.mruOrder || []).filter(tid => tid !== id && state.tabs[tid])];
+}
+
+function getCompanionTabIds(state, tabIds) {
+  if (!Array.isArray(tabIds)) return [];
+  const result = new Set(tabIds);
+  for (const tid of tabIds) {
+    const pairId = state.tabs[tid]?.splitPairId;
+    if (pairId && state.splitGroups?.[pairId]) {
+      const pair = state.splitGroups[pairId];
+      if (pair.leftTabId) result.add(pair.leftTabId);
+      if (pair.rightTabId) result.add(pair.rightTabId);
+    }
+  }
+  return Array.from(result);
 }
 
 const getInitialPinnedPanels = () => {
@@ -83,7 +114,9 @@ const browserSlice = createSlice({
   initialState: {
     tabs: {},
     tabOrder: [],
+    mruOrder: [],
     currentTabId: null,
+    tabGroups: {}, // { [groupId]: { id, title, color, collapsed } }
     splitGroups: {}, // { [splitId]: { id, leftTabId, rightTabId, ratio: 0.5, focusedSide: 'left' } }
     searchEngine: 'google',
     showBookmarkBar: true,
@@ -238,11 +271,12 @@ const browserSlice = createSlice({
       state.searchEngine = action.payload;
     },
     addTab(state, action) {
-      const { id, isStealth = false, initialUrl = null } = action.payload;
+      const { id, isStealth = false, initialUrl = null, groupId = null } = action.payload;
       const url = initialUrl || NTP_URL;
       const existingSplitPair = Object.values(state.splitGroups || {}).find(
         (p) => p.leftTabId === id || p.rightTabId === id
       );
+      const safeGroupId = groupId || null;
       state.tabs[id] = {
         url,
         title: 'New Tab',
@@ -253,6 +287,7 @@ const browserSlice = createSlice({
         isSleeping: false,
         ...tabChromeDefaults(),
         splitPairId: existingSplitPair ? existingSplitPair.id : null,
+        groupId: safeGroupId,
       };
       if (!state.tabOrder.includes(id)) {
         if (existingSplitPair && existingSplitPair.rightTabId === id && state.tabOrder.includes(existingSplitPair.leftTabId)) {
@@ -264,6 +299,7 @@ const browserSlice = createSlice({
       }
       if (!existingSplitPair || existingSplitPair.focusedSide === (existingSplitPair.leftTabId === id ? 'left' : 'right')) {
         state.currentTabId = id;
+        touchMruTab(state, id);
       }
       applyPinnedLeadingOrder(state);
     },
@@ -272,9 +308,11 @@ const browserSlice = createSlice({
      * Inserts a new tab immediately after `afterId` in tabOrder and focuses it.
      */
     insertTabAfter(state, action) {
-      const { afterId, id, isStealth = false, initialUrl = null } = action.payload;
+      const { afterId, id, isStealth = false, initialUrl = null, groupId = null } = action.payload;
       const url = initialUrl || NTP_URL;
       const afterIdx = state.tabOrder.indexOf(afterId);
+      const targetGid = groupId || (afterId ? state.tabs[afterId]?.groupId : null) || null;
+      const safeGroupId = (targetGid && state.tabGroups?.[targetGid]) ? targetGid : null;
       state.tabs[id] = {
         url,
         title: 'New Tab',
@@ -284,6 +322,7 @@ const browserSlice = createSlice({
         isLoading: false,
         isSleeping: false,
         ...tabChromeDefaults(),
+        groupId: safeGroupId,
       };
       if (afterIdx === -1) {
         state.tabOrder.push(id);
@@ -291,6 +330,10 @@ const browserSlice = createSlice({
         state.tabOrder.splice(afterIdx + 1, 0, id);
       }
       state.currentTabId = id;
+      touchMruTab(state, id);
+      if (safeGroupId && state.tabGroups?.[safeGroupId]?.collapsed) {
+        state.tabGroups[safeGroupId].collapsed = false;
+      }
       applyPinnedLeadingOrder(state);
     },
 
@@ -298,9 +341,10 @@ const browserSlice = createSlice({
      * Inserts a tab at a specific index in tabOrder and activates it.
      */
     insertTabAt(state, action) {
-      const { index, id, url, title, favicon, isStealth = false, isLoading = false } = action.payload;
+      const { index, id, url, title, favicon, isStealth = false, isLoading = false, groupId = null } = action.payload;
       const resolvedUrl = url || NTP_URL;
       const existingFavicon = state.tabs[id]?.favicon || null;
+      const safeGroupId = groupId || null;
       state.tabs[id] = {
         url: resolvedUrl,
         title: title || 'New Tab',
@@ -310,6 +354,7 @@ const browserSlice = createSlice({
         isLoading: !!isLoading,
         isSleeping: false,
         ...tabChromeDefaults(),
+        groupId: safeGroupId,
       };
       if (state.tabOrder.includes(id)) {
         state.tabOrder = state.tabOrder.filter((tid) => tid !== id);
@@ -317,6 +362,10 @@ const browserSlice = createSlice({
       const safeIdx = Math.max(0, Math.min(state.tabOrder.length, Number(index) ?? state.tabOrder.length));
       state.tabOrder.splice(safeIdx, 0, id);
       state.currentTabId = id;
+      touchMruTab(state, id);
+      if (safeGroupId && state.tabGroups?.[safeGroupId]?.collapsed) {
+        state.tabGroups[safeGroupId].collapsed = false;
+      }
       applyPinnedLeadingOrder(state);
     },
 
@@ -326,8 +375,9 @@ const browserSlice = createSlice({
      * the user first activates the tab.
      */
     addSleepingTab(state, action) {
-      const { id, url, title, favicon, isStealth = false } = action.payload;
+      const { id, url, title, favicon, isStealth = false, groupId = null } = action.payload;
       const resolvedUrl = url || NTP_URL;
+      const safeGroupId = groupId || null;
       state.tabs[id] = {
         url: resolvedUrl,
         title: title || 'New Tab',
@@ -337,6 +387,7 @@ const browserSlice = createSlice({
         isLoading: false,
         isSleeping: true,
         ...tabChromeDefaults(),
+        groupId: safeGroupId,
       };
       state.tabOrder.push(id);
       // currentTabId is intentionally NOT set — the active tab is handled separately.
@@ -354,6 +405,7 @@ const browserSlice = createSlice({
     removeTab(state, action) {
       const id = action.payload;
       const tab = state.tabs[id];
+      const gid = tab?.groupId;
       if (tab?.splitPairId) {
         const pair = state.splitGroups[tab.splitPairId];
         if (pair) {
@@ -364,6 +416,13 @@ const browserSlice = createSlice({
       }
       delete state.tabs[id];
       state.tabOrder = state.tabOrder.filter(tid => tid !== id);
+      state.mruOrder = (state.mruOrder || []).filter(tid => tid !== id);
+      if (gid && state.tabGroups?.[gid]) {
+        const hasRemaining = state.tabOrder.some(tid => state.tabs[tid]?.groupId === gid);
+        if (!hasRemaining) {
+          delete state.tabGroups[gid];
+        }
+      }
     },
 
     /**
@@ -384,10 +443,12 @@ const browserSlice = createSlice({
       if (leftTabId) {
         delete state.tabs[leftTabId];
         state.tabOrder = state.tabOrder.filter(tid => tid !== leftTabId);
+        state.mruOrder = (state.mruOrder || []).filter(tid => tid !== leftTabId);
       }
       if (rightTabId) {
         delete state.tabs[rightTabId];
         state.tabOrder = state.tabOrder.filter(tid => tid !== rightTabId);
+        state.mruOrder = (state.mruOrder || []).filter(tid => tid !== rightTabId);
       }
     },
 
@@ -396,10 +457,11 @@ const browserSlice = createSlice({
      * at a specific position in tabOrder.
      */
     insertSplitTabAt(state, action) {
-      const { index, splitPair, leftTab, rightTab } = action.payload || {};
+      const { index, splitPair, leftTab, rightTab, groupId = null } = action.payload || {};
       if (!splitPair || !leftTab?.id) return;
 
       const safeIndex = Math.max(0, Math.min(index ?? state.tabOrder.length, state.tabOrder.length));
+      const safeGroupId = groupId || null;
 
       state.tabs[leftTab.id] = {
         ...tabChromeDefaults(),
@@ -410,6 +472,7 @@ const browserSlice = createSlice({
         isStealth: !!leftTab.isStealth,
         isLoading: !!leftTab.isLoading,
         splitPairId: splitPair.id,
+        groupId: safeGroupId,
       };
 
       if (rightTab?.id) {
@@ -422,6 +485,7 @@ const browserSlice = createSlice({
           isStealth: !!rightTab.isStealth,
           isLoading: !!rightTab.isLoading,
           splitPairId: splitPair.id,
+          groupId: safeGroupId,
         };
         state.tabOrder.splice(safeIndex, 0, leftTab.id, rightTab.id);
       } else {
@@ -562,8 +626,13 @@ const browserSlice = createSlice({
     setCurrentTab(state, action) {
       const id = action.payload;
       state.currentTabId = id;
+      touchMruTab(state, id);
       if (state.tabs[id]) {
         state.tabs[id].lastActiveAt = Date.now();
+        const gid = state.tabs[id].groupId;
+        if (gid && state.tabGroups?.[gid]?.collapsed) {
+          state.tabGroups[gid].collapsed = false;
+        }
       }
     },
 
@@ -577,6 +646,14 @@ const browserSlice = createSlice({
 
       const others = state.tabOrder.filter(tid => tid !== id);
       if (next && !wasPinned) {
+        if (state.tabs[id].groupId) {
+          const oldGid = state.tabs[id].groupId;
+          state.tabs[id].groupId = null;
+          const hasRemaining = others.some(tid => state.tabs[tid]?.groupId === oldGid);
+          if (!hasRemaining && state.tabGroups?.[oldGid]) {
+            delete state.tabGroups[oldGid];
+          }
+        }
         const otherPinned = others.filter(tid => state.tabs[tid]?.isPinned);
         const unpinned = others.filter(tid => !state.tabs[tid]?.isPinned);
         state.tabOrder = [id, ...otherPinned, ...unpinned];
@@ -625,8 +702,12 @@ const browserSlice = createSlice({
     },
 
     reorderTabs(state, action) {
-      // action.payload: new ordered array of tab IDs
-      let nextOrder = Array.isArray(action.payload) ? [...action.payload] : [];
+      // action.payload: array of tab IDs or { tabOrder: string[], movedTabId?: string }
+      const payload = action.payload;
+      const rawOrder = Array.isArray(payload) ? payload : (Array.isArray(payload?.tabOrder) ? payload.tabOrder : []);
+      const movedTabId = !Array.isArray(payload) ? (typeof payload === 'object' ? payload?.movedTabId : undefined) : undefined;
+      const targetGroupId = !Array.isArray(payload) ? (typeof payload === 'object' ? payload?.targetGroupId : undefined) : undefined;
+      let nextOrder = [...rawOrder];
       // Preserve any companion tabs that were omitted from action.payload (e.g. from tab dragging)
       Object.values(state.splitGroups || {}).forEach((pair) => {
         if (pair.rightTabId && state.tabs[pair.rightTabId] && !nextOrder.includes(pair.rightTabId)) {
@@ -644,7 +725,186 @@ const browserSlice = createSlice({
           nextOrder.push(tid);
         }
       });
-      state.tabOrder = nextOrder;
+      // Invariant check, drag reconciliation & self-repair for group contiguity
+      const reconciled = reconcileTabOrderAfterDrag(state.tabs, state.tabOrder, nextOrder, state.tabGroups, movedTabId, targetGroupId);
+      state.tabs = reconciled.tabs;
+      state.tabOrder = reconciled.tabOrder;
+      state.tabGroups = reconciled.groups;
+      applyPinnedLeadingOrder(state);
+    },
+
+    createTabGroup(state, action) {
+      const { tabIds = [], title = '', color = null, groupId = null } = action.payload || {};
+      const fullTabIds = getCompanionTabIds(state, tabIds);
+      const res = modelCreateGroup({
+        tabs: state.tabs,
+        tabOrder: state.tabOrder,
+        groups: state.tabGroups,
+        tabIds: fullTabIds,
+        title,
+        color,
+      });
+      state.tabs = res.tabs;
+      state.tabOrder = res.tabOrder;
+      state.tabGroups = res.groups;
+      applyPinnedLeadingOrder(state);
+    },
+
+    addTabsToGroup(state, action) {
+      const { tabIds = [], groupId } = action.payload || {};
+      if (!groupId || !state.tabGroups?.[groupId]) return;
+      const fullTabIds = getCompanionTabIds(state, tabIds);
+      const res = modelAddToGroup({
+        tabs: state.tabs,
+        tabOrder: state.tabOrder,
+        groups: state.tabGroups,
+        tabIds: fullTabIds,
+        groupId,
+        activeTabId: state.currentTabId,
+      });
+      state.tabs = res.tabs;
+      state.tabOrder = res.tabOrder;
+      state.tabGroups = res.groups;
+      applyPinnedLeadingOrder(state);
+    },
+
+    removeTabsFromGroup(state, action) {
+      const { tabIds = [] } = action.payload || {};
+      const fullTabIds = getCompanionTabIds(state, tabIds);
+      const res = modelRemoveFromGroup({
+        tabs: state.tabs,
+        tabOrder: state.tabOrder,
+        groups: state.tabGroups,
+        tabIds: fullTabIds,
+      });
+      state.tabs = res.tabs;
+      state.tabOrder = res.tabOrder;
+      state.tabGroups = res.groups;
+      applyPinnedLeadingOrder(state);
+    },
+
+    ungroupTabGroup(state, action) {
+      const payload = action.payload;
+      const groupId = typeof payload === 'string' ? payload : payload?.groupId;
+      if (!groupId || !state.tabGroups?.[groupId]) return;
+      const res = modelUngroup({
+        tabs: state.tabs,
+        tabOrder: state.tabOrder,
+        groups: state.tabGroups,
+        groupId,
+      });
+      state.tabs = res.tabs;
+      state.tabOrder = res.tabOrder;
+      state.tabGroups = res.groups;
+    },
+
+    setGroupVisuals(state, action) {
+      const { groupId, title, color } = action.payload || {};
+      if (!groupId || !state.tabGroups?.[groupId]) return;
+      if (title !== undefined) {
+        state.tabGroups[groupId].title = String(title).slice(0, 50);
+      }
+      if (color !== undefined) {
+        state.tabGroups[groupId].color = color;
+      }
+    },
+
+    toggleGroupCollapse(state, action) {
+      const { groupId, collapsed = null } = action.payload || {};
+      if (!groupId || !state.tabGroups?.[groupId]) return;
+      const res = modelToggleCollapse({
+        tabs: state.tabs,
+        tabOrder: state.tabOrder,
+        groups: state.tabGroups,
+        groupId,
+        collapsed,
+        activeTabId: state.currentTabId,
+        mruOrder: state.mruOrder || [],
+      });
+      state.tabs = res.tabs;
+      state.tabOrder = res.tabOrder;
+      state.tabGroups = res.groups;
+      if (res.nextActiveTabId && res.nextActiveTabId !== 'NEW_TAB' && state.tabs[res.nextActiveTabId]) {
+        state.currentTabId = res.nextActiveTabId;
+        touchMruTab(state, res.nextActiveTabId);
+      }
+    },
+
+    moveGroup(state, action) {
+      const { groupId, targetIndex } = action.payload || {};
+      if (!groupId || !state.tabGroups?.[groupId]) return;
+      const pinnedCount = state.tabOrder.filter(tid => state.tabs[tid]?.isPinned).length;
+      const res = modelMoveGroup({
+        tabs: state.tabs,
+        tabOrder: state.tabOrder,
+        groups: state.tabGroups,
+        groupId,
+        insertIndex: Number(targetIndex) || 0,
+        pinnedTabCount: pinnedCount,
+      });
+      state.tabs = res.tabs;
+      state.tabOrder = res.tabOrder;
+      state.tabGroups = res.groups;
+      applyPinnedLeadingOrder(state);
+    },
+
+    setTabGroups(state, action) {
+      state.tabGroups = action.payload && typeof action.payload === 'object' ? action.payload : {};
+      const repaired = repairInvariants(state.tabs, state.tabOrder, state.tabGroups, state.currentTabId);
+      state.tabs = repaired.tabs;
+      state.tabOrder = repaired.tabOrder;
+      state.tabGroups = repaired.groups;
+      state.mruOrder = (state.mruOrder || []).filter((id) => !!state.tabs[id]);
+    },
+
+    detachGroup(state, action) {
+      const { groupId, memberTabIds = [] } = action.payload || {};
+      if (groupId && state.tabGroups?.[groupId]) {
+        delete state.tabGroups[groupId];
+      }
+      for (const tid of memberTabIds) {
+        delete state.tabs[tid];
+      }
+      state.tabOrder = state.tabOrder.filter((id) => !memberTabIds.includes(id));
+      state.mruOrder = (state.mruOrder || []).filter((id) => !memberTabIds.includes(id));
+      if (memberTabIds.includes(state.currentTabId)) {
+        state.currentTabId = state.tabOrder[0] || null;
+        if (state.currentTabId) {
+          touchMruTab(state, state.currentTabId);
+        }
+      }
+    },
+
+    reattachTabGroup(state, action) {
+      const { group, tabs = [], insertIndex = 0 } = action.payload || {};
+      if (!group?.id || !Array.isArray(tabs) || tabs.length === 0) return;
+      state.tabGroups = state.tabGroups || {};
+      state.tabGroups[group.id] = { ...group };
+      const safeIdx = Math.max(0, Math.min(state.tabOrder.length, Number(insertIndex) || 0));
+      const addedIds = [];
+      tabs.forEach((t) => {
+        if (!t?.id) return;
+        state.tabs[t.id] = {
+          url: t.url || NTP_URL,
+          title: t.title || 'New Tab',
+          favicon: t.favicon || null,
+          isNewTab: isNtpUrl(t.url || NTP_URL),
+          isStealth: !!t.isStealth,
+          isLoading: false,
+          isSleeping: false,
+          ...tabChromeDefaults(),
+          ...t,
+          groupId: group.id,
+        };
+        if (!state.tabOrder.includes(t.id)) {
+          addedIds.push(t.id);
+        }
+      });
+      state.tabOrder.splice(safeIdx, 0, ...addedIds);
+      if (addedIds.length > 0) {
+        state.currentTabId = addedIds[0];
+        touchMruTab(state, addedIds[0]);
+      }
       applyPinnedLeadingOrder(state);
     },
   },
@@ -685,6 +945,16 @@ export const {
   setSplitFocusedSide,
   swapSplitSides,
   toggleSplitStacked,
+  createTabGroup,
+  addTabsToGroup,
+  removeTabsFromGroup,
+  ungroupTabGroup,
+  setGroupVisuals,
+  toggleGroupCollapse,
+  moveGroup: moveTabGroup,
+  setTabGroups,
+  detachGroup,
+  reattachTabGroup,
 } = browserSlice.actions;
 
 export default browserSlice.reducer;

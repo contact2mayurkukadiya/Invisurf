@@ -20,6 +20,12 @@ import {
   insertSplitTabAt,
   swapSplitSides,
   toggleSplitStacked,
+  createTabGroup,
+  addTabsToGroup,
+  removeTabsFromGroup,
+  ungroupTabGroup,
+  setTabGroups,
+  reattachTabGroup,
 } from './store/browserSlice';
 import { setBookmarks } from './store/bookmarksSlice';
 import { useElectronIPC } from './hooks/useElectronIPC';
@@ -54,13 +60,49 @@ function hostnameFromUrl(url) {
   }
 }
 
+function getNextActiveTabOnClose({ closingId, tabOrder, remaining, tabs, tabGroups, mruOrder }) {
+  if (!remaining || remaining.length === 0) return null;
+
+  const isTabVisible = (tid) => {
+    if (!tid || !tabs[tid]) return false;
+    const gid = tabs[tid].groupId;
+    return !gid || !tabGroups?.[gid]?.collapsed;
+  };
+
+  // 1. Try finding the most recently used visible tab from mruOrder
+  if (Array.isArray(mruOrder)) {
+    for (const tid of mruOrder) {
+      if (tid !== closingId && remaining.includes(tid) && isTabVisible(tid)) {
+        return tid;
+      }
+    }
+  }
+
+  // 2. Fallback: spatial neighbor (first uncollapsed neighbor to right, then left)
+  const idx = tabOrder.indexOf(closingId);
+  const rightNeighbor = remaining[idx];
+  const leftNeighbor = remaining[idx - 1];
+
+  if (rightNeighbor && isTabVisible(rightNeighbor)) return rightNeighbor;
+  if (leftNeighbor && isTabVisible(leftNeighbor)) return leftNeighbor;
+
+  // 3. Any visible tab in remaining
+  const anyVisible = remaining.find(isTabVisible);
+  if (anyVisible) return anyVisible;
+
+  // 4. Default fallback to standard spatial neighbor (even if collapsed)
+  return rightNeighbor ?? leftNeighbor ?? remaining[0] ?? null;
+}
+
 function AppShell() {
   useChromeTheme();
   const dispatch = useDispatch();
   const tabs = useSelector(s => s.browser.tabs);
   const tabOrder = useSelector(s => s.browser.tabOrder);
+  const mruOrder = useSelector(s => s.browser.mruOrder || []);
   const currentTabId = useSelector(s => s.browser.currentTabId);
   const splitGroups = useSelector(s => s.browser.splitGroups || {});
+  const tabGroups = useSelector(s => s.browser.tabGroups || {});
   const showBookmarkBar = useSelector(s => s.browser.showBookmarkBar !== false);
   /** True for dedicated stealth (incognito) windows — all tabs are private; chrome is fixed dark InvSurf. */
   const stealthWindowRef = useRef(!!(typeof window !== 'undefined' && window.__INVISURF_STEALTH_WINDOW__));
@@ -107,7 +149,7 @@ function AppShell() {
 
   // Always-fresh ref so event-handler closures never capture stale state
   const stateRef = useRef({});
-  stateRef.current = { tabs, tabOrder, currentTabId, splitGroups };
+  stateRef.current = { tabs, tabOrder, mruOrder, currentTabId, splitGroups, tabGroups };
   // Startup waits on IPC before deciding whether to create its default tab.
   // Track tab creation synchronously so Cmd+T can win that race safely.
   const hasRegisteredTabRef = useRef(false);
@@ -119,7 +161,7 @@ function AppShell() {
   const requestSessionSave = useCallback(() => {
     clearTimeout(sessionTimer.current);
     sessionTimer.current = setTimeout(() => {
-      const { tabs, tabOrder, currentTabId, splitGroups } = stateRef.current;
+      const { tabs, tabOrder, currentTabId, splitGroups, tabGroups } = stateRef.current;
       const tabsToSave = tabOrder
         .filter(id => tabs[id] && !tabs[id].isStealth)
         .map(id => ({
@@ -130,6 +172,7 @@ function AppShell() {
           title: tabs[id].title || URL_C.NEW_TAB_LABEL,
           favicon: tabs[id].favicon || null,
           splitPairId: tabs[id].splitPairId || null,
+          groupId: tabs[id].groupId || null,
         }));
 
       if (tabsToSave.length > 0 && window.electronAPI.sessionSave) {
@@ -140,7 +183,8 @@ function AppShell() {
         window.electronAPI.sessionSave({
           tabs: tabsToSave,
           activeTabId: activeTab,
-          splitGroups: splitGroups || {}
+          splitGroups: splitGroups || {},
+          tabGroups: tabGroups || {},
         });
       }
     }, 700);
@@ -148,7 +192,7 @@ function AppShell() {
 
   useEffect(() => {
     if (tabOrder.length > 0) requestSessionSave();
-  }, [tabOrder, splitGroups, requestSessionSave]);
+  }, [tabOrder, splitGroups, tabGroups, requestSessionSave]);
 
   // Native Tab menu: Mute/Unmute Site + Pin/Unpin labels for the active tab
   useEffect(() => {
@@ -206,7 +250,7 @@ function AppShell() {
   }, []);
 
   const closeTab = useCallback((id) => {
-    const { tabOrder, currentTabId } = stateRef.current;
+    const { tabOrder, currentTabId, tabs, tabGroups, mruOrder } = stateRef.current;
     const isActive = currentTabId === id;
     const remaining = tabOrder.filter((tid) => tid !== id);
     const closeWindowIfLast = remaining.length === 0;
@@ -215,8 +259,14 @@ function AppShell() {
     window.electronAPI.closeTab(id, { closeWindowIfLast });
 
     if (isActive && !closeWindowIfLast) {
-      const idx = tabOrder.indexOf(id);
-      const nextId = remaining[idx] ?? remaining[idx - 1];
+      const nextId = getNextActiveTabOnClose({
+        closingId: id,
+        tabOrder,
+        remaining,
+        tabs,
+        tabGroups,
+        mruOrder,
+      });
 
       if (nextId) {
         // Small delay so removeTab dispatch settles before switchTab
@@ -230,7 +280,7 @@ function AppShell() {
 
   const handleTabClosedExternal = useCallback((id) => {
     if (!id) return;
-    const { tabOrder, currentTabId } = stateRef.current;
+    const { tabOrder, currentTabId, tabs, tabGroups, mruOrder } = stateRef.current;
     if (!tabOrder.includes(id)) return;
     const isActive = currentTabId === id;
     const remaining = tabOrder.filter((tid) => tid !== id);
@@ -239,8 +289,14 @@ function AppShell() {
     dispatch(removeTab(id));
 
     if (isActive && !closeWindowIfLast) {
-      const idx = tabOrder.indexOf(id);
-      const nextId = remaining[idx] ?? remaining[idx - 1];
+      const nextId = getNextActiveTabOnClose({
+        closingId: id,
+        tabOrder,
+        remaining,
+        tabs,
+        tabGroups,
+        mruOrder,
+      });
 
       if (nextId) {
         setTimeout(() => {
@@ -253,13 +309,13 @@ function AppShell() {
     }
   }, [dispatch, closeCurrentShellWindow]);
 
-  const handleDragEnd = useCallback((newTabOrder) => {
-    dispatch(reorderTabs(newTabOrder));
+  const handleDragEnd = useCallback((newTabOrder, details) => {
+    dispatch(reorderTabs({ tabOrder: newTabOrder, movedTabId: details?.movedTabId, targetGroupId: details?.targetGroupId }));
     requestSessionSave();
   }, [dispatch, requestSessionSave]);
 
   const handleDetachTab = useCallback((id, splitPair) => {
-    const { tabOrder, currentTabId, splitGroups } = stateRef.current;
+    const { tabOrder, currentTabId, splitGroups, tabs, tabGroups, mruOrder } = stateRef.current;
     const pair = splitPair || (splitGroups && Object.values(splitGroups).find(p => p.leftTabId === id || p.rightTabId === id));
 
     if (pair) {
@@ -272,8 +328,14 @@ function AppShell() {
       dispatch(detachSplitTab(pair.id));
 
       if (wasActive && remaining.length > 0) {
-        const leftIdx = tabOrder.indexOf(leftId);
-        const nextId = remaining[leftIdx] ?? remaining[leftIdx - 1] ?? remaining[0];
+        const nextId = getNextActiveTabOnClose({
+          closingId: leftId,
+          tabOrder,
+          remaining,
+          tabs,
+          tabGroups,
+          mruOrder,
+        });
         if (nextId) {
           dispatch(setCurrentTab(nextId));
           window.electronAPI?.switchTab?.(nextId);
@@ -288,8 +350,14 @@ function AppShell() {
     dispatch(removeTab(id));
 
     if (isActive && remaining.length > 0) {
-      const idx = tabOrder.indexOf(id);
-      const nextId = remaining[idx] ?? remaining[idx - 1];
+      const nextId = getNextActiveTabOnClose({
+        closingId: id,
+        tabOrder,
+        remaining,
+        tabs,
+        tabGroups,
+        mruOrder,
+      });
       if (nextId) {
         dispatch(setCurrentTab(nextId));
         window.electronAPI?.switchTab?.(nextId);
@@ -474,8 +542,53 @@ function AppShell() {
       { type: CONTEXT_MENU.TYPE_SEPARATOR },
     ];
 
+    const tabGroups = stateRef.current.tabGroups || {};
+    const groupList = Object.values(tabGroups);
+
+    // Grouping submenu: "Add tab to group"
+    const addSubmenu = [
+      { type: CONTEXT_MENU.TYPE_ITEM, id: TAB_STRIP_MENU.GROUP_NEW, label: 'New group', enabled: !t.isPinned },
+    ];
+    if (groupList.length > 0) {
+      addSubmenu.push({ type: CONTEXT_MENU.TYPE_SEPARATOR });
+      groupList.forEach((grp) => {
+        const title = grp.title && grp.title.trim() ? grp.title : 'Untitled group';
+        addSubmenu.push({
+          type: CONTEXT_MENU.TYPE_ITEM,
+          id: `groupAdd:${grp.id}`,
+          label: title,
+          enabled: !t.isPinned && t.groupId !== grp.id,
+        });
+      });
+    }
+
+    const groupItems = [
+      {
+        type: CONTEXT_MENU.TYPE_SUBMENU,
+        label: 'Add tab to group',
+        enabled: !t.isPinned,
+        submenu: addSubmenu,
+      },
+    ];
+    if (t.groupId) {
+      groupItems.push({
+        type: CONTEXT_MENU.TYPE_ITEM,
+        id: TAB_STRIP_MENU.GROUP_REMOVE,
+        label: 'Remove from group',
+        enabled: true,
+      });
+      groupItems.push({
+        type: CONTEXT_MENU.TYPE_ITEM,
+        id: TAB_STRIP_MENU.GROUP_MOVE_NEW_WINDOW,
+        label: 'Move group to new window',
+        enabled: !stealthShell,
+      });
+    }
+    groupItems.push({ type: CONTEXT_MENU.TYPE_SEPARATOR });
+
     return [
       { type: CONTEXT_MENU.TYPE_ITEM, id: TAB_STRIP_MENU.NEW_TAB_RIGHT, label: 'New Tab to the Right', enabled: true },
+      ...groupItems,
       { type: CONTEXT_MENU.TYPE_ITEM, id: TAB_STRIP_MENU.MOVE_NEW_WINDOW, label: 'Move Tab to New Window', enabled: !stealthShell },
       ...splitItems,
       { type: CONTEXT_MENU.TYPE_ITEM, id: TAB_STRIP_MENU.RELOAD, label: 'Reload', enabled: !t.isSleeping },
@@ -618,12 +731,15 @@ function AppShell() {
     openSingletonTab(URL_C.SETTINGS_NAVIGATE, URL_C.SETTINGS_DISPLAY);
   }, [openSingletonTab]);
 
-  const handleTabCreated = useCallback(({ id, url, isStealth }) => {
+  const handleTabCreated = useCallback(({ id, url, isStealth, groupId, groupVisual }) => {
     console.log('handleTabCreated', id, url, isStealth);
     hasRegisteredTabRef.current = true;
-    const { tabs } = stateRef.current;
+    const { tabs, tabGroups } = stateRef.current;
     if (!tabs[id]) {
-      dispatch(addTab({ id, isStealth, initialUrl: url }));
+      if (groupId && groupVisual && !tabGroups?.[groupId]) {
+        dispatch(setGroupVisuals({ groupId, ...groupVisual }));
+      }
+      dispatch(addTab({ id, isStealth, initialUrl: url, groupId: groupId || null }));
     }
   }, [dispatch]);
 
@@ -642,11 +758,27 @@ function AppShell() {
     }, 0);
   }, [dispatch]);
 
+  useEffect(() => {
+    const handleCreateGroupForTabs = (e) => {
+      const { tabIds, title, color } = e.detail || {};
+      if (Array.isArray(tabIds) && tabIds.length > 0) {
+        dispatch(createTabGroup({ tabIds, title, color }));
+      }
+    };
+    window.addEventListener('invisurf:create-group-for-tabs', handleCreateGroupForTabs);
+    return () => window.removeEventListener('invisurf:create-group-for-tabs', handleCreateGroupForTabs);
+  }, [dispatch]);
+
   // ── Register all IPC listeners ───────────────────────────────────────────
   useEffect(() => {
     const unsub = window.electronAPI?.onTabStripContextMenuAction?.((data) => {
       const { tabId, id } = data || {};
       if (!tabId || !id) return;
+      if (typeof id === 'string' && id.startsWith('groupAdd:')) {
+        const gid = id.replace('groupAdd:', '');
+        tabStripMenuHandlersRef.current?.handleGroupAdd?.(tabId, gid);
+        return;
+      }
       const fn = tabStripMenuHandlersRef.current[id];
       if (typeof fn === 'function') fn(tabId);
     });
@@ -712,7 +844,75 @@ function AppShell() {
       dispatch(setBookmarks(bkData));
       if (settingsData?.searchEngine) setSearchEngine(settingsData.searchEngine);
 
-      // 1.4 Bootstrap payload for detached tabs from vertical drag
+      // 1.4 Bootstrap payload for detached tabs / groups from vertical drag
+      if (bootstrap?.detachedGroup) {
+        const { group, tabs: groupTabs, activeTabId } = bootstrap.detachedGroup;
+        hasRegisteredTabRef.current = true;
+        if (group?.id) {
+          dispatch(setTabGroups({ [group.id]: { ...group } }));
+        }
+        if (Array.isArray(groupTabs)) {
+          for (let i = 0; i < groupTabs.length; i++) {
+            const t = groupTabs[i];
+            dispatch(insertTabAt({
+              index: i,
+              id: t.id,
+              url: t.url,
+              title: t.title || 'New Tab',
+              favicon: t.favicon || null,
+              isLoading: !!t.isLoading,
+              isStealth: !!t.isStealth,
+              groupId: group.id,
+            }));
+          }
+        }
+        if (activeTabId) {
+          dispatch(setCurrentTab(activeTabId));
+        }
+        return;
+      }
+
+      // 1.45 Bootstrap payload for "Move Group to New Window"
+      if (bootstrap?.movedGroup) {
+        const { group, tabs: groupTabs, activeTabId } = bootstrap.movedGroup;
+        hasRegisteredTabRef.current = true;
+        if (group?.id) {
+          dispatch(setTabGroups({ [group.id]: { ...group } }));
+        }
+        if (Array.isArray(groupTabs) && groupTabs.length > 0) {
+          const actId = activeTabId && groupTabs.some(t => t.id === activeTabId)
+            ? activeTabId
+            : groupTabs[0].id;
+
+          const activeTabObj = groupTabs.find(t => t.id === actId) || groupTabs[0];
+
+          for (let i = 0; i < groupTabs.length; i++) {
+            const t = groupTabs[i];
+            if (t.id === activeTabObj.id) {
+              dispatch(addTab({
+                id: t.id,
+                isStealth: !!t.isStealth,
+                initialUrl: t.url,
+                groupId: group.id,
+              }));
+              window.electronAPI.newTab(t.id, !!t.isStealth, t.url);
+            } else {
+              dispatch(addSleepingTab({
+                id: t.id,
+                url: t.url,
+                title: t.title || 'New Tab',
+                favicon: t.favicon || null,
+                isStealth: !!t.isStealth,
+                groupId: group.id,
+              }));
+              window.electronAPI.tabSleepRegister?.(t.id, t.url);
+            }
+          }
+          dispatch(setCurrentTab(activeTabObj.id));
+        }
+        return;
+      }
+
       if (bootstrap?.detachedSplit) {
         const { splitPair, leftTab, rightTab } = bootstrap.detachedSplit;
         hasRegisteredTabRef.current = true;
@@ -782,14 +982,30 @@ function AppShell() {
 
       // 1.9 Bootstrap payload for Cmd/Ctrl+Shift+T closed-window restore.
       if (bootstrap?.restoreWindow?.tabs?.length) {
-        const { tabs, activeTabId } = bootstrap.restoreWindow;
+        const { tabs, activeTabId, tabGroups, splitGroups } = bootstrap.restoreWindow;
+        if (tabGroups && typeof tabGroups === 'object') {
+          dispatch(setTabGroups(tabGroups));
+        }
+        if (splitGroups && typeof splitGroups === 'object') {
+          for (const [pairId, group] of Object.entries(splitGroups)) {
+            if (tabs.some((t) => t.id === group.leftTabId) && tabs.some((t) => t.id === group.rightTabId)) {
+              dispatch(setSplitGroup({ pairId, ...group }));
+            }
+          }
+        }
         const activeId = activeTabId && tabs.some((t) => t.id === activeTabId)
           ? activeTabId
           : tabs[tabs.length - 1].id;
 
         for (const t of tabs) {
           if (t.id === activeId) {
-            dispatch(addTab({ id: t.id, isStealth: false, initialUrl: t.url }));
+            dispatch(addTab({
+              id: t.id,
+              isStealth: false,
+              initialUrl: t.url,
+              splitPairId: t.splitPairId || null,
+              groupId: t.groupId || null,
+            }));
             window.electronAPI.newTab(t.id, false, t.url, { history: t.history || null });
           } else {
             dispatch(addSleepingTab({
@@ -797,6 +1013,8 @@ function AppShell() {
               url: t.url,
               title: t.title,
               favicon: t.favicon,
+              splitPairId: t.splitPairId || null,
+              groupId: t.groupId || null,
             }));
             window.electronAPI.tabSleepRegister(t.id, t.url, {
               title: t.title,
@@ -804,6 +1022,10 @@ function AppShell() {
               history: t.history || null,
             });
           }
+        }
+
+        if (tabGroups && typeof tabGroups === 'object') {
+          dispatch(setTabGroups(tabGroups));
         }
 
         setTimeout(() => {
@@ -825,6 +1047,10 @@ function AppShell() {
 
       if (session?.tabs?.length > 0) {
         const splitGroupsToRestore = session.splitGroups || {};
+        const tabGroupsToRestore = session.tabGroups || {};
+        if (tabGroupsToRestore && Object.keys(tabGroupsToRestore).length > 0) {
+          dispatch(setTabGroups(tabGroupsToRestore));
+        }
         const activeId = session.activeTabId && session.tabs.some(t => t.id === session.activeTabId)
           ? session.activeTabId
           : session.tabs[session.tabs.length - 1].id;
@@ -841,12 +1067,25 @@ function AppShell() {
           const isEager = t.id === activeId || (activeSplitPair && (t.id === activeSplitPair.leftTabId || t.id === activeSplitPair.rightTabId));
           if (isEager) {
             // Active tab or companion split view: create the WebContentsView and load its URL eagerly.
-            dispatch(addTab({ id: t.id, isStealth: false, initialUrl: t.url, splitPairId: t.splitPairId || null }));
+            dispatch(addTab({
+              id: t.id,
+              isStealth: false,
+              initialUrl: t.url,
+              splitPairId: t.splitPairId || null,
+              groupId: t.groupId || null,
+            }));
             window.electronAPI.newTab(t.id, false, t.url);
           } else {
             // Inactive tabs: add to the tab strip using cached metadata only.
             // No WebContentsView is created; it will be created on first activation.
-            dispatch(addSleepingTab({ id: t.id, url: t.url, title: t.title, favicon: t.favicon, splitPairId: t.splitPairId || null }));
+            dispatch(addSleepingTab({
+              id: t.id,
+              url: t.url,
+              title: t.title,
+              favicon: t.favicon,
+              splitPairId: t.splitPairId || null,
+              groupId: t.groupId || null,
+            }));
             window.electronAPI.tabSleepRegister(t.id, t.url);
           }
         }
@@ -855,6 +1094,10 @@ function AppShell() {
           if (session.tabs.some(t => t.id === group.leftTabId) && session.tabs.some(t => t.id === group.rightTabId)) {
             dispatch(setSplitGroup({ pairId, ...group }));
           }
+        }
+
+        if (tabGroupsToRestore && Object.keys(tabGroupsToRestore).length > 0) {
+          dispatch(setTabGroups(tabGroupsToRestore));
         }
 
         // Give React a tick to render the tab strip before switching.
@@ -924,6 +1167,51 @@ function AppShell() {
       if (pid) window.electronAPI?.splitTabExit?.(pid);
       else if (tid) window.electronAPI?.splitTabExit?.(tid);
     },
+    [TAB_STRIP_MENU.GROUP_NEW]: (tid) => {
+      dispatch(createTabGroup({ tabIds: [tid] }));
+      setTimeout(() => {
+        const updatedGroups = stateRef.current.tabGroups || {};
+        const targetTab = stateRef.current.tabs[tid];
+        if (targetTab?.groupId && updatedGroups[targetTab.groupId]) {
+          window.dispatchEvent(new CustomEvent('invisurf:open-group-editor', {
+            detail: { groupId: targetTab.groupId }
+          }));
+        }
+      }, 60);
+    },
+    [TAB_STRIP_MENU.GROUP_REMOVE]: (tid) => {
+      dispatch(removeTabsFromGroup({ tabIds: [tid] }));
+    },
+    [TAB_STRIP_MENU.GROUP_MOVE_NEW_WINDOW]: (tid) => {
+      const gid = stateRef.current.tabs[tid]?.groupId;
+      if (!gid) return;
+      const group = stateRef.current.tabGroups?.[gid];
+      const toMove = stateRef.current.tabOrder.filter((id) => stateRef.current.tabs[id]?.groupId === gid);
+      if (group && toMove.length > 0 && window.electronAPI?.createWindow) {
+        const memberTabsData = toMove.map((id) => {
+          const tabObj = stateRef.current.tabs[id];
+          return {
+            id,
+            url: tabObj?.url || '',
+            title: tabObj?.title || 'New Tab',
+            favicon: tabObj?.favicon || null,
+            isStealth: !!tabObj?.isStealth,
+          };
+        });
+        const curId = stateRef.current.currentTabId;
+        const activeTabId = toMove.includes(curId) ? curId : toMove[0];
+
+        window.electronAPI.createWindow({
+          group: { ...group },
+          tabs: memberTabsData,
+          activeTabId,
+        });
+        toMove.forEach((id) => closeTab(id));
+      }
+    },
+    handleGroupAdd: (tid, gid) => {
+      dispatch(addTabsToGroup({ tabIds: [tid], groupId: gid }));
+    },
   };
 
   useEffect(() => {
@@ -966,7 +1254,35 @@ function AppShell() {
   // Handle cross-window tab reattaching / docking
   useEffect(() => {
     const unsubReattach = window.electronAPI?.onTabReattached?.((payload) => {
-      const { tab, splitPair, leftTab, rightTab, screenX } = payload || {};
+      const { tab, splitPair, leftTab, rightTab, group, tabs: groupTabs, screenX } = payload || {};
+
+      // Handle reattaching a whole tab group from another window
+      if (group && Array.isArray(groupTabs) && groupTabs.length > 0) {
+        const { tabOrder } = stateRef.current;
+        const container = document.querySelector('.tab-container');
+        const containerRect = container?.getBoundingClientRect();
+        let insertIndex = tabOrder.length;
+        if (containerRect) {
+          const windowLeft = window.screenX || 0;
+          const relativeX = (Number(screenX) - windowLeft) - containerRect.left;
+          const tabEls = Array.from(container.querySelectorAll('.tab'));
+          for (let i = 0; i < tabEls.length; i++) {
+            const r = tabEls[i].getBoundingClientRect();
+            const tabCenter = (r.left - containerRect.left) + r.width / 2;
+            if (relativeX < tabCenter) {
+              insertIndex = i;
+              break;
+            }
+          }
+        }
+
+        dispatch(reattachTabGroup({
+          group,
+          tabs: groupTabs,
+          insertIndex,
+        }));
+        return;
+      }
 
       if (splitPair && leftTab?.id) {
         const { tabOrder, tabs } = stateRef.current;
@@ -989,11 +1305,47 @@ function AppShell() {
           }
         }
 
+        // Check if reattaching into an expanded group's area
+        const clientX = (Number(screenX) - (window.screenX || 0));
+        let targetGroupId = null;
+        const expandedChips = Array.from(document.querySelectorAll('.group-chip-wrapper:not(.group-chip-wrapper--collapsed)'));
+        for (const chipWrapper of expandedChips) {
+          const gid = chipWrapper.getAttribute('data-group-id') || chipWrapper.querySelector('.group-chip')?.getAttribute('data-group-id');
+          if (!gid) continue;
+          const memberTabs = Array.from(document.querySelectorAll(`.tab[data-group-id="${gid}"]`));
+          if (memberTabs.length === 0) continue;
+          const chipRect = chipWrapper.getBoundingClientRect();
+          const firstMemberRect = memberTabs[0].getBoundingClientRect();
+          const lastMemberRect = memberTabs[memberTabs.length - 1].getBoundingClientRect();
+          const groupLeft = Math.min(chipRect.left, firstMemberRect.left);
+          const groupRight = lastMemberRect.right + 20;
+          if (clientX >= groupLeft - 10 && clientX <= groupRight) {
+            targetGroupId = gid;
+            break;
+          }
+        }
+
+        const candidateGid = leftTab?.groupId || splitPair?.groupId;
+        if (!targetGroupId && candidateGid && stateRef.current.tabGroups?.[candidateGid]) {
+          targetGroupId = candidateGid;
+        }
+
+        if (!targetGroupId && insertIndex > 0) {
+          const prevGid = tabs[tabOrder[insertIndex - 1]]?.groupId;
+          const nextGid = insertIndex < tabOrder.length ? tabs[tabOrder[insertIndex]]?.groupId : null;
+          if (prevGid && (prevGid === nextGid || prevGid === candidateGid)) {
+            targetGroupId = prevGid;
+          } else if (nextGid && nextGid === candidateGid) {
+            targetGroupId = nextGid;
+          }
+        }
+
         dispatch(insertSplitTabAt({
           index: insertIndex,
           splitPair,
           leftTab,
           rightTab,
+          groupId: targetGroupId,
         }));
         return;
       }
@@ -1019,6 +1371,41 @@ function AppShell() {
         }
       }
 
+      // Check if reattaching into an expanded group's area
+      const clientX = (Number(screenX) - (window.screenX || 0));
+      let targetGroupId = null;
+      const expandedChips = Array.from(document.querySelectorAll('.group-chip-wrapper:not(.group-chip-wrapper--collapsed)'));
+      for (const chipWrapper of expandedChips) {
+        const gid = chipWrapper.getAttribute('data-group-id') || chipWrapper.querySelector('.group-chip')?.getAttribute('data-group-id');
+        if (!gid) continue;
+        const memberTabs = Array.from(document.querySelectorAll(`.tab[data-group-id="${gid}"]`));
+        if (memberTabs.length === 0) continue;
+        const chipRect = chipWrapper.getBoundingClientRect();
+        const firstMemberRect = memberTabs[0].getBoundingClientRect();
+        const lastMemberRect = memberTabs[memberTabs.length - 1].getBoundingClientRect();
+        const groupLeft = Math.min(chipRect.left, firstMemberRect.left);
+        const groupRight = lastMemberRect.right + 20;
+        if (clientX >= groupLeft - 10 && clientX <= groupRight) {
+          targetGroupId = gid;
+          break;
+        }
+      }
+
+      const candidateGid = tab.groupId;
+      if (!targetGroupId && candidateGid && stateRef.current.tabGroups?.[candidateGid]) {
+        targetGroupId = candidateGid;
+      }
+
+      if (!targetGroupId && insertIndex > 0) {
+        const prevGid = tabs[tabOrder[insertIndex - 1]]?.groupId;
+        const nextGid = insertIndex < tabOrder.length ? tabs[tabOrder[insertIndex]]?.groupId : null;
+        if (prevGid && (prevGid === nextGid || prevGid === candidateGid)) {
+          targetGroupId = prevGid;
+        } else if (nextGid && nextGid === candidateGid) {
+          targetGroupId = nextGid;
+        }
+      }
+
       dispatch(insertTabAt({
         index: insertIndex,
         id: tab.id,
@@ -1027,6 +1414,7 @@ function AppShell() {
         favicon: tab.favicon || null,
         isLoading: !!tab.isLoading,
         isStealth: !!tab.isStealth,
+        groupId: targetGroupId,
       }));
       dispatch(setCurrentTab(tab.id));
     });

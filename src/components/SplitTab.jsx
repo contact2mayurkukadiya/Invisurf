@@ -5,6 +5,7 @@ import { useInvsurfLogoFaviconUrl } from '../hooks/useInvsurfLogoFavicon';
 import { isInvsurfBrandedInternalTab } from '../utils/invisurfInternalPages';
 import { logoIcognitoDarkSvg, tabCloseSvg } from '../constants/appAssetUrls';
 import { setCurrentTab, setSplitFocusedSide } from '../store/browserSlice';
+import TabGroupBorder from './tabgroup/TabGroupBorder';
 import './SplitTab.css';
 
 const DEFAULT_FAVICON = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI2NjYyI+PHBhdGggZD0iTTEyIDJDNi40OCAyIDIgNi40OCAyIDEyczQuNDggMTAgMTAgMTAtNC40OCAxMC0xMFMxNy41MiAyIDEyIDJ6bTAgMThjLTQuNDEgMC04LTMuNTktOC04czMuNTktOCA4LTggOCAzLjU5IDggOC0zLjU5IDgtOCA4eiIvPjwvc3ZnPg==';
@@ -24,6 +25,12 @@ export default function SplitTab({
   pinnedTabCount = 0,
   tabCount = 1,
   onDetachTab,
+  groupColor = null,
+  isFirstInGroup = false,
+  isLastInGroup = false,
+  prevTabIsActiveInGroup = false,
+  nextTabIsActiveInGroup = false,
+  isCollapsedMember = false,
 }) {
   const dispatch = useDispatch();
   const currentTabId = useSelector(s => s.browser.currentTabId);
@@ -56,7 +63,7 @@ export default function SplitTab({
   );
 
   const handleSwitchTab = useCallback((tabId) => onSwitch(tabId), [onSwitch]);
-  const handleDragEnd = useCallback((ids) => onDragEnd(ids), [onDragEnd]);
+  const handleDragEnd = useCallback((ids, details) => onDragEnd(ids, details), [onDragEnd]);
 
   // Tab drag hook keyed to the compound tab
   const tabRef = useTabDrag({
@@ -177,6 +184,10 @@ export default function SplitTab({
     'split-compound-tab',
     isActive ? 'active' : '',
     isLensActiveOnThisSplit ? 'split-compound-tab--lens-locked' : '',
+    groupColor ? 'tab--in-group' : '',
+    groupColor && isFirstInGroup ? 'tab--group-first' : '',
+    groupColor && isLastInGroup ? 'tab--group-last' : '',
+    isCollapsedMember ? 'tab--collapsed-member' : '',
     `tab--mode-${displayMode}`,
   ].filter(Boolean).join(' ');
 
@@ -187,9 +198,20 @@ export default function SplitTab({
       className={className}
       data-tab-id={leftTabId}
       data-split-id={splitPair.id}
+      data-group-id={leftTab?.groupId || undefined}
+      style={groupColor ? { '--group-color': groupColor } : undefined}
       onClick={handleClickTab}
       onContextMenu={handleTabContextMenu}
     >
+      {/* Tab Group Chrome-parity connected border / baseline */}
+      <TabGroupBorder
+        groupColor={groupColor}
+        isActive={isActive}
+        isFirstInGroup={isFirstInGroup}
+        isLastInGroup={isLastInGroup}
+        prevTabIsActiveInGroup={prevTabIsActiveInGroup}
+        nextTabIsActiveInGroup={nextTabIsActiveInGroup}
+      />
       {/* Left visual mini-tab */}
       <div
         className={`split-mini-tab split-mini-tab--left${isVisualLeftActive ? ' active' : ''}${visualLeftIsChoosing ? ' split-mini-tab--choosing' : ''}`}

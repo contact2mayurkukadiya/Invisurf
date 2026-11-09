@@ -211,6 +211,12 @@ export const TAB_STRIP_MENU = freeze({
   SPLIT_SWITCH_SIDES: 'splitSwitchSides',
   SPLIT_TOGGLE_STACKED: 'splitToggleStacked',
   SPLIT_SEPARATE: 'splitSeparate',
+  GROUP_NEW: 'groupNew',
+  GROUP_REMOVE: 'groupRemove',
+  GROUP_UNGROUP: 'groupUngroup',
+  GROUP_CLOSE: 'groupClose',
+  GROUP_MOVE_NEW_WINDOW: 'groupMoveNewWindow',
+  GROUP_EDIT: 'groupEdit',
 });
 
 /** Context menu row types */
@@ -218,6 +224,7 @@ export const CONTEXT_MENU = freeze({
   TYPE_ITEM: 'item',
   TYPE_SEPARATOR: 'separator',
   TYPE_TAB: 'tab',
+  TYPE_SUBMENU: 'submenu',
 });
 
 /** History UI sidebar view ids */

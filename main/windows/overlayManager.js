@@ -649,6 +649,23 @@ function computeMenuOverlayBounds(context, patch) {
         });
     }
 
+    if (kind === 'tabGroupEditor') {
+        const ar = patch.anchorRect || {};
+        const panelWidth = 260;
+        const left0 = Math.round(Number(ar.left) || 0);
+        const top0 = Math.round(Number(ar.top) || 0);
+        const h0 = Math.max(1, Math.round(Number(ar.height) || 24));
+        const left = clampNumber(left0, pad, windowW - panelWidth - pad);
+        const top = clampNumber(top0 + h0 + 4, pad, windowH - 320 - pad);
+        const height = 310;
+        return menuOverlayBoundsFromPanel(context, { left, top, width: panelWidth, height }, {
+            shadowMarginTop: 6,
+            shadowMarginBottom: 28,
+            shadowMarginLeft: 28,
+            shadowMarginRight: 28,
+        });
+    }
+
     if (kind === 'cookieControls') {
         const ar = patch.anchorRect || {};
         const panelWidth = 320;
